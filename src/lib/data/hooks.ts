@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "./context";
-import type { IdentityKey } from "./fixtures";
 import type {
   Address,
   ConfigPatch,
@@ -236,19 +235,19 @@ export function useUpdateProfile() {
   });
 }
 
-// — Dev-контролы (только мок; api/chain их не имеют) —
-interface MockDevControls {
-  __setIdentity(key: IdentityKey): void;
-  __getIdentityKey(): IdentityKey;
+// — Dev/сессия-контролы: установка адреса личности (кошелёк под chain; dev-ввод под api/mock) —
+interface SessionControls {
+  __setAddress(address: Address | null): void;
+  __getAddress(): Address | null;
   __setFailMode(on: boolean): void;
   __getFailMode(): boolean;
   __setLatencyScale(scale: number): void;
   __reset(): void;
 }
 
-function asDev(provider: unknown): MockDevControls | null {
-  if (provider && typeof (provider as MockDevControls).__setIdentity === "function") {
-    return provider as MockDevControls;
+function asDev(provider: unknown): SessionControls | null {
+  if (provider && typeof (provider as SessionControls).__setAddress === "function") {
+    return provider as SessionControls;
   }
   return null;
 }
@@ -259,10 +258,10 @@ export function useDevControls() {
   const dev = asDev(data);
   return {
     available: dev !== null,
-    identityKey: dev?.__getIdentityKey() ?? ("guest" as IdentityKey),
+    address: dev?.__getAddress() ?? null,
     failMode: dev?.__getFailMode() ?? false,
-    setIdentity: (key: IdentityKey) => {
-      dev?.__setIdentity(key);
+    setAddress: (address: Address | null) => {
+      dev?.__setAddress(address);
       qc.invalidateQueries();
     },
     setFailMode: (on: boolean) => {

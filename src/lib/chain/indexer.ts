@@ -1,0 +1,117 @@
+import {
+  Connection,
+  ParsedInstruction,
+  ParsedTransactionWithMeta,
+  PartiallyDecodedInstruction,
+  PublicKey,
+} from "@solana/web3.js";
+import { splitAmount } from "./donation-tx";
+import { decodeMemo, type MemoAttribution } from "./memo";
+
+/** Истина о деньгах — цепочка, не клиент (crypto/spec.md §4). Реконструированный донат из ончейна. */
+export interface IndexedDonation {
+  signature: string;
+  donor: string;
+  amountMicro: bigint;
+  feeMicro: bigint;
+  netMicro: bigint;
+  streamerAta: string; // ATA-получатель 97%-ноги — сверяется с payout канала вызывающим
+  memo: MemoAttribution;
+  blockTime: number | null;
+}
+
+interface SplTransferParsed {
+  type: string;
+  info: {
+    authority: string;
+    destination: string;
+    mint: string;
+    source: string;
+    tokenAmount: { amount: string; decimals: number };
+  };
+}
+
+function isParsed(ix: ParsedInstruction | PartiallyDecodedInstruction): ix is ParsedInstruction {
+  return (ix as ParsedInstruction).parsed !== undefined;
+}
+
+export async function parseDonationTx(
+  connection: Connection,
+  signature: string,
+  opts: { mint: PublicKey; treasuryAta: PublicKey },
+): Promise<IndexedDonation | null> {
+  // "confirmed" для отзывчивости на devnet; в проде индексер ждёт "finalized" перед зачётом.
+  const tx = await connection.getParsedTransaction(signature, {
+    commitment: "confirmed",
+    maxSupportedTransactionVersion: 0,
+  });
+  return extractDonation(tx, signature, opts);
+}
+
+/**
+ * Чистый разбор: находит ногу-комиссию (transferChecked в treasuryAta) и парную ногу-нетто (другой
+ * transferChecked того же mint от того же donor → ATA стримера) + memo. Самоконтроль комиссии: без
+ * корректного расщепления 97/3 возвращает null (сырой перевод ≠ донат). Выделено для детерминированных тестов.
+ */
+export function extractDonation(
+  tx: ParsedTransactionWithMeta | null,
+  signature: string,
+  opts: { mint: PublicKey; treasuryAta: PublicKey },
+): IndexedDonation | null {
+  if (!tx || tx.meta?.err) return null;
+  const mint = opts.mint.toBase58();
+  const treasury = opts.treasuryAta.toBase58();
+
+  const transfers: { dest: string; amount: bigint; authority: string }[] = [];
+  let memo: MemoAttribution | null = null;
+
+  for (const ix of tx.transaction.message.instructions) {
+    if (!isParsed(ix)) continue;
+    if (ix.program === "spl-memo" && typeof ix.parsed === "string") {
+      memo = decodeMemo(ix.parsed);
+      continue;
+    }
+    if (ix.program === "spl-token") {
+      const parsed = ix.parsed as SplTransferParsed;
+      if (parsed.type !== "transferChecked" || parsed.info?.mint !== mint) continue;
+      transfers.push({
+        dest: parsed.info.destination,
+        amount: BigInt(parsed.info.tokenAmount.amount),
+        authority: parsed.info.authority,
+      });
+    }
+  }
+
+  const feeLeg = transfers.find((t) => t.dest === treasury);
+  const netLeg = transfers.find((t) => t.dest !== treasury);
+  if (!feeLeg || !netLeg || !memo) return null;
+  if (feeLeg.authority !== netLeg.authority) return null;
+
+  const amount = feeLeg.amount + netLeg.amount;
+  const expected = splitAmount(amount);
+  if (expected.fee !== feeLeg.amount || expected.net !== netLeg.amount) return null;
+
+  return {
+    signature,
+    donor: netLeg.authority,
+    amountMicro: amount,
+    feeMicro: feeLeg.amount,
+    netMicro: netLeg.amount,
+    streamerAta: netLeg.dest,
+    memo,
+    blockTime: tx.blockTime ?? null,
+  };
+}
+
+/** Новые подписи входящих в treasury ATA после `afterSignature` (для индексер-сервиса). */
+export async function fetchNewTreasurySignatures(
+  connection: Connection,
+  treasuryAta: PublicKey,
+  afterSignature?: string,
+): Promise<string[]> {
+  const sigs = await connection.getSignaturesForAddress(treasuryAta, { until: afterSignature, limit: 50 });
+  return sigs
+    .filter((s) => !s.err)
+    .map((s) => s.signature)
+    .reverse();
+}

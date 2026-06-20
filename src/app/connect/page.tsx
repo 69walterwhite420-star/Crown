@@ -1,23 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/feedback";
+import { Input } from "@/components/ui/input";
+import { WalletButton } from "@/lib/chain/wallet-button";
 import { useDevControls, useSession } from "@/lib/data/hooks";
 import { shortAddress } from "@/lib/utils";
-import type { IdentityKey } from "@/lib/data/fixtures";
 
-const WALLETS: { key: IdentityKey; label: string; sub: string }[] = [
-  { key: "donorA", label: "Кошелёк донатера", sub: "address-only" },
-  { key: "donorB", label: "Кошелёк с профилем", sub: "light profile · кит" },
-  { key: "creatorL", label: "Кошелёк стримера", sub: "владелец @lumi" },
-  { key: "operator", label: "Кошелёк оператора", sub: "T&S" },
-];
+const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 
 export default function ConnectPage() {
   const sessionQ = useSession();
   const dev = useDevControls();
+  const [addr, setAddr] = useState("");
   const address = sessionQ.data?.address ?? null;
 
   return (
@@ -27,41 +24,57 @@ export default function ConnectPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-display-l text-fg">Подключение кошелька</h1>
           <p className="text-fg-muted">
-            Sign-In-With-Solana — без газа, без пароля. Кошелёк = аккаунт. В Фазе 1 — мок-кошельки;
-            реальные кошельки появятся в Фазе 3.
+            {IS_CHAIN
+              ? "Подключи кошелёк Solana (Phantom/Solflare) на devnet. Кошелёк = аккаунт."
+              : "Dev-режим (mock/api): войди по произвольному devnet-адресу для теста без кошелька."}
           </p>
         </div>
 
-        {sessionQ.isLoading ? (
-          <Skeleton className="h-24 w-full" />
+        {IS_CHAIN ? (
+          <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+            <WalletButton />
+            <div className="flex flex-col gap-1 text-small text-fg-muted">
+              <span>Чтобы донатить на devnet, кошелёк должен иметь:</span>
+              <span>
+                • SOL на газ —{" "}
+                <a className="text-info hover:underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">
+                  faucet.solana.com
+                </a>
+              </span>
+              <span>
+                • USDC (devnet) —{" "}
+                <a className="text-info hover:underline" href="https://faucet.circle.com" target="_blank" rel="noreferrer">
+                  faucet.circle.com
+                </a>{" "}
+                (выбери Solana Devnet)
+              </span>
+            </div>
+          </div>
         ) : address ? (
           <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
-            <span className="text-small text-fg-muted">Подключён</span>
+            <span className="text-small text-fg-muted">Подключён (dev)</span>
             <span className="mono text-h3 text-fg">{shortAddress(address)}</span>
             <div className="flex gap-2">
               <Button asChild size="sm">
                 <Link href="/">На платформу</Link>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => dev.setIdentity("guest")}>
+              <Button variant="ghost" size="sm" onClick={() => dev.setAddress(null)}>
                 Выйти
               </Button>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {WALLETS.map((w) => (
-              <button
-                key={w.key}
-                onClick={() => dev.setIdentity(w.key)}
-                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors duration-fast ease-ease hover:border-border-strong"
-              >
-                <div className="flex flex-col">
-                  <span className="text-fg">{w.label}</span>
-                  <span className="text-small text-fg-faint">{w.sub}</span>
-                </div>
-                <span className="text-small text-info">Подключить</span>
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+            <Input
+              mono
+              label="Devnet-адрес для входа (dev)"
+              placeholder="вставь base58-адрес"
+              value={addr}
+              onChange={(e) => setAddr(e.target.value)}
+            />
+            <Button disabled={addr.trim().length < 32} onClick={() => dev.setAddress(addr.trim())}>
+              Войти как адрес
+            </Button>
           </div>
         )}
       </main>

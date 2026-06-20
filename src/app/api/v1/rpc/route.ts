@@ -1,10 +1,11 @@
 import { decode, encode } from "@/lib/data/codec";
-import type { IdentityKey } from "@/lib/data/fixtures";
+import type { Address } from "@/lib/data/types";
+import { ingestSignature } from "@/server/ingest";
 import { getStore } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
-// Белый список разрешённых методов (все методы DataProvider, кроме subscribeOverlay, + dev-reset).
+// Белый список разрешённых методов стора (все методы DataProvider, кроме subscribeOverlay, + dev-reset).
 const ALLOWED = new Set<string>([
   "getSession",
   "connect",
@@ -36,15 +37,12 @@ const ALLOWED = new Set<string>([
 interface RpcBody {
   method: string;
   args: unknown[];
-  identity?: IdentityKey;
+  address?: Address | null; // реальный адрес кошелька (или dev-адрес) — личность запроса
   failMode?: boolean;
 }
 
 function json(payload: unknown, status = 200): Response {
-  return new Response(encode(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
+  return new Response(encode(payload), { status, headers: { "content-type": "application/json" } });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -55,6 +53,22 @@ export async function POST(req: Request): Promise<Response> {
     return json({ ok: false, error: { code: "BAD_BODY", message: "Невалидное тело запроса" } }, 400);
   }
 
+  const store = getStore();
+  // Per-request: личность (адрес) и инъекция ошибок от клиента; на сервере латентность не нужна.
+  store.__setLatencyScale(0);
+  store.__setAddress(body.address ?? null);
+  store.__setFailMode(Boolean(body.failMode));
+
+  // Спец-метод: приём ончейн-доната по подписи (сервер валидирует из цепочки, см. server/ingest.ts).
+  if (body.method === "ingestSignature") {
+    const sig = body.args?.[0];
+    if (typeof sig !== "string") {
+      return json({ ok: false, error: { code: "BAD_ARGS", message: "нужна signature" } }, 400);
+    }
+    const result = await ingestSignature(store, sig);
+    return json({ ok: true, result });
+  }
+
   if (!ALLOWED.has(body.method)) {
     return json(
       { ok: false, error: { code: "BAD_METHOD", message: `Метод не разрешён: ${body.method}` } },
@@ -62,15 +76,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const store = getStore();
-  // Per-request: личность и инъекция ошибок приходят от клиента; на сервере латентность не нужна.
-  store.__setLatencyScale(0);
-  store.__setIdentity(body.identity ?? "guest");
-  store.__setFailMode(Boolean(body.failMode));
-
-  const fn = (store as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>)[
-    body.method
-  ];
+  const fn = (store as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>)[body.method];
   if (typeof fn !== "function") {
     return json(
       { ok: false, error: { code: "BAD_METHOD", message: `Метод не найден: ${body.method}` } },

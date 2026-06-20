@@ -56,8 +56,32 @@ npm run typecheck  # tsc --noEmit
 npm run format     # Prettier
 ```
 
-Источник данных переключается флагом `NEXT_PUBLIC_DATA_SOURCE` (`mock` | `api` | `chain`, см.
-`CLAUDE.md` §3 и `.env.example`). На Фазе 0/1 — `mock`.
+Источник данных переключается флагом `NEXT_PUBLIC_DATA_SOURCE` (`chain` | `api` | `mock`, см.
+`CLAUDE.md` §3 и `.env.example`). По умолчанию — `chain` (реальный кошелёк devnet).
+
+## Запуск на devnet с реальным кошельком (Фаза 3)
+
+> Persistence пока in-memory: каналы/репутация **сбрасываются при перезапуске сервера** (до Postgres).
+
+1. **Кошелёк.** Установи Phantom (или Solflare), переключи на **Devnet**. Пополни:
+   - SOL на газ — [faucet.solana.com](https://faucet.solana.com);
+   - devnet USDC — [faucet.circle.com](https://faucet.circle.com) (сеть **Solana Devnet**).
+2. **Сервер.** `NEXT_PUBLIC_DATA_SOURCE=chain npm run dev` → открой http://localhost:3000.
+3. **Индексер** (в отдельном терминале) — ловит донаты в трежери и зачисляет репутацию:
+   `npx tsx scripts/indexer.ts`. (Клиент после доната также сам триггерит приём, так что для базовой
+   проверки индексер необязателен.)
+4. **Поток:** подключи кошелёк (кнопка в шапке / `/connect`) → `/studio/create` создай канал →
+   `/studio/activation` активируй → открой `/c/<handle>` → **задонать** (подпишешь реальную USDC-tx 97/3 +
+   memo на devnet) → репутация и лента обновятся; tx видна в Solana Explorer (devnet).
+
+**ENV (опц., `.env.local`):** `NEXT_PUBLIC_OPERATOR_ADDRESS=<твой адрес>` — доступ к `/ops` (по умолчанию
+оператор = трежери). `NEXT_PUBLIC_DEVNET_USDC_MINT` / `NEXT_PUBLIC_TREASURY_OWNER` — переопределить mint/трежери.
+
+**Без кошелька** (разработка UI): `NEXT_PUBLIC_DATA_SOURCE=api npm run dev` — на `/connect` или в
+`/dev/kitchen-sink` (Dev-тулбар) войди по произвольному devnet-адресу; донаты симулируются оффчейн.
+
+**Headless-проверки крипты:** `npx tsx scripts/chain-verify.ts` (сборщик tx против devnet + индексер на
+синтетике, без SOL); `npx tsx scripts/devnet-smoke.ts` (полная реальная отправка — нужен devnet SOL).
 
 **Что посмотреть в Фазе 0:**
 

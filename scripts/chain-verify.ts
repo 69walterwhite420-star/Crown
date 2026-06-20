@@ -1,0 +1,164 @@
+/**
+ * Верификация ончейн-логики Фазы 3 БЕЗ airdrop (devnet-фасет лимитирован).
+ *  (1) Сборщик донат-транзакции — против РЕАЛЬНОГО devnet (RPC-чтения getAccountInfo работают):
+ *      проверяем форму инструкций (2×createATA, 2×transferChecked, memo) и декод memo.
+ *  (2) Индексер (чистая extractDonation) — на синтетических parsed-транзакциях: корректный разбор,
+ *      самоконтроль комиссии (неверное расщепление → не донат), отбраковка без memo / сырого перевода.
+ * Полную отправку транзакции см. scripts/devnet-smoke.ts (нужен devnet SOL).
+ */
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import { Connection, Keypair, type ParsedTransactionWithMeta } from "@solana/web3.js";
+import { DEVNET_RPC, MEMO_PROGRAM_ID } from "../src/lib/chain/config";
+import { buildDonationInstructions, splitAmount } from "../src/lib/chain/donation-tx";
+import { extractDonation } from "../src/lib/chain/indexer";
+import { decodeMemo, encodeMemo } from "../src/lib/chain/memo";
+
+let failures = 0;
+function check(name: string, cond: boolean, detail?: string) {
+  console.log(`${cond ? "✅" : "❌"} ${name}${detail ? ` — ${detail}` : ""}`);
+  if (!cond) failures++;
+}
+
+async function verifyBuilder() {
+  console.log("\n— (1) Сборщик донат-транзакции против devnet —");
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const donor = Keypair.generate();
+  const streamer = Keypair.generate();
+  const treasury = Keypair.generate();
+  const mint = Keypair.generate().publicKey;
+
+  const ix = await buildDonationInstructions(connection, {
+    donor: donor.publicKey,
+    payout: streamer.publicKey,
+    treasury: treasury.publicKey,
+    mint,
+    amountMicro: 10_000_000n,
+    creatorId: "ch-lumi",
+    donationId: "d-1",
+    msgRef: "m-1",
+  });
+
+  const progs = ix.map((i) => i.programId.toBase58());
+  check("5 инструкций (2×ATA + 2×transfer + memo)", ix.length === 5, `got ${ix.length}`);
+  check(
+    "первые две — createATA (ATA-программа)",
+    progs[0] === ASSOCIATED_TOKEN_PROGRAM_ID.toBase58() &&
+      progs[1] === ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),
+  );
+  check(
+    "две transferChecked (Token-программа)",
+    progs[2] === TOKEN_PROGRAM_ID.toBase58() && progs[3] === TOKEN_PROGRAM_ID.toBase58(),
+  );
+  const memoIx = ix[4];
+  check("последняя — memo (Memo-программа)", memoIx?.programId.toBase58() === MEMO_PROGRAM_ID.toBase58());
+  const memo = memoIx ? decodeMemo(memoIx.data.toString("utf8")) : null;
+  check(
+    "memo декодируется в атрибуцию",
+    memo?.c === "ch-lumi" && memo?.d === "d-1" && memo?.m === "m-1",
+    JSON.stringify(memo),
+  );
+
+  const s = splitAmount(10_000_000n);
+  check("расщепление 97/3: net=9.7, fee=0.3", s.net === 9_700_000n && s.fee === 300_000n);
+}
+
+function makeParsed(
+  donor: string,
+  mint: string,
+  streamerAta: string,
+  treasuryAta: string,
+  netAmount: string,
+  feeAmount: string,
+  memo: string | null,
+): ParsedTransactionWithMeta {
+  const transfer = (destination: string, amount: string) => ({
+    program: "spl-token",
+    programId: TOKEN_PROGRAM_ID,
+    parsed: {
+      type: "transferChecked",
+      info: { authority: donor, destination, mint, source: "donorAta", tokenAmount: { amount, decimals: 6 } },
+    },
+  });
+  const instructions: unknown[] = [
+    transfer(streamerAta, netAmount),
+    transfer(treasuryAta, feeAmount),
+  ];
+  if (memo !== null) {
+    instructions.push({ program: "spl-memo", programId: MEMO_PROGRAM_ID, parsed: memo });
+  }
+  return {
+    blockTime: 1_700_000_000,
+    slot: 1,
+    meta: { err: null, fee: 5000, preBalances: [], postBalances: [] },
+    transaction: { message: { instructions }, signatures: ["sig"] },
+  } as unknown as ParsedTransactionWithMeta;
+}
+
+async function verifyIndexer() {
+  console.log("\n— (2) Индексер (extractDonation) на синтетических tx —");
+  const mint = Keypair.generate().publicKey;
+  const streamer = Keypair.generate().publicKey;
+  const treasury = Keypair.generate().publicKey;
+  const donor = Keypair.generate().publicKey;
+  const streamerAta = await getAssociatedTokenAddress(mint, streamer);
+  const treasuryAta = await getAssociatedTokenAddress(mint, treasury);
+  const opts = { mint, treasuryAta };
+
+  // корректный донат
+  const ok = extractDonation(
+    makeParsed(
+      donor.toBase58(),
+      mint.toBase58(),
+      streamerAta.toBase58(),
+      treasuryAta.toBase58(),
+      "9700000",
+      "300000",
+      encodeMemo({ c: "ch-lumi", d: "d-1", m: "m-1" }),
+    ),
+    "sig1",
+    opts,
+  );
+  check("корректный донат распознан", ok !== null);
+  check("amount=10M, net=9.7M, fee=0.3M", ok?.amountMicro === 10_000_000n && ok?.netMicro === 9_700_000n && ok?.feeMicro === 300_000n);
+  check("донор, memo и streamerAta извлечены", ok?.donor === donor.toBase58() && ok?.memo.c === "ch-lumi" && ok?.streamerAta === streamerAta.toBase58());
+
+  // самоконтроль комиссии: неверное расщепление → не донат
+  const badSplit = extractDonation(
+    makeParsed(donor.toBase58(), mint.toBase58(), streamerAta.toBase58(), treasuryAta.toBase58(), "9000000", "1000000", encodeMemo({ c: "ch-lumi", d: "d-2", m: null })),
+    "sig2",
+    opts,
+  );
+  check("неверное расщепление 90/10 отклонено (null)", badSplit === null);
+
+  // без memo → не донат
+  const noMemo = extractDonation(
+    makeParsed(donor.toBase58(), mint.toBase58(), streamerAta.toBase58(), treasuryAta.toBase58(), "9700000", "300000", null),
+    "sig3",
+    opts,
+  );
+  check("без memo отклонено (null)", noMemo === null);
+
+  // tx с ошибкой → не донат
+  const errored = extractDonation(
+    { blockTime: 1, slot: 1, meta: { err: { foo: 1 } }, transaction: { message: { instructions: [] }, signatures: [] } } as unknown as ParsedTransactionWithMeta,
+    "sig4",
+    opts,
+  );
+  check("tx с ошибкой отклонена (null)", errored === null);
+}
+
+async function main() {
+  await verifyBuilder();
+  await verifyIndexer();
+  console.log(failures === 0 ? "\n✅ ВСЕ ПРОВЕРКИ ПРОШЛИ" : `\n❌ ПРОВАЛОВ: ${failures}`);
+  if (failures > 0) process.exit(1);
+}
+
+main().catch((e) => {
+  console.error("❌ FAILED:", e);
+  process.exit(1);
+});

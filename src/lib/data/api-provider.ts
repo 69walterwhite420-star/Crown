@@ -1,5 +1,4 @@
 import { decode, encode } from "./codec";
-import type { IdentityKey } from "./fixtures";
 import { DataError, type DataProvider, type Result } from "./provider";
 import type {
   Address,
@@ -37,7 +36,7 @@ interface RpcResponse<T> {
  * /connect работают и под `api`. Оверлей-подписка — заглушка (SSE — дальнейший шаг).
  */
 export class ApiDataProvider implements DataProvider {
-  private identityKey: IdentityKey = "guest";
+  private address: Address | null = null;
   private failMode = false;
 
   private async rpc<T>(method: string, args: unknown[]): Promise<T> {
@@ -46,7 +45,7 @@ export class ApiDataProvider implements DataProvider {
       res = await fetch("/api/v1/rpc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: encode({ method, args, identity: this.identityKey, failMode: this.failMode }),
+        body: encode({ method, args, address: this.address, failMode: this.failMode }),
       });
     } catch {
       throw new DataError("NETWORK", "Сеть недоступна или сервер не отвечает.");
@@ -70,14 +69,16 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("getSession", []);
   }
   connect(): Result<Session> {
-    // Личность durable у клиента (шлётся с каждым запросом), поэтому зеркало надо обновить здесь,
-    // иначе следующий RPC отправит прежний identity и откатит серверную сессию.
-    this.identityKey = "donorA";
+    // Адрес задаётся снаружи (кошелёк/dev) через __setAddress; connect возвращает сессию по нему.
     return this.rpc("connect", []);
   }
   disconnect(): Result<void> {
-    this.identityKey = "guest";
+    this.address = null;
     return this.rpc("disconnect", []);
+  }
+  /** Приём ончейн-доната по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
+  ingestSignature(signature: string): Promise<{ ok: boolean; reason?: string; points?: number }> {
+    return this.rpc("ingestSignature", [signature]);
   }
   getProfile(address: Address): Result<LightProfile | null> {
     return this.rpc("getProfile", [address]);
@@ -174,12 +175,12 @@ export class ApiDataProvider implements DataProvider {
     return () => es.close();
   }
 
-  // — Dev-контролы (зеркало клиента; identity/failMode шлются с каждым запросом) —
-  __setIdentity(key: IdentityKey) {
-    this.identityKey = key;
+  // — Адрес сессии (кошелёк/dev) + dev-контролы; шлются с каждым запросом —
+  __setAddress(address: Address | null) {
+    this.address = address;
   }
-  __getIdentityKey(): IdentityKey {
-    return this.identityKey;
+  __getAddress(): Address | null {
+    return this.address;
   }
   __setFailMode(on: boolean) {
     this.failMode = on;
@@ -191,7 +192,7 @@ export class ApiDataProvider implements DataProvider {
     // латентность задаётся сервером; на клиенте no-op
   }
   __reset() {
-    this.identityKey = "guest";
+    this.address = null;
     this.failMode = false;
     void this.rpc("__reset", []);
   }

@@ -53,7 +53,12 @@
       "Bash(git --no-pager diff HEAD -- src/lib/data/mock-provider.ts src/lib/data/api-provider.ts src/lib/data/provider.ts)",
       "Bash(git --no-pager diff HEAD -- src/lib/data/api-provider.ts src/app/api/v1/rpc/route.ts src/app/api/v1/overlay/'[channelId]'/route.ts src/server/store.ts src/lib/data/moderation.ts)",
       "Bash(git --no-pager show HEAD:src/app/me/page.tsx)",
-      "Bash(git --no-pager diff HEAD -- src/components/domain/donate.tsx src/components/domain/moderation.tsx src/app/me/page.tsx src/app/studio/queue/page.tsx)"
+      "Bash(git --no-pager diff HEAD -- src/components/domain/donate.tsx src/components/domain/moderation.tsx src/app/me/page.tsx src/app/studio/queue/page.tsx)",
+      "WebSearch",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' --retry 30 --retry-delay 1 --retry-connrefused --max-time 90 http://localhost:3000/)",
+      "Bash(echo \"/ → $\\(curl -s -o /dev/null -w '%{http_code}' --retry 30 --retry-delay 1 --retry-connrefused --max-time 90 http://localhost:3000/\\)\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/c/lumi)",
+      "Bash(echo \"/c/lumi → $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/c/lumi\\)\")"
     ]
   }
 }

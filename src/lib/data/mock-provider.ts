@@ -1,5 +1,7 @@
+import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { bankPoints, computePoints, resolveTier } from "../reputation";
 import { toMicro } from "../utils";
+import { defaultChannelConfig } from "./fixtures";
 import { runPipeline } from "./moderation";
 import {
   DataError,
@@ -8,12 +10,6 @@ import {
   type DataProvider,
   type Result,
 } from "./provider";
-import {
-  buildSeed,
-  DEFAULT_TIERS,
-  DEV_SESSIONS,
-  type IdentityKey,
-} from "./fixtures";
 import type {
   Address,
   Channel,
@@ -43,6 +39,7 @@ import type {
 const FAILABLE = new Set([
   "listChannels",
   "getChannel",
+  "getMyChannel",
   "getStanding",
   "getLeaderboard",
   "listDonations",
@@ -53,9 +50,13 @@ const FAILABLE = new Set([
 ]);
 
 /**
- * Фаза 1: полноценный детерминированный симулятор (frontend/mock-data.md §3).
- * In-memory store из фикстур, латентность, инъекция ошибок, симуляция переходов с соблюдением
- * инвариантов CLAUDE.md §4 (деньги/репутация сразу и независимо от текста, банкинг, only-grows).
+ * In-memory backend-store. Личность — РЕАЛЬНЫЙ адрес кошелька (Фаза 3): нет фикстур и dev-личностей,
+ * каналы создают пользователи, ончейн-донаты принимаются через recordDonationFromChain (после валидации
+ * сервером из цепочки). Репутация считается общим движком lib/reputation.ts. Persistence — in-memory
+ * (стенд-ин под Postgres; сбрасывается при перезапуске процесса).
+ *
+ * `createDonation` (оффчейн-симуляция) оставлен для api/mock без кошелька; в режиме chain деньги идут
+ * ончейн, а зачёт делает ingest по подписи.
  */
 export class MockDataProvider implements DataProvider {
   private channelsById = new Map<string, Channel>();
@@ -70,34 +71,11 @@ export class MockDataProvider implements DataProvider {
   private operatorActions: OperatorAction[] = [];
   private overlaySubs = new Map<string, Set<(e: OverlayEvent) => void>>();
 
-  private sessionKey: IdentityKey = "guest";
+  private sessionAddress: Address | null = null;
   private failMode = process.env.NEXT_PUBLIC_MOCK_FAIL === "on";
   private latencyScale = 1;
   private seq = 0;
-  private modCache = new Map<string, ModerationVerdict>(); // дедуп вердиктов по хэшу контента
-
-  constructor() {
-    this.loadSeed();
-  }
-
-  private loadSeed() {
-    const seed = buildSeed();
-    this.channelsById = new Map(seed.channels.map((c) => [c.id, c]));
-    this.handleToId = new Map(seed.channels.map((c) => [c.handle, c.id]));
-    this.configsByChannel = new Map();
-    for (const cfg of seed.configs) {
-      const list = this.configsByChannel.get(cfg.channelId) ?? [];
-      list.push(cfg);
-      this.configsByChannel.set(cfg.channelId, list);
-    }
-    this.profiles = new Map(seed.profiles.map((p) => [p.address, p]));
-    this.ledger = [...seed.ledger];
-    this.donations = [...seed.donations];
-    this.messages = new Map(seed.messages.map((m) => [m.id, m]));
-    this.blocks = [...seed.blocks];
-    this.incidents = [...seed.incidents];
-    this.operatorActions = [];
-  }
+  private modCache = new Map<string, ModerationVerdict>();
 
   // — Инфраструктура —
   private now(): string {
@@ -105,18 +83,16 @@ export class MockDataProvider implements DataProvider {
   }
   private nextId(prefix: string): string {
     this.seq += 1;
-    return `${prefix}-s${this.seq}`;
+    return `${prefix}-${this.now()}-${this.seq}`;
   }
   private async gate(method: string): Promise<void> {
     let h = 0;
     for (const ch of method) h = (h * 31 + ch.charCodeAt(0)) % 997;
     const ms = (120 + (h / 997) * 380) * this.latencyScale;
-    // На сервере (latencyScale=0) НЕ уступаем macrotask: без setTimeout-таймера метод исполняется
-    // синхронно после установки identity → конкурентные RPC не перетирают sessionKey друг друга.
-    // (Корневое решение — AsyncLocalStorage/контекст на вызов; для in-memory-стора этого достаточно.)
+    // На сервере (latencyScale=0) НЕ уступаем macrotask — иначе конкурентные RPC перетрут sessionAddress.
     if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (this.failMode && FAILABLE.has(method)) {
-      throw new DataError("MOCK_FAIL", `Мок-сбой (${method}) — для проверки error-стейтов.`);
+      throw new DataError("MOCK_FAIL", `Сбой (${method}) — для проверки error-стейтов.`);
     }
   }
   private latestConfig(channelId: string): ChannelConfig {
@@ -129,14 +105,11 @@ export class MockDataProvider implements DataProvider {
     return this.ledger.filter((e) => e.donor === donor && e.creator === channelId);
   }
   private session(): Session {
-    const base = DEV_SESSIONS[this.sessionKey];
-    if (!base.address) return base;
-    const isCreator = [...this.channelsById.values()].some(
-      (c) => c.ownerAddress === base.address,
-    );
-    return { ...base, isCreator };
+    const address = this.sessionAddress;
+    if (!address) return { address: null, level: "address_only", isCreator: false, isOperator: false };
+    const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
+    return { address, level: "address_only", isCreator, isOperator: address === OPERATOR_ADDRESS };
   }
-
   private standingFor(channelId: string, donor: Address): ViewerStanding | null {
     const events = this.eventsFor(donor, channelId);
     if (events.length === 0) return null;
@@ -151,17 +124,16 @@ export class MockDataProvider implements DataProvider {
     );
     return { channelId, donor, points, tier, nextTier, progressToNext, totalDonated, firstDonationAt };
   }
-
   private emitOverlay(channelId: string, event: OverlayEvent) {
     this.overlaySubs.get(channelId)?.forEach((cb) => cb(event));
   }
 
-  // — Dev-контролы (вне интерфейса; зовутся из /dev/kitchen-sink через каст) —
-  __setIdentity(key: IdentityKey) {
-    this.sessionKey = key;
+  // — Dev/инжект адреса (вне интерфейса) —
+  __setAddress(address: Address | null) {
+    this.sessionAddress = address;
   }
-  __getIdentityKey(): IdentityKey {
-    return this.sessionKey;
+  __getAddress(): Address | null {
+    return this.sessionAddress;
   }
   __setFailMode(on: boolean) {
     this.failMode = on;
@@ -173,13 +145,22 @@ export class MockDataProvider implements DataProvider {
     this.latencyScale = scale;
   }
   __reset() {
-    this.sessionKey = "guest";
+    this.sessionAddress = null;
     this.failMode = false;
     this.latencyScale = 1;
     this.seq = 0;
     this.modCache.clear();
     this.overlaySubs.clear();
-    this.loadSeed();
+    this.channelsById.clear();
+    this.handleToId.clear();
+    this.configsByChannel.clear();
+    this.profiles.clear();
+    this.ledger = [];
+    this.donations = [];
+    this.messages.clear();
+    this.blocks = [];
+    this.incidents = [];
+    this.operatorActions = [];
   }
 
   // — Сессия / идентичность —
@@ -189,12 +170,11 @@ export class MockDataProvider implements DataProvider {
   }
   async connect(): Result<Session> {
     await this.gate("connect");
-    if (this.sessionKey === "guest") this.sessionKey = "donorA";
-    return this.session();
+    return this.session(); // адрес задаётся через __setAddress (кошелёк/dev)
   }
   async disconnect(): Result<void> {
     await this.gate("disconnect");
-    this.sessionKey = "guest";
+    this.sessionAddress = null;
   }
   async getProfile(address: Address): Result<LightProfile | null> {
     await this.gate("getProfile");
@@ -204,8 +184,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("updateProfile");
     const addr = this.session().address;
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
-    const existing = this.profiles.get(addr) ?? { address: addr };
-    const updated: LightProfile = { ...existing, ...patch, address: addr };
+    const updated: LightProfile = { ...(this.profiles.get(addr) ?? { address: addr }), ...patch, address: addr };
     this.profiles.set(addr, updated);
     return updated;
   }
@@ -240,6 +219,10 @@ export class MockDataProvider implements DataProvider {
     if (!addr) return null;
     return [...this.channelsById.values()].find((c) => c.ownerAddress === addr) ?? null;
   }
+  /** Внутренний доступ для ingest (вне интерфейса). */
+  __getChannelById(id: string): Channel | null {
+    return this.channelsById.get(id) ?? null;
+  }
   async getChannelConfig(channelId: string): Result<ChannelConfig> {
     await this.gate("getChannelConfig");
     return this.latestConfig(channelId);
@@ -248,8 +231,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("createChannel");
     const addr = this.session().address;
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
-    const owns = [...this.channelsById.values()].some((c) => c.ownerAddress === addr);
-    if (owns) throw ErrChannelAlreadyExists;
+    if ([...this.channelsById.values()].some((c) => c.ownerAddress === addr)) throw ErrChannelAlreadyExists;
     if (this.handleToId.has(input.handle)) {
       throw new DataError("HANDLE_TAKEN", `Handle @${input.handle} уже занят.`);
     }
@@ -265,24 +247,7 @@ export class MockDataProvider implements DataProvider {
     };
     this.channelsById.set(id, channel);
     this.handleToId.set(input.handle, id);
-    this.configsByChannel.set(id, [
-      {
-        channelId: id,
-        version: 1,
-        hash: `cfg-${id}-v1`,
-        reputation: { curve: { kind: "linear", pointsPerUSDC: 100 }, multipliers: [], decay: { enabled: false } },
-        tiers: DEFAULT_TIERS,
-        minDonation: toMicro(1),
-        minDonationWithText: toMicro(2),
-        messageMaxLen: 200,
-        profanityPolicy: "queue",
-        nameMode: "addresses_only",
-        textShowMode: "manual",
-        overlay: { style: "default", sound: false, minAmountToShow: toMicro(1), tts: false },
-        moderators: [],
-        updatedAt: this.now(),
-      },
-    ]);
+    this.configsByChannel.set(id, [defaultChannelConfig(id)]);
     return channel;
   }
   async activateChannel(channelId: string): Result<Channel> {
@@ -298,9 +263,7 @@ export class MockDataProvider implements DataProvider {
     const list = this.configsByChannel.get(channelId);
     const current = list?.[list.length - 1];
     if (!list || !current) throw new DataError("NO_CONFIG", "Нет конфига канала.");
-    const touchesReputation = patch.reputation !== undefined;
-    if (touchesReputation) {
-      // Смена формулы → НОВАЯ версия. Прошлые события не пересчитываются (банкинг, ADR/инвариант).
+    if (patch.reputation !== undefined) {
       const version = current.version + 1;
       const next: ChannelConfig = {
         ...current,
@@ -314,7 +277,6 @@ export class MockDataProvider implements DataProvider {
       if (ch) this.channelsById.set(channelId, { ...ch, configVersion: version });
       return next;
     }
-    // Косметика (тиры/оверлей/модераторы/...) → версия НЕ растёт.
     const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
     list[list.length - 1] = updated;
     return updated;
@@ -330,10 +292,10 @@ export class MockDataProvider implements DataProvider {
     return this.computeLeaderboard(channelId, period);
   }
   private computeLeaderboard(channelId: string, period: LeaderboardPeriod): LeaderboardEntry[] {
+    if (!this.configsByChannel.has(channelId)) return [];
     const cfg = this.latestConfig(channelId);
     const monthAgo = Date.parse(this.now()) - 30 * 86_400_000;
     const inPeriod = (ts: string) => period === "all_time" || Date.parse(ts) >= monthAgo;
-
     const donors = new Set(
       this.ledger.filter((e) => e.creator === channelId && inPeriod(e.ts)).map((e) => e.donor),
     );
@@ -342,16 +304,13 @@ export class MockDataProvider implements DataProvider {
       const events = this.eventsFor(donor, channelId).filter((e) => inPeriod(e.ts));
       const points = computePoints(events, cfg.reputation, this.now());
       if (points <= 0) continue;
-      const totalDonated = events
-        .filter((e) => e.type === "DONATION")
-        .reduce((s, e) => s + e.amount, 0n);
-      const { tier } = resolveTier(points, cfg.tiers);
+      const totalDonated = events.filter((e) => e.type === "DONATION").reduce((s, e) => s + e.amount, 0n);
       entries.push({
         rank: 0,
         donor,
         displayName: this.profiles.get(donor)?.displayName,
         points,
-        tier,
+        tier: resolveTier(points, cfg.tiers).tier,
         totalDonated,
       });
     }
@@ -361,6 +320,7 @@ export class MockDataProvider implements DataProvider {
   }
 
   // — Донаты —
+  /** Оффчейн-симуляция (api/mock без кошелька). В режиме chain не используется. */
   async createDonation(input: DonationInput): Result<DonationResult> {
     await this.gate("createDonation");
     const donor = this.session().address;
@@ -370,59 +330,97 @@ export class MockDataProvider implements DataProvider {
     const cfg = this.latestConfig(input.channelId);
     const hasText = Boolean(input.text && input.text.trim());
     const amount = toMicro(input.amountUSDC);
-
     const min = hasText ? cfg.minDonationWithText : cfg.minDonation;
     if (amount < min) throw new DataError("BELOW_MIN", "Сумма ниже минимума канала.");
     if (hasText && ch.status !== "ACTIVE") throw ErrTextRequiresActiveChannel;
-    if (
-      hasText &&
-      this.blocks.some((b) => b.channelId === input.channelId && b.blockedAddress === donor)
-    ) {
+    if (hasText && this.blocks.some((b) => b.channelId === input.channelId && b.blockedAddress === donor)) {
       throw new DataError("BLOCKED", "Этот кошелёк заблокирован на канале для донатов-с-текстом.");
     }
-
     const fee = (amount * 3n) / 100n;
     const net = amount - fee;
-    const isFirst = this.eventsFor(donor, input.channelId).every((e) => e.type !== "DONATION");
-    const pointsDelta = bankPoints(amount, cfg.reputation, { isFirstDonation: isFirst });
-    const ts = this.now();
-
-    // Деньги финальны сразу; репутация начисляется СРАЗУ, независимо от судьбы текста (инвариант §4).
-    const tierBefore = this.standingFor(input.channelId, donor)?.tier.name;
-    const donationId = this.nextId("d");
-    const donation: Donation = {
-      id: donationId,
+    const result = this.record({
       channelId: input.channelId,
       donor,
       amount,
-      feeAmount: fee,
-      netToStreamer: net,
+      fee,
+      net,
+      text: hasText ? input.text!.trim() : undefined,
+      textShowMode: cfg.textShowMode,
+    });
+    return result;
+  }
+
+  /** Запись ончейн-доната (после валидации сервером из цепочки). Идемпотентно по signature. */
+  recordDonationFromChain(params: {
+    signature: string;
+    donor: Address;
+    channelId: string;
+    amountMicro: bigint;
+    feeMicro: bigint;
+    netMicro: bigint;
+  }): DonationResult | null {
+    if (this.ledger.some((e) => e.txSignature === params.signature)) return null; // уже принято
+    const ch = this.channelsById.get(params.channelId);
+    if (!ch) return null;
+    return this.record({
+      channelId: params.channelId,
+      donor: params.donor,
+      amount: params.amountMicro,
+      fee: params.feeMicro,
+      net: params.netMicro,
+      signature: params.signature,
+    });
+  }
+
+  /** Общая запись доната: банкинг очков СРАЗУ, текст → HELD/модерация (инварианты §4). */
+  private record(p: {
+    channelId: string;
+    donor: Address;
+    amount: bigint;
+    fee: bigint;
+    net: bigint;
+    text?: string;
+    textShowMode?: ChannelConfig["textShowMode"];
+    signature?: string;
+  }): DonationResult {
+    const cfg = this.latestConfig(p.channelId);
+    const isFirst = this.eventsFor(p.donor, p.channelId).every((e) => e.type !== "DONATION");
+    const pointsDelta = bankPoints(p.amount, cfg.reputation, { isFirstDonation: isFirst });
+    const ts = this.now();
+    const tierBefore = this.standingFor(p.channelId, p.donor)?.tier.name;
+    const donationId = this.nextId("d");
+    const donation: Donation = {
+      id: donationId,
+      channelId: p.channelId,
+      donor: p.donor,
+      amount: p.amount,
+      feeAmount: p.fee,
+      netToStreamer: p.net,
+      txSignature: p.signature,
       final: true,
       ts,
     };
     this.ledger.push({
       id: this.nextId("l"),
-      donor,
-      creator: input.channelId,
+      donor: p.donor,
+      creator: p.channelId,
       type: "DONATION",
-      amount,
+      amount: p.amount,
       pointsDelta,
       configVersion: cfg.version,
+      txSignature: p.signature,
       ts,
     });
-
-    if (hasText) {
-      const { verdict, lang, contentHash, deduped } = runPipeline(input.text!.trim(), this.modCache, {
-        scope: input.channelId,
-      });
+    if (p.text) {
+      const { verdict, lang, contentHash, deduped } = runPipeline(p.text, this.modCache, { scope: p.channelId });
       const isHardBlock = verdict === "HARD_BLOCK";
-      const autoShow = !isHardBlock && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
+      const autoShow = !isHardBlock && p.textShowMode === "auto_if_clean" && verdict === "CLEAR";
       const messageId = this.nextId("m");
       const message: MessageRef = {
         id: messageId,
         donationId,
-        channelId: input.channelId,
-        text: input.text!.trim(),
+        channelId: p.channelId,
+        text: p.text,
         lang,
         state: isHardBlock ? "QUARANTINED" : autoShow ? "SHOWN" : "HELD",
         autoVerdict: verdict,
@@ -432,11 +430,10 @@ export class MockDataProvider implements DataProvider {
       };
       this.messages.set(messageId, message);
       donation.message = message;
-      // Дедуп (core-spec §9): повтор того же контента не репортим заново.
       if (isHardBlock && !deduped) {
         this.incidents.push({
           id: this.nextId("inc"),
-          channelId: input.channelId,
+          channelId: p.channelId,
           kind: "hard_block",
           detail: "Авто-карантин: hard-block в тексте доната.",
           ts,
@@ -444,14 +441,12 @@ export class MockDataProvider implements DataProvider {
       }
     }
     this.donations.push(donation);
-
-    const standing = this.standingFor(input.channelId, donor)!;
+    const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier.name;
     if (donation.message?.state === "SHOWN") {
-      this.emitOverlay(input.channelId, { kind: "donation_shown", donation, standing });
+      this.emitOverlay(p.channelId, { kind: "donation_shown", donation, standing });
     }
-    if (tierChanged) this.emitOverlay(input.channelId, { kind: "tier_up", donor, tier: standing.tier });
-
+    if (tierChanged) this.emitOverlay(p.channelId, { kind: "tier_up", donor: p.donor, tier: standing.tier });
     return { donation, standing, tierChanged };
   }
 
@@ -463,7 +458,7 @@ export class MockDataProvider implements DataProvider {
     return { items };
   }
 
-  // — Модерация (HELD + FLAG сверху) —
+  // — Модерация —
   async getModerationQueue(channelId: string): Result<MessageRef[]> {
     await this.gate("getModerationQueue");
     return [...this.messages.values()]
@@ -479,12 +474,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("setMessageState");
     const msg = this.messages.get(messageId);
     if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
-    // Инвариант: трогаем только судьбу текста, НЕ деньги/репутацию.
-    const updated: MessageRef = {
-      ...msg,
-      state,
-      shownAt: state === "SHOWN" ? this.now() : msg.shownAt,
-    };
+    const updated: MessageRef = { ...msg, state, shownAt: state === "SHOWN" ? this.now() : msg.shownAt };
     this.messages.set(messageId, updated);
     const donation = this.donations.find((d) => d.id === msg.donationId);
     if (donation) donation.message = updated;
@@ -514,9 +504,7 @@ export class MockDataProvider implements DataProvider {
   }
   async removeChannelBlock(channelId: string, address: Address): Result<void> {
     await this.gate("removeChannelBlock");
-    this.blocks = this.blocks.filter(
-      (b) => !(b.channelId === channelId && b.blockedAddress === address),
-    );
+    this.blocks = this.blocks.filter((b) => !(b.channelId === channelId && b.blockedAddress === address));
   }
 
   // — Оператор / T&S —
@@ -535,9 +523,7 @@ export class MockDataProvider implements DataProvider {
       byOperator: this.session().address ?? "operator",
     };
     this.operatorActions.push(full);
-
     if (action.action === "ADMIN_VOID" && action.targetAddress && action.targetChannelId) {
-      // Единственный путь падения репутации в ядре (инвариант §4.5).
       const events = this.eventsFor(action.targetAddress, action.targetChannelId);
       const cfg = this.latestConfig(action.targetChannelId);
       const points = computePoints(events, cfg.reputation, this.now());
