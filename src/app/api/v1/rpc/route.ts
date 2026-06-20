@@ -8,6 +8,17 @@ export const dynamic = "force-dynamic";
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
+// C1: в chain-режиме реальные деньги идут ончейн, поэтому ОФФЧЕЙН-симуляция доната (createDonation в
+// MockDataProvider) запрещена — иначе любой вошедший по SIWS кошелёк мог бы бесплатно наколдовать
+// донат + репутацию + текст на оверлей мимо цепочки (подделка продукта, нарушение инварианта §4.4/§4.7).
+// Начисление в chain-режиме делает ТОЛЬКО ingestSignature по ончейн-подтверждённому донату.
+// Управляется ЯВНОЙ серверной env CHAIN_MODE (не NEXT_PUBLIC, не привязано к NODE_ENV). Fail-safe: в
+// production закрыто по умолчанию, пока явно не задан CHAIN_MODE=off (для редкого prod-деплоя api/mock).
+const CHAIN_MODE = process.env.CHAIN_MODE === "on" || (IS_PROD && process.env.CHAIN_MODE !== "off");
+
+// Методы-оффчейн-симуляции, недоступные в chain-режиме (ончейн-эквивалент идёт другим путём).
+const CHAIN_FORBIDDEN = new Set<string>(["createDonation"]);
+
 // Белый список разрешённых методов стора (методы DataProvider). Авторизацию каждой мутации делает сам
 // store по проверенной личности; здесь — только транспорт. Dev-методы (__reset) и auth-методы (__auth*)
 // сюда НЕ входят — они обрабатываются явными ветками ниже.
@@ -100,8 +111,26 @@ export async function POST(req: Request): Promise<Response> {
   if (body.method === "ingestSignature") {
     const sig = body.args?.[0];
     if (typeof sig !== "string") return rpcError("BAD_ARGS", "нужна signature", 400);
-    const result = await ingestSignature(store, sig);
-    return json({ ok: true, result });
+    try {
+      const result = await ingestSignature(store, sig);
+      return json({ ok: true, result });
+    } catch (e) {
+      // Кривая/неизвестная подпись (или сбой RPC) роняла публичный эндпоинт в 500 — отдаём чистую ошибку.
+      const err = e as { code?: string; message?: string };
+      return json({
+        ok: false,
+        error: { code: err.code ?? "INGEST_ERROR", message: err.message ?? String(e) },
+      });
+    }
+  }
+
+  // C1: оффчейн-симуляция доната недоступна в chain-режиме — репутацию даёт только ingestSignature.
+  if (CHAIN_MODE && CHAIN_FORBIDDEN.has(body.method)) {
+    return rpcError(
+      "CHAIN_MODE",
+      "Оффчейн-симуляция доната отключена: в chain-режиме донат идёт ончейн (ingestSignature).",
+      403,
+    );
   }
 
   if (!ALLOWED.has(body.method)) {
@@ -111,7 +140,9 @@ export async function POST(req: Request): Promise<Response> {
   // Явный выход — гасим серверную сессию (токен).
   if (body.method === "disconnect") revokeToken(body.token);
 
-  const fn = (store as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>)[body.method];
+  const fn = (store as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>)[
+    body.method
+  ];
   if (typeof fn !== "function") {
     return rpcError("BAD_METHOD", `Метод не найден: ${body.method}`, 400);
   }
@@ -121,6 +152,9 @@ export async function POST(req: Request): Promise<Response> {
     return json({ ok: true, result });
   } catch (e) {
     const err = e as { code?: string; message?: string };
-    return json({ ok: false, error: { code: err.code ?? "ERROR", message: err.message ?? String(e) } });
+    return json({
+      ok: false,
+      error: { code: err.code ?? "ERROR", message: err.message ?? String(e) },
+    });
   }
 }
