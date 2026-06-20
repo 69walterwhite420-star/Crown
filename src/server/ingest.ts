@@ -1,6 +1,6 @@
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
+import { assertMoneyConfig, DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
 import { parseDonationTx } from "@/lib/chain/indexer";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
 
@@ -14,6 +14,7 @@ export async function ingestSignature(
   store: MockDataProvider,
   signature: string,
 ): Promise<{ ok: boolean; reason?: string; points?: number }> {
+  assertMoneyConfig(); // fail-closed: на mainnet без явной денежной конфигурации донат не принимаем (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());

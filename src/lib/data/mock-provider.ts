@@ -108,7 +108,9 @@ export class MockDataProvider implements DataProvider {
     const address = this.sessionAddress;
     if (!address) return { address: null, level: "address_only", isCreator: false, isOperator: false };
     const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
-    return { address, level: "address_only", isCreator, isOperator: address === OPERATOR_ADDRESS };
+    // C2: пустой OPERATOR_ADDRESS (prod без явного env) не должен давать прав оператора.
+    const isOperator = Boolean(OPERATOR_ADDRESS) && address === OPERATOR_ADDRESS;
+    return { address, level: "address_only", isCreator, isOperator };
   }
 
   // — Авторизация. Личность = ПРОВЕРЕННЫЙ адрес сессии (выставлен из токена SIWS, см. server/auth.ts).
@@ -120,7 +122,8 @@ export class MockDataProvider implements DataProvider {
   }
   private requireOperator(): Address {
     const addr = this.requireSession();
-    if (addr !== OPERATOR_ADDRESS) {
+    // Пустой OPERATOR_ADDRESS (prod без явного env, C2) → оператора нет, отказываем всем (fail-closed).
+    if (!OPERATOR_ADDRESS || addr !== OPERATOR_ADDRESS) {
       throw new DataError("FORBIDDEN", "Действие доступно только оператору платформы.");
     }
     return addr;
