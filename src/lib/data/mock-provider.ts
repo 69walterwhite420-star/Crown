@@ -1,5 +1,6 @@
 import { bankPoints, computePoints, resolveTier } from "../reputation";
 import { toMicro } from "../utils";
+import { runPipeline } from "./moderation";
 import {
   DataError,
   ErrChannelAlreadyExists,
@@ -39,24 +40,6 @@ import type {
   ViewerStanding,
 } from "./types";
 
-// — Мок-модерация (упрощённый конвейер core-spec.md §8) —
-const MOCK_HARD_LIST = ["csam", "hardblock", "убейс"];
-const MOCK_FLAG_LIST = ["худший", "лох", "idiot", "scam"];
-
-function detectLang(text: string): string {
-  if (/[¡¿]|gracias|directo/i.test(text)) return "es";
-  if (/[а-яё]/i.test(text)) return "ru";
-  return "en";
-}
-
-function mockModerate(text: string): { verdict: ModerationVerdict; lang: string } {
-  const lower = text.toLowerCase();
-  const lang = detectLang(text);
-  if (MOCK_HARD_LIST.some((w) => lower.includes(w))) return { verdict: "HARD_BLOCK", lang };
-  if (MOCK_FLAG_LIST.some((w) => lower.includes(w))) return { verdict: "FLAG", lang };
-  return { verdict: "CLEAR", lang };
-}
-
 const FAILABLE = new Set([
   "listChannels",
   "getChannel",
@@ -91,6 +74,7 @@ export class MockDataProvider implements DataProvider {
   private failMode = process.env.NEXT_PUBLIC_MOCK_FAIL === "on";
   private latencyScale = 1;
   private seq = 0;
+  private modCache = new Map<string, ModerationVerdict>(); // дедуп вердиктов по хэшу контента
 
   constructor() {
     this.loadSeed();
@@ -127,7 +111,10 @@ export class MockDataProvider implements DataProvider {
     let h = 0;
     for (const ch of method) h = (h * 31 + ch.charCodeAt(0)) % 997;
     const ms = (120 + (h / 997) * 380) * this.latencyScale;
-    await new Promise((r) => setTimeout(r, ms));
+    // На сервере (latencyScale=0) НЕ уступаем macrotask: без setTimeout-таймера метод исполняется
+    // синхронно после установки identity → конкурентные RPC не перетирают sessionKey друг друга.
+    // (Корневое решение — AsyncLocalStorage/контекст на вызов; для in-memory-стора этого достаточно.)
+    if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (this.failMode && FAILABLE.has(method)) {
       throw new DataError("MOCK_FAIL", `Мок-сбой (${method}) — для проверки error-стейтов.`);
     }
@@ -190,6 +177,7 @@ export class MockDataProvider implements DataProvider {
     this.failMode = false;
     this.latencyScale = 1;
     this.seq = 0;
+    this.modCache.clear();
     this.overlaySubs.clear();
     this.loadSeed();
   }
@@ -424,7 +412,9 @@ export class MockDataProvider implements DataProvider {
     });
 
     if (hasText) {
-      const { verdict, lang } = mockModerate(input.text!.trim());
+      const { verdict, lang, contentHash, deduped } = runPipeline(input.text!.trim(), this.modCache, {
+        scope: input.channelId,
+      });
       const isHardBlock = verdict === "HARD_BLOCK";
       const autoShow = !isHardBlock && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
       const messageId = this.nextId("m");
@@ -436,13 +426,14 @@ export class MockDataProvider implements DataProvider {
         lang,
         state: isHardBlock ? "QUARANTINED" : autoShow ? "SHOWN" : "HELD",
         autoVerdict: verdict,
-        contentHash: `hash-${messageId}`,
+        contentHash,
         shownAt: autoShow ? ts : undefined,
         createdAt: ts,
       };
       this.messages.set(messageId, message);
       donation.message = message;
-      if (isHardBlock) {
+      // Дедуп (core-spec §9): повтор того же контента не репортим заново.
+      if (isHardBlock && !deduped) {
         this.incidents.push({
           id: this.nextId("inc"),
           channelId: input.channelId,

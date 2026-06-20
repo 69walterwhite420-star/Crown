@@ -134,7 +134,19 @@ export function DonateWidget({
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          // после успешного доната очищаем форму при закрытии
+          if (!o && result) {
+            setAmount("");
+            setText("");
+            setWithText(false);
+            setResult(null);
+          }
+        }}
+      >
         <DialogContent>
           {result ? (
             <DoneView result={result} hadText={withText} onClose={() => setOpen(false)} />
@@ -193,6 +205,7 @@ function DoneView({
     <>
       <DialogHeader>
         <DialogTitle>Донат прошёл</DialogTitle>
+        <DialogDescription>Деньги финальны. Репутация уже зачтена.</DialogDescription>
       </DialogHeader>
       <div className="flex flex-col gap-3">
         <FinalityMoment result={result} />

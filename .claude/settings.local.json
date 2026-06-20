@@ -33,7 +33,27 @@
       "Bash(git init *)",
       "Bash(git branch *)",
       "Bash(git config *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Standing core v0.1: Phase 0 scaffold + Phase 1 UI on mock data' -m 'Phase 0: Next.js 15 App Router + TS \\(strict\\) + Tailwind + Radix + TanStack Query; design tokens; DataProvider seam; route skeleton; kitchen-sink. *)",
+      "Bash(git --no-pager diff HEAD --stat)",
+      "Bash(git --no-pager diff HEAD)",
+      "Bash(echo \"--- total diff lines: $\\(git --no-pager diff HEAD)",
+      "Bash(git --no-pager diff HEAD -- src/app/api/v1/rpc/route.ts src/app/api/v1/overlay/[channelId]/route.ts src/lib/data/codec.ts)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/mock-provider.ts src/lib/data/api-provider.ts src/app/me/page.tsx src/lib/data/moderation.ts src/lib/data/codec.ts src/lib/data/provider.ts)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/moderation.ts src/server/store.ts src/lib/data/mock-provider.ts src/lib/data/provider.ts)",
+      "Bash(git --no-pager diff HEAD -- src/app/studio/queue/page.tsx src/components/domain/donate.tsx src/components/domain/moderation.tsx)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/api-provider.ts)",
+      "Bash(git --no-pager diff HEAD -- src/app/api/v1/rpc/route.ts src/lib/data/api-provider.ts src/lib/data/codec.ts src/lib/data/moderation.ts src/lib/data/mock-provider.ts src/server/store.ts)",
+      "Bash(git --no-pager diff HEAD -- src/app/me/page.tsx src/app/studio/queue/page.tsx src/app/api/v1/overlay/\\\\[channelId\\\\]/route.ts src/app/api/v1/rpc/route.ts src/server/store.ts)",
+      "Bash(git --no-pager diff HEAD -- src/app/me/page.tsx src/app/studio/queue/page.tsx src/components/domain/donate.tsx src/components/domain/moderation.tsx)",
+      "Bash(git --no-pager diff HEAD -- src/app/api/v1/rpc/route.ts src/server/store.ts src/lib/data/codec.ts src/app/api/v1/overlay/'[channelId]'/route.ts)",
+      "Bash(git --no-pager diff HEAD -- src/components src/app/me/page.tsx src/app/studio/queue/page.tsx src/lib/data/codec.ts src/lib/data/provider.ts)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/provider.ts src/app/studio/queue/page.tsx src/app/api/v1/overlay/'[channelId]'/route.ts src/app/me/page.tsx)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/api-provider.ts src/lib/data/moderation.ts src/lib/data/mock-provider.ts src/lib/data/codec.ts)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/mock-provider.ts src/lib/data/api-provider.ts src/lib/data/provider.ts)",
+      "Bash(git --no-pager diff HEAD -- src/lib/data/api-provider.ts src/app/api/v1/rpc/route.ts src/app/api/v1/overlay/'[channelId]'/route.ts src/server/store.ts src/lib/data/moderation.ts)",
+      "Bash(git --no-pager show HEAD:src/app/me/page.tsx)",
+      "Bash(git --no-pager diff HEAD -- src/components/domain/donate.tsx src/components/domain/moderation.tsx src/app/me/page.tsx src/app/studio/queue/page.tsx)"
     ]
   }
 }

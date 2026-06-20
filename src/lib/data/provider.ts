@@ -22,6 +22,7 @@ import type {
   ViewerStanding,
 } from "./types";
 import { MockDataProvider } from "./mock-provider";
+import { ApiDataProvider } from "./api-provider";
 
 /**
  * Result<T> — асинхронный результат, который БРОСАЕТ Error при сбое (TanStack Query ловит).
@@ -112,7 +113,7 @@ export function createDataProvider(source: string | undefined): DataProvider {
     case "mock":
       return new MockDataProvider();
     case "api":
-      throw ErrNotImplemented("ApiDataProvider (Фаза 2)");
+      return new ApiDataProvider();
     case "chain":
       throw ErrNotImplemented("ChainDataProvider (Фаза 3)");
     default:

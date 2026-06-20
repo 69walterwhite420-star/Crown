@@ -3,13 +3,22 @@
 import { ModerationItem } from "@/components/domain/moderation";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { toast } from "@/components/ui/toast";
-import { useModerationQueue, useMyChannel, useSetMessageState } from "@/lib/data/hooks";
+import {
+  useDonations,
+  useModerationQueue,
+  useMyChannel,
+  useSetMessageState,
+} from "@/lib/data/hooks";
 
 export default function ModerationQueuePage() {
   const myChannelQ = useMyChannel();
   const channelId = myChannelQ.data?.id;
   const queueQ = useModerationQueue(channelId);
+  const donationsQ = useDonations(channelId);
   const setState = useSetMessageState(channelId ?? "");
+
+  // Джойн message → donation, чтобы показать донора и сумму в очереди.
+  const byDonation = new Map((donationsQ.data?.items ?? []).map((d) => [d.id, d]));
 
   if (myChannelQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
   if (!channelId) return <EmptyState title="Сначала создай канал" />;
@@ -41,15 +50,20 @@ export default function ModerationQueuePage() {
         <EmptyState title="Очередь чиста" description="Новые сообщения на модерации появятся здесь." />
       ) : (
         <div className="flex flex-col gap-3">
-          {queueQ.data!.map((m) => (
-            <ModerationItem
-              key={m.id}
-              message={m}
-              pending={setState.isPending && setState.variables?.messageId === m.id}
-              onShow={() => act(m.id, "SHOWN")}
-              onHide={() => act(m.id, "HIDDEN")}
-            />
-          ))}
+          {queueQ.data!.map((m) => {
+            const d = byDonation.get(m.donationId);
+            return (
+              <ModerationItem
+                key={m.id}
+                message={m}
+                donor={d?.donor}
+                amount={d?.amount}
+                pending={setState.isPending && setState.variables?.messageId === m.id}
+                onShow={() => act(m.id, "SHOWN")}
+                onHide={() => act(m.id, "HIDDEN")}
+              />
+            );
+          })}
         </div>
       )}
     </div>

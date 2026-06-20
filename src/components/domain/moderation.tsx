@@ -1,8 +1,9 @@
 "use client";
 
+import { Amount } from "./amount";
 import { Button } from "@/components/ui/button";
-import { cn, timeAgo } from "@/lib/utils";
-import type { MessageRef, ModerationVerdict } from "@/lib/data/types";
+import { cn, shortAddress, timeAgo } from "@/lib/utils";
+import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/data/types";
 
 const VERDICT_STYLE: Record<ModerationVerdict, { label: string; cls: string }> = {
   CLEAR: { label: "CLEAR", cls: "border-info text-info" },
@@ -17,14 +18,18 @@ export function VerdictBadge({ verdict }: { verdict: ModerationVerdict }) {
   );
 }
 
-/** Строка очереди модерации: текст + авто-вердикт + язык + «Показать/Скрыть». */
+/** Строка очереди модерации: донор + сумма + текст + авто-вердикт + язык + «Показать/Скрыть». */
 export function ModerationItem({
   message,
+  donor,
+  amount,
   onShow,
   onHide,
   pending,
 }: {
   message: MessageRef;
+  donor?: Address;
+  amount?: MicroUSDC;
   onShow: () => void;
   onHide: () => void;
   pending?: boolean;
@@ -39,6 +44,8 @@ export function ModerationItem({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
+          {donor ? <span className="text-small text-fg">{shortAddress(donor)}</span> : null}
+          {amount !== undefined ? <Amount micro={amount} /> : null}
           {message.autoVerdict ? <VerdictBadge verdict={message.autoVerdict} /> : null}
           {message.lang ? (
             <span className="mono text-small text-fg-faint">{message.lang}</span>
