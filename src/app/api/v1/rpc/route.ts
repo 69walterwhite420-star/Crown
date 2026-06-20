@@ -2,6 +2,7 @@ import { decode, encode } from "@/lib/data/codec";
 import type { Address } from "@/lib/data/types";
 import { issueNonce, resolveToken, revokeToken, verifyAndIssueToken } from "@/server/auth";
 import { ingestSignature } from "@/server/ingest";
+import { runWithIdentity } from "@/server/request-context";
 import { getStore } from "@/server/store";
 
 export const dynamic = "force-dynamic";
@@ -96,9 +97,10 @@ export async function POST(req: Request): Promise<Response> {
 
   // Личность запроса — ТОЛЬКО из проверенного токена. В dev (не prod) допускаем вход по адресу без
   // подписи для mock/api-тулинга; в проде `address` игнорируется полностью (дыра C1 закрыта).
+  // H3: личность НЕ кладётся в поле singleton-стора — она несётся per-request через AsyncLocalStorage
+  // (runWithIdentity вокруг диспатча ниже), иначе конкурентные RPC перетирали бы сессию друг друга.
   const verified = resolveToken(body.token);
   const identity = verified ?? (IS_PROD ? null : (body.address ?? null));
-  store.__setAddress(identity);
 
   // Dev-сброс стора — только вне прода и никогда из обычного диспатча.
   if (body.method === "__reset") {
@@ -148,7 +150,9 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const result = await fn.apply(store, body.args ?? []);
+    // H3: диспатч идёт в контексте per-request личности (AsyncLocalStorage), а не из поля singleton —
+    // конкурентные RPC не перетирают друг другу сессию, в т.ч. при реальных await (Postgres).
+    const result = await runWithIdentity(identity, () => fn.apply(store, body.args ?? []));
     return json({ ok: true, result });
   } catch (e) {
     const err = e as { code?: string; message?: string };

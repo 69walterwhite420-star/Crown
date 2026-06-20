@@ -72,6 +72,9 @@ export class MockDataProvider implements DataProvider {
   private overlaySubs = new Map<string, Set<(e: OverlayEvent) => void>>();
 
   private sessionAddress: Address | null = null;
+  // H3: на сервере личность инжектится резолвером (per-request AsyncLocalStorage, см. server/store.ts);
+  // в браузерном mock резолвера нет → читается sessionAddress (его выставляет __setAddress: кошелёк/dev).
+  private identityResolver: (() => Address | null) | null = null;
   private failMode = process.env.NEXT_PUBLIC_MOCK_FAIL === "on";
   private latencyScale = 1;
   private seq = 0;
@@ -89,7 +92,8 @@ export class MockDataProvider implements DataProvider {
     let h = 0;
     for (const ch of method) h = (h * 31 + ch.charCodeAt(0)) % 997;
     const ms = (120 + (h / 997) * 380) * this.latencyScale;
-    // На сервере (latencyScale=0) НЕ уступаем macrotask — иначе конкурентные RPC перетрут sessionAddress.
+    // latencyScale=0 на сервере — лишь чтобы не добавлять искусственную задержку. Личность теперь несётся
+    // per-request через AsyncLocalStorage (H3), поэтому уступка macrotask больше НЕ перетирает чужую сессию.
     if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (this.failMode && FAILABLE.has(method)) {
       throw new DataError("MOCK_FAIL", `Сбой (${method}) — для проверки error-стейтов.`);
@@ -104,9 +108,14 @@ export class MockDataProvider implements DataProvider {
   private eventsFor(donor: Address, channelId: string) {
     return this.ledger.filter((e) => e.donor === donor && e.creator === channelId);
   }
+  /** Личность запроса: резолвер (сервер, per-request) или поле sessionAddress (браузерный mock). */
+  private currentAddress(): Address | null {
+    return this.identityResolver ? this.identityResolver() : this.sessionAddress;
+  }
   private session(): Session {
-    const address = this.sessionAddress;
-    if (!address) return { address: null, level: "address_only", isCreator: false, isOperator: false };
+    const address = this.currentAddress();
+    if (!address)
+      return { address: null, level: "address_only", isCreator: false, isOperator: false };
     const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
     // C2: пустой OPERATOR_ADDRESS (prod без явного env) не должен давать прав оператора.
     const isOperator = Boolean(OPERATOR_ADDRESS) && address === OPERATOR_ADDRESS;
@@ -116,7 +125,7 @@ export class MockDataProvider implements DataProvider {
   // — Авторизация. Личность = ПРОВЕРЕННЫЙ адрес сессии (выставлен из токена SIWS, см. server/auth.ts).
   // До этих проверок любой мог слать `address` в теле и выдавать себя за оператора/владельца (дыра C1/C3).
   private requireSession(): Address {
-    const addr = this.sessionAddress;
+    const addr = this.currentAddress();
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк и войди (подпись).");
     return addr;
   }
@@ -154,7 +163,7 @@ export class MockDataProvider implements DataProvider {
   }
   /** Не бросает — для редакции приватного текста в публичных чтениях (инвариант §4.6). */
   private isChannelManager(channelId: string): boolean {
-    const addr = this.sessionAddress;
+    const addr = this.currentAddress();
     if (!addr) return false;
     const ch = this.channelsById.get(channelId);
     if (!ch) return false;
@@ -180,7 +189,16 @@ export class MockDataProvider implements DataProvider {
       (min, e) => (min && min < e.ts ? min : e.ts),
       undefined,
     );
-    return { channelId, donor, points, tier, nextTier, progressToNext, totalDonated, firstDonationAt };
+    return {
+      channelId,
+      donor,
+      points,
+      tier,
+      nextTier,
+      progressToNext,
+      totalDonated,
+      firstDonationAt,
+    };
   }
   private emitOverlay(channelId: string, event: OverlayEvent) {
     this.overlaySubs.get(channelId)?.forEach((cb) => cb(event));
@@ -189,6 +207,10 @@ export class MockDataProvider implements DataProvider {
   // — Dev/инжект адреса (вне интерфейса) —
   __setAddress(address: Address | null) {
     this.sessionAddress = address;
+  }
+  /** H3: инжект резолвера личности (сервер). Браузерный mock не зовёт → остаётся поле sessionAddress. */
+  __setIdentityResolver(resolver: (() => Address | null) | null) {
+    this.identityResolver = resolver;
   }
   __getAddress(): Address | null {
     return this.sessionAddress;
@@ -242,7 +264,11 @@ export class MockDataProvider implements DataProvider {
     await this.gate("updateProfile");
     const addr = this.session().address;
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
-    const updated: LightProfile = { ...(this.profiles.get(addr) ?? { address: addr }), ...patch, address: addr };
+    const updated: LightProfile = {
+      ...(this.profiles.get(addr) ?? { address: addr }),
+      ...patch,
+      address: addr,
+    };
     this.profiles.set(addr, updated);
     return updated;
   }
@@ -260,7 +286,7 @@ export class MockDataProvider implements DataProvider {
           channelId: c.id,
           handle: c.handle,
           displayName: profile?.displayName,
-          topTierName: top ? top.tier.name : this.latestConfig(c.id).tiers[0]?.name ?? "Новичок",
+          topTierName: top ? top.tier.name : (this.latestConfig(c.id).tiers[0]?.name ?? "Новичок"),
           donorsCount: board.length,
         };
       });
@@ -297,7 +323,8 @@ export class MockDataProvider implements DataProvider {
     if (!isLikelyBase58Address(input.payoutAddress)) {
       throw new DataError("BAD_PAYOUT", "payoutAddress не похож на Solana-адрес.");
     }
-    if ([...this.channelsById.values()].some((c) => c.ownerAddress === addr)) throw ErrChannelAlreadyExists;
+    if ([...this.channelsById.values()].some((c) => c.ownerAddress === addr))
+      throw ErrChannelAlreadyExists;
     if (this.handleToId.has(handle)) {
       throw new DataError("HANDLE_TAKEN", `Handle @${handle} уже занят.`);
     }
@@ -357,7 +384,9 @@ export class MockDataProvider implements DataProvider {
       const events = this.eventsFor(donor, channelId).filter((e) => inPeriod(e.ts));
       const points = computePoints(events);
       if (points <= 0) continue;
-      const totalDonated = events.filter((e) => e.type === "DONATION").reduce((s, e) => s + e.amount, 0n);
+      const totalDonated = events
+        .filter((e) => e.type === "DONATION")
+        .reduce((s, e) => s + e.amount, 0n);
       entries.push({
         rank: 0,
         donor,
@@ -386,7 +415,10 @@ export class MockDataProvider implements DataProvider {
     const min = hasText ? cfg.minDonationWithText : cfg.minDonation;
     if (amount < min) throw new DataError("BELOW_MIN", "Сумма ниже минимума канала.");
     if (hasText && ch.status !== "ACTIVE") throw ErrTextRequiresActiveChannel;
-    if (hasText && this.blocks.some((b) => b.channelId === input.channelId && b.blockedAddress === donor)) {
+    if (
+      hasText &&
+      this.blocks.some((b) => b.channelId === input.channelId && b.blockedAddress === donor)
+    ) {
       throw new DataError("BLOCKED", "Этот кошелёк заблокирован на канале для донатов-с-текстом.");
     }
     const fee = (amount * 3n) / 100n;
@@ -464,7 +496,9 @@ export class MockDataProvider implements DataProvider {
       ts,
     });
     if (p.text) {
-      const { verdict, lang, contentHash, deduped } = runPipeline(p.text, this.modCache, { scope: p.channelId });
+      const { verdict, lang, contentHash, deduped } = runPipeline(p.text, this.modCache, {
+        scope: p.channelId,
+      });
       const isHardBlock = verdict === "HARD_BLOCK";
       const autoShow = !isHardBlock && p.textShowMode === "auto_if_clean" && verdict === "CLEAR";
       const messageId = this.nextId("m");
@@ -498,7 +532,8 @@ export class MockDataProvider implements DataProvider {
     if (donation.message?.state === "SHOWN") {
       this.emitOverlay(p.channelId, { kind: "donation_shown", donation, standing });
     }
-    if (tierChanged) this.emitOverlay(p.channelId, { kind: "tier_up", donor: p.donor, tier: standing.tier });
+    if (tierChanged)
+      this.emitOverlay(p.channelId, { kind: "tier_up", donor: p.donor, tier: standing.tier });
     return { donation, standing, tierChanged };
   }
 
@@ -530,7 +565,11 @@ export class MockDataProvider implements DataProvider {
     const msg = this.messages.get(messageId);
     if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
     this.requireChannelManager(msg.channelId); // показ/скрытие — решение публикации, только менеджер
-    const updated: MessageRef = { ...msg, state, shownAt: state === "SHOWN" ? this.now() : msg.shownAt };
+    const updated: MessageRef = {
+      ...msg,
+      state,
+      shownAt: state === "SHOWN" ? this.now() : msg.shownAt,
+    };
     this.messages.set(messageId, updated);
     const donation = this.donations.find((d) => d.id === msg.donationId);
     if (donation) donation.message = updated;
@@ -547,7 +586,11 @@ export class MockDataProvider implements DataProvider {
     this.requireChannelManager(channelId);
     return this.blocks.filter((b) => b.channelId === channelId);
   }
-  async addChannelBlock(channelId: string, address: Address, reason?: string): Result<ChannelBlock> {
+  async addChannelBlock(
+    channelId: string,
+    address: Address,
+    reason?: string,
+  ): Result<ChannelBlock> {
     await this.gate("addChannelBlock");
     const byModerator = this.requireChannelManager(channelId, true) && this.requireSession();
     const block: ChannelBlock = {
@@ -563,7 +606,9 @@ export class MockDataProvider implements DataProvider {
   async removeChannelBlock(channelId: string, address: Address): Result<void> {
     await this.gate("removeChannelBlock");
     this.requireChannelManager(channelId, true);
-    this.blocks = this.blocks.filter((b) => !(b.channelId === channelId && b.blockedAddress === address));
+    this.blocks = this.blocks.filter(
+      (b) => !(b.channelId === channelId && b.blockedAddress === address),
+    );
   }
 
   // — Оператор / T&S —

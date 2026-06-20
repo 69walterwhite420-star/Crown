@@ -1,4 +1,5 @@
 import { MockDataProvider } from "@/lib/data/mock-provider";
+import { currentIdentity } from "@/server/request-context";
 
 /**
  * Серверное хранилище (Фаза 2). In-memory, источник истины — журнал событий; репутация считается тем же
@@ -13,7 +14,11 @@ const globalForStore = globalThis as unknown as { __standingStore?: MockDataProv
 
 export function getStore(): MockDataProvider {
   if (!globalForStore.__standingStore) {
-    globalForStore.__standingStore = new MockDataProvider();
+    const store = new MockDataProvider();
+    // H3: на сервере личность запроса берётся из per-request AsyncLocalStorage (request-context), а не из
+    // мутируемого поля singleton — иначе конкурентные запросы перетирали бы личность друг друга.
+    store.__setIdentityResolver(() => currentIdentity() ?? null);
+    globalForStore.__standingStore = store;
   }
   return globalForStore.__standingStore;
 }
