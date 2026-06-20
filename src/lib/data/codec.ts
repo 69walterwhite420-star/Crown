@@ -7,8 +7,17 @@ interface BigintTag {
   __bigint: string;
 }
 
+// L2 (аудит): ограничиваем длину/формат — гигантская строка в __bigint → дорогая BigInt-арифметика (DoS
+// публичного эндпоинта). Деньги в micro-USDC помещаются с огромным запасом (<= 40 цифр). Нестрогий тег
+// проходит как обычный объект (не конвертируется), без бросков.
+const BIGINT_RE = /^-?\d{1,40}$/;
 function isBigintTag(v: unknown): v is BigintTag {
-  return typeof v === "object" && v !== null && typeof (v as BigintTag).__bigint === "string";
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    typeof (v as BigintTag).__bigint === "string" &&
+    BIGINT_RE.test((v as BigintTag).__bigint)
+  );
 }
 
 /** Сериализация: bigint → { __bigint: "<dec>" }. */

@@ -3,21 +3,14 @@ import type { Address } from "@/lib/data/types";
 import { issueNonce, resolveToken, revokeToken, verifyAndIssueToken } from "@/server/auth";
 import { ingestSignature } from "@/server/ingest";
 import { runWithIdentity } from "@/server/request-context";
+import { CHAIN_MODE, IS_PROD } from "@/server/runtime";
 import { getStore } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
-const IS_PROD = process.env.NODE_ENV === "production";
-
-// C1: в chain-режиме реальные деньги идут ончейн, поэтому ОФФЧЕЙН-симуляция доната (createDonation в
-// MockDataProvider) запрещена — иначе любой вошедший по SIWS кошелёк мог бы бесплатно наколдовать
-// донат + репутацию + текст на оверлей мимо цепочки (подделка продукта, нарушение инварианта §4.4/§4.7).
-// Начисление в chain-режиме делает ТОЛЬКО ingestSignature по ончейн-подтверждённому донату.
-// Управляется ЯВНОЙ серверной env CHAIN_MODE (не NEXT_PUBLIC, не привязано к NODE_ENV). Fail-safe: в
-// production закрыто по умолчанию, пока явно не задан CHAIN_MODE=off (для редкого prod-деплоя api/mock).
-const CHAIN_MODE = process.env.CHAIN_MODE === "on" || (IS_PROD && process.env.CHAIN_MODE !== "off");
-
-// Методы-оффчейн-симуляции, недоступные в chain-режиме (ончейн-эквивалент идёт другим путём).
+// C1/M2: IS_PROD и серверный CHAIN_MODE живут в @/server/runtime (единая формула для гейта и зачёта).
+// CHAIN_MODE → оффчейн-симуляция доната запрещена: любой вошедший по SIWS кошелёк иначе наколдовал бы
+// донат+репутацию+оверлей мимо цепочки (нарушение §4.4/§4.7). Репутацию даёт только ingestSignature.
 const CHAIN_FORBIDDEN = new Set<string>(["createDonation"]);
 
 // Белый список разрешённых методов стора (методы DataProvider). Авторизацию каждой мутации делает сам
@@ -93,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const store = getStore();
   store.__setLatencyScale(0);
-  store.__setFailMode(Boolean(body.failMode));
+  store.__setFailMode(!IS_PROD && Boolean(body.failMode)); // L1: инъекция ошибок — только dev-тулинг, не из прода
 
   // Личность запроса — ТОЛЬКО из проверенного токена. В dev (не prod) допускаем вход по адресу без
   // подписи для mock/api-тулинга; в проде `address` игнорируется полностью (дыра C1 закрыта).

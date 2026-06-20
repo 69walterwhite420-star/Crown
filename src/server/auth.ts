@@ -1,6 +1,6 @@
 import { createPublicKey, randomBytes, verify as edVerify } from "crypto";
 import { PublicKey } from "@solana/web3.js";
-import { buildSiwsMessage } from "@/lib/chain/siws";
+import { buildSiwsMessage, type SiwsFields } from "@/lib/chain/siws";
 
 /**
  * Серверная аутентификация (закрывает дыру: раньше личностью был НЕПРОВЕРЕННЫЙ `address` из тела запроса).
@@ -19,10 +19,16 @@ import { buildSiwsMessage } from "@/lib/chain/siws";
 
 const NONCE_TTL_MS = 5 * 60_000; // 5 минут на подпись
 const SESSION_TTL_MS = 12 * 60 * 60_000; // 12 часов
+// M1 (аудит): домен в SIWS-сообщении — пользователь видит, куда входит, и подпись не переносится меж-app.
+const SIWS_DOMAIN = process.env.APP_DOMAIN ?? "standing.local";
+// M1: жёсткие потолки на in-memory сторы — `__authNonce` неаутентифицирован, иначе рост памяти безграничен.
+const MAX_NONCES = 5_000;
+const MAX_SESSIONS = 50_000;
 
 interface NonceRec {
   nonce: string;
   exp: number;
+  issuedAt: number;
 }
 interface SessionRec {
   address: string;
@@ -35,6 +41,26 @@ const g = globalThis as unknown as {
 };
 const nonces = (g.__standingNonces ??= new Map());
 const sessions = (g.__standingSessions ??= new Map());
+
+/** Чистка протухших + ограничение размера (вытеснение старейших по insertion order) — анти-DoS памяти. */
+function prune<T extends { exp: number }>(map: Map<string, T>, max: number): void {
+  const now = Date.now();
+  for (const [k, v] of map) if (v.exp < now) map.delete(k);
+  while (map.size > max) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
+
+/** SIWS-поля из меток времени nonce — одинаковы при выдаче и проверке → сообщение байт-в-байт совпадает. */
+function siwsFields(issuedAt: number, exp: number): SiwsFields {
+  return {
+    domain: SIWS_DOMAIN,
+    issuedAt: new Date(issuedAt).toISOString(),
+    expiresAt: new Date(exp).toISOString(),
+  };
+}
 
 /** Валидный ли это base58 Solana-адрес на кривой ed25519 (авторитетная проверка, в отличие от формата). */
 export function isValidAddress(address: string): boolean {
@@ -49,9 +75,12 @@ export function isValidAddress(address: string): boolean {
 /** Шаг 1: выдать nonce + сообщение для подписи. */
 export function issueNonce(address: string): { nonce: string; message: string } | null {
   if (!isValidAddress(address)) return null;
+  prune(nonces, MAX_NONCES);
   const nonce = randomBytes(24).toString("hex");
-  nonces.set(address, { nonce, exp: Date.now() + NONCE_TTL_MS });
-  return { nonce, message: buildSiwsMessage(address, nonce) };
+  const issuedAt = Date.now();
+  const exp = issuedAt + NONCE_TTL_MS;
+  nonces.set(address, { nonce, exp, issuedAt });
+  return { nonce, message: buildSiwsMessage(address, nonce, siwsFields(issuedAt, exp)) };
 }
 
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
@@ -84,9 +113,10 @@ export function verifyAndIssueToken(
     return null;
   }
   nonces.delete(address); // one-time: nonce гасится в любом исходе (нет реюза/перебора)
-  const message = buildSiwsMessage(address, rec.nonce);
+  const message = buildSiwsMessage(address, rec.nonce, siwsFields(rec.issuedAt, rec.exp));
   if (!verifySignature(address, message, signatureB64)) return null;
 
+  prune(sessions, MAX_SESSIONS);
   const token = randomBytes(32).toString("hex");
   const exp = Date.now() + SESSION_TTL_MS;
   sessions.set(token, { address, exp });

@@ -2,6 +2,7 @@ import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { assertMoneyConfig, DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
 import { parseDonationTx } from "@/lib/chain/indexer";
+import { CHAIN_MODE } from "@/server/runtime";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
 
 /**
@@ -19,7 +20,11 @@ export async function ingestSignature(
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
 
-  const indexed = await parseDonationTx(connection, signature, { mint, treasuryAta });
+  const indexed = await parseDonationTx(connection, signature, {
+    mint,
+    treasuryAta,
+    commitment: CHAIN_MODE ? "finalized" : "confirmed",
+  });
   if (!indexed) return { ok: false, reason: "не валидная донат-транзакция (нет пары 97/3 + memo)" };
 
   const channelId = indexed.memo.c;

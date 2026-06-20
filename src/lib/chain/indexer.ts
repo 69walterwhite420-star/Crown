@@ -38,11 +38,11 @@ function isParsed(ix: ParsedInstruction | PartiallyDecodedInstruction): ix is Pa
 export async function parseDonationTx(
   connection: Connection,
   signature: string,
-  opts: { mint: PublicKey; treasuryAta: PublicKey },
+  opts: { mint: PublicKey; treasuryAta: PublicKey; commitment?: "confirmed" | "finalized" },
 ): Promise<IndexedDonation | null> {
-  // "confirmed" для отзывчивости на devnet; в проде индексер ждёт "finalized" перед зачётом.
+  // M2: в chain-режиме зачёт ждёт "finalized" (защита от реорга на mainnet); "confirmed" — для отзывчивости devnet.
   const tx = await connection.getParsedTransaction(signature, {
-    commitment: "confirmed",
+    commitment: opts.commitment ?? "confirmed",
     maxSupportedTransactionVersion: 0,
   });
   return extractDonation(tx, signature, opts);
@@ -109,7 +109,10 @@ export async function fetchNewTreasurySignatures(
   treasuryAta: PublicKey,
   afterSignature?: string,
 ): Promise<string[]> {
-  const sigs = await connection.getSignaturesForAddress(treasuryAta, { until: afterSignature, limit: 50 });
+  const sigs = await connection.getSignaturesForAddress(treasuryAta, {
+    until: afterSignature,
+    limit: 50,
+  });
   return sigs
     .filter((s) => !s.err)
     .map((s) => s.signature)
