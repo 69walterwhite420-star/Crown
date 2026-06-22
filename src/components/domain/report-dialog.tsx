@@ -1,0 +1,116 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
+import { useReportMessage } from "@/lib/data/hooks";
+
+// Конкретные причины — чтобы оператор/стример сразу понимали, на что жалоба.
+const REASONS = [
+  "Спам / реклама",
+  "Оскорбления, травля",
+  "Угрозы, насилие",
+  "Запрещённое (CSAM / незаконное)",
+  "Мошенничество, скам",
+  "Другое",
+];
+
+/** Кнопка + диалог жалобы: выбор причины и комментарий. Шлёт reportMessage(messageId, "причина: коммент"). */
+export function ReportDialog({
+  messageId,
+  channelId,
+  label = "Пожаловаться",
+}: {
+  messageId: string;
+  channelId: string;
+  label?: string;
+}) {
+  const report = useReportMessage(channelId);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState(REASONS[0]);
+  const [comment, setComment] = useState("");
+
+  function submit() {
+    const full = comment.trim() ? `${reason}: ${comment.trim()}` : reason;
+    report.mutate(
+      { messageId, reason: full },
+      {
+        onSuccess: (r) => {
+          toast({
+            title: r.hidden ? "Скрыто по жалобам" : "Жалоба отправлена",
+            description: r.hidden
+              ? "Текст авто-скрыт до решения стримера/оператора."
+              : `Учтено жалоб: ${r.reports}.`,
+          });
+          setOpen(false);
+          setComment("");
+        },
+        onError: (e) =>
+          toast({
+            variant: "error",
+            title: "Жалоба не отправлена",
+            description: e instanceof Error ? e.message : String(e),
+          }),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="text-small text-fg-faint transition-colors hover:text-danger"
+        >
+          {label}
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Пожаловаться на сообщение</DialogTitle>
+          <DialogDescription>
+            Выбери причину — жалоба уйдёт стримеру и оператору (T&S). При нескольких жалобах текст
+            авто-скрывается.
+          </DialogDescription>
+        </DialogHeader>
+        <Select label="Причина" value={reason} onChange={(e) => setReason(e.target.value)}>
+          {REASONS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </Select>
+        <Textarea
+          label="Комментарий (необязательно)"
+          placeholder="Что именно не так…"
+          maxLength={280}
+          showCount
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={report.isPending}>
+              Отмена
+            </Button>
+          </DialogClose>
+          <Button variant="danger" loading={report.isPending} onClick={submit}>
+            Отправить жалобу
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -731,8 +731,10 @@ export class MockDataProvider implements DataProvider {
     const reporter = this.requireSession();
     const msg = this.messages.get(messageId);
     if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
-    if (msg.state !== "SHOWN") {
-      throw new DataError("NOT_REPORTABLE", "Пожаловаться можно только на показанный текст.");
+    // Показанное может репортить любой вошедший; НЕ показанное (HELD/карантин) — только менеджер канала
+    // (эскалация в T&S из очереди модерации).
+    if (msg.state !== "SHOWN" && !this.isChannelManager(msg.channelId)) {
+      throw new DataError("NOT_REPORTABLE", "Жаловаться можно на показанный текст или из очереди модерации.");
     }
     if (this.reports.some((r) => r.messageId === messageId && r.reporter === reporter)) {
       throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
@@ -748,7 +750,7 @@ export class MockDataProvider implements DataProvider {
         channelId: msg.channelId,
         address: author,
         kind: "report",
-        detail: `Жалоба зрителя${reason ? `: ${reason}` : ""}.`,
+        detail: `Жалоба${reason ? `: ${reason}` : ""}.`,
         text: msg.text,
         ts,
       });

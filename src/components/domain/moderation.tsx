@@ -1,6 +1,7 @@
 "use client";
 
 import { Amount } from "./amount";
+import { ReportDialog } from "./report-dialog";
 import { Button } from "@/components/ui/button";
 import { cn, shortAddress, timeAgo } from "@/lib/utils";
 import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/data/types";
@@ -70,6 +71,13 @@ export function ModerationItem({
           <Button variant="secondary" size="sm" onClick={onHide} disabled={pending}>
             Скрыть
           </Button>
+          <span className="ml-auto">
+            <ReportDialog
+              messageId={message.id}
+              channelId={message.channelId}
+              label="Пожаловаться"
+            />
+          </span>
         </div>
       )}
 

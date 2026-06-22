@@ -1,5 +1,5 @@
 import { Amount } from "./amount";
-import { ReportButton } from "./report-button";
+import { ReportDialog } from "./report-dialog";
 import { TierBadge } from "./standing";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { shortAddress, timeAgo } from "@/lib/utils";
@@ -50,7 +50,7 @@ export function DonationCard({
         ) : null}
         {reportable && shown && donation.message ? (
           <span className={donation.txSignature ? "" : "ml-auto"}>
-            <ReportButton messageId={donation.message.id} channelId={donation.channelId} />
+            <ReportDialog messageId={donation.message.id} channelId={donation.channelId} />
           </span>
         ) : null}
       </div>
