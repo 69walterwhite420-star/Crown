@@ -43,6 +43,7 @@ const ALLOWED = new Set<string>([
   "getChannel",
   "getMyChannel",
   "getManagedChannels",
+  "getOperatorChannels",
   "getChannelConfig",
   "createChannel",
   "activateChannel",

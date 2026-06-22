@@ -49,6 +49,7 @@ export interface DataProvider {
   getChannel(handle: string): Result<Channel | null>;
   getMyChannel(): Result<Channel | null>; // канал, которым ВЛАДЕЕТ текущая сессия (один на кошелёк, ADR 0002)
   getManagedChannels(): Result<Channel[]>; // каналы, которыми управляешь: владелец ИЛИ модератор (для очереди)
+  getOperatorChannels(): Result<Channel[]>; // ВСЕ каналы (любой статус) — только оператор (консоль T&S)
   getChannelConfig(channelId: string): Result<ChannelConfig>;
   createChannel(input: CreateChannelInput): Result<Channel>; // один канал на кошелёк (ADR 0002)
   activateChannel(channelId: string): Result<Channel>; // сбор ~$2 → BASIC→ACTIVE

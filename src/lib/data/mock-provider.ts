@@ -389,6 +389,12 @@ export class MockDataProvider implements DataProvider {
       return Boolean(cfg?.moderators.some((m) => m.address === addr));
     });
   }
+  /** ВСЕ каналы (любой статус) — для консоли оператора: нужно действовать и на SUSPENDED/BANNED. */
+  async getOperatorChannels(): Result<Channel[]> {
+    await this.gate("getOperatorChannels");
+    this.requireOperator();
+    return [...this.channelsById.values()];
+  }
   /** Внутренний доступ для ingest (вне интерфейса). */
   __getChannelById(id: string): Channel | null {
     return this.channelsById.get(id) ?? null;
@@ -844,15 +850,27 @@ export class MockDataProvider implements DataProvider {
         this.channelsById.set(ch.id, { ...ch, status });
       }
     }
-    this.incidents.push({
-      id: this.nextId("inc"),
-      channelId: action.targetChannelId,
-      address: action.targetAddress,
-      kind: action.reason.includes("CSAM") ? "hard_block" : "flood",
-      detail: `Действие оператора: ${action.action} (${action.reason})`,
-      resolution: action.preservation ? "preservation + репорт" : undefined,
-      ts: this.now(),
-    });
+    // Восстановление: обратное к suspend/ban. Только SUSPENDED|BANNED → ACTIVE (BASIC не трогаем, иначе
+    // обошли бы платный сбор активации).
+    if (action.action === "REINSTATE_CHANNEL" && action.targetChannelId) {
+      const ch = this.channelsById.get(action.targetChannelId);
+      if (ch && (ch.status === "SUSPENDED" || ch.status === "BANNED")) {
+        this.channelsById.set(ch.id, { ...ch, status: "ACTIVE" });
+      }
+    }
+    // Карательный инцидент — только для санкций; восстановление это резолюция, не инцидент (есть в журнале
+    // operatorActions). Иначе бейдж «Флуд» вводил бы в заблуждение.
+    if (action.action !== "REINSTATE_CHANNEL") {
+      this.incidents.push({
+        id: this.nextId("inc"),
+        channelId: action.targetChannelId,
+        address: action.targetAddress,
+        kind: action.reason.includes("CSAM") ? "hard_block" : "flood",
+        detail: `Действие оператора: ${action.action} (${action.reason})`,
+        resolution: action.preservation ? "preservation + репорт" : undefined,
+        ts: this.now(),
+      });
+    }
     return full;
   }
   async getIncidentLog(_opts?: ListOpts): Result<Page<IncidentLog>> {

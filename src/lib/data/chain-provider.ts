@@ -322,6 +322,9 @@ export class ChainDataProvider implements DataProvider {
   getManagedChannels(): Result<Channel[]> {
     return this.api.getManagedChannels();
   }
+  getOperatorChannels(): Result<Channel[]> {
+    return this.api.getOperatorChannels();
+  }
   getChannelConfig(id: string): Result<ChannelConfig> {
     return this.api.getChannelConfig(id);
   }

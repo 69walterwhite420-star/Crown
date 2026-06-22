@@ -118,6 +118,9 @@ export class ApiDataProvider implements DataProvider {
   getManagedChannels(): Result<Channel[]> {
     return this.rpc("getManagedChannels", []);
   }
+  getOperatorChannels(): Result<Channel[]> {
+    return this.rpc("getOperatorChannels", []);
+  }
   getChannelConfig(channelId: string): Result<ChannelConfig> {
     return this.rpc("getChannelConfig", [channelId]);
   }

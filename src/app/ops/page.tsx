@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import {
   useApplyOperatorAction,
-  useDiscovery,
+  useOperatorChannels,
   useOperatorQueue,
   useSession,
 } from "@/lib/data/hooks";
@@ -51,6 +51,7 @@ const ACTIONS: { value: PenaltyAction; label: string }[] = [
   { value: "BAN_CREATOR_ROLE", label: "Бан креатор-роли" },
   { value: "BAN_WALLET_FULL", label: "Полный бан кошелька" },
   { value: "ADMIN_VOID", label: "Воид репутации (ADMIN_VOID)" },
+  { value: "REINSTATE_CHANNEL", label: "Восстановить канал (снять саспенд/бан)" },
 ];
 
 // Какие цели нужны действию: канал и/или адрес кошелька. Под выбранное действие показываем нужные поля.
@@ -61,12 +62,13 @@ const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = 
   BAN_CREATOR_ROLE: { channel: true, address: false },
   BAN_WALLET_FULL: { channel: false, address: true },
   ADMIN_VOID: { channel: true, address: true },
+  REINSTATE_CHANNEL: { channel: true, address: false },
 };
 
 export default function OpsConsolePage() {
   const sessionQ = useSession();
   const queueQ = useOperatorQueue();
-  const discoveryQ = useDiscovery();
+  const channelsQ = useOperatorChannels(); // все каналы (любой статус) — чтобы действовать и на SUSPENDED
   const apply = useApplyOperatorAction();
 
   const [action, setAction] = useState<PenaltyAction>("SUSPEND_CHANNEL");
@@ -80,10 +82,10 @@ export default function OpsConsolePage() {
   const canApply =
     (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
 
-  // channelId → @handle (читаемо). Не найден в активных (саспенднут/забанен) → как есть.
+  // channelId → @handle (читаемо).
   const handleFor = (id: string): string => {
-    const card = (discoveryQ.data?.items ?? []).find((c) => c.channelId === id);
-    return card ? `@${card.handle}` : id;
+    const ch = (channelsQ.data ?? []).find((c) => c.id === id);
+    return ch ? `@${ch.handle}` : id;
   };
 
   // «Разобрать»: подставить цель инцидента в форму действия и проскроллить к ней.
@@ -163,9 +165,9 @@ export default function OpsConsolePage() {
           {req.channel ? (
             <Select label="Канал" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
               <option value="">— выбери канал —</option>
-              {(discoveryQ.data?.items ?? []).map((c) => (
-                <option key={c.channelId} value={c.channelId}>
-                  @{c.handle}
+              {(channelsQ.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  @{c.handle} · {c.status}
                 </option>
               ))}
             </Select>

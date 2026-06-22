@@ -160,7 +160,8 @@ export type PenaltyAction =
   | "SUSPEND_CHANNEL"
   | "BAN_CREATOR_ROLE"
   | "BAN_WALLET_FULL"
-  | "ADMIN_VOID";
+  | "ADMIN_VOID"
+  | "REINSTATE_CHANNEL"; // обратное к suspend/ban: SUSPENDED|BANNED → ACTIVE (путь восстановления)
 
 export interface OperatorAction {
   id: string;

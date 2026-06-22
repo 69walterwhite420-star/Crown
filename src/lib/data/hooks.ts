@@ -51,6 +51,10 @@ export function useManagedChannels() {
   const data = useData();
   return useQuery({ queryKey: ["managedChannels"], queryFn: () => data.getManagedChannels() });
 }
+export function useOperatorChannels() {
+  const data = useData();
+  return useQuery({ queryKey: ["operatorChannels"], queryFn: () => data.getOperatorChannels() });
+}
 export function useChannelConfig(channelId: string | undefined) {
   const data = useData();
   return useQuery({
@@ -225,6 +229,9 @@ export function useApplyOperatorAction() {
       qc.invalidateQueries({ queryKey: qk.incidentLog() });
       qc.invalidateQueries({ queryKey: ["channel"] });
       qc.invalidateQueries({ queryKey: ["standing"] });
+      qc.invalidateQueries({ queryKey: qk.discovery() }); // статус канала мог измениться (suspend/restore)
+      qc.invalidateQueries({ queryKey: ["operatorChannels"] });
+      qc.invalidateQueries({ queryKey: qk.myChannel() });
     },
   });
 }
