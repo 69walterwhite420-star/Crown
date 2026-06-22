@@ -45,7 +45,7 @@
 | Инъекция сбоев `failMode` | `route.ts` | Нет — только `!IS_PROD` (ADR 0011/L1) |
 | Вход по адресу без подписи | `route.ts` | Нет — только `!IS_PROD && !CHAIN_MODE` (R10) |
 | `DevToolbar` | `components/layout/dev-toolbar.tsx` | Инертна — провайдер chain не реализует `__setAddress` |
-| `/dev/kitchen-sink` | `app/dev/kitchen-sink/page.tsx` | **Достижима** в проде, но инертна (мутации 403). Открытый пункт: добавить `notFound()`-гейт |
+| `/dev/kitchen-sink` | `app/dev/layout.tsx` (гейт) → `…/kitchen-sink/page.tsx` | Нет — серверный `DevLayout` зовёт `notFound()` при `IS_PROD` → 404 (проверено: prod 404, dev 200) |
 
 ---
 

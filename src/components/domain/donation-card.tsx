@@ -1,5 +1,7 @@
 import { Amount } from "./amount";
+import { ReportButton } from "./report-button";
 import { TierBadge } from "./standing";
+import { explorerTxUrl } from "@/lib/chain/addresses";
 import { shortAddress, timeAgo } from "@/lib/utils";
 import type { Donation, Tier } from "@/lib/data/types";
 
@@ -9,11 +11,13 @@ export function DonationCard({
   tier,
   displayName,
   showChannel,
+  reportable,
 }: {
   donation: Donation;
   tier?: Tier;
   displayName?: string;
   showChannel?: boolean;
+  reportable?: boolean; // показать «Пожаловаться» (публичная лента показанных сообщений)
 }) {
   const shown = donation.message?.state === "SHOWN";
   return (
@@ -21,7 +25,7 @@ export function DonationCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-small text-fg">
-            {displayName ?? shortAddress(donation.donor)}
+            {displayName ?? donation.donorName ?? shortAddress(donation.donor)}
           </span>
           {tier ? <TierBadge tier={tier} /> : null}
         </div>
@@ -33,6 +37,22 @@ export function DonationCard({
       <div className="flex items-center gap-2 text-small text-fg-faint">
         <span title={donation.ts}>{timeAgo(donation.ts)}</span>
         {showChannel ? <span className="mono">· {donation.channelId}</span> : null}
+        {donation.txSignature ? (
+          <a
+            href={explorerTxUrl(donation.txSignature)}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto text-info hover:underline"
+            title={donation.txSignature}
+          >
+            транзакция ↗
+          </a>
+        ) : null}
+        {reportable && shown && donation.message ? (
+          <span className={donation.txSignature ? "" : "ml-auto"}>
+            <ReportButton messageId={donation.message.id} channelId={donation.channelId} />
+          </span>
+        ) : null}
       </div>
     </div>
   );

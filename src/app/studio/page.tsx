@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Amount } from "@/components/domain/amount";
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
-import { DonationCard } from "@/components/domain/donation-card";
+import { DonationHistory } from "@/components/domain/donation-history";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useModerationQueue, useMyChannel, useSession } from "@/lib/data/hooks";
@@ -26,11 +27,7 @@ export default function StudioDashboardPage() {
       <EmptyState
         title="Подключи кошелёк"
         description="Студия доступна после подключения кошелька."
-        action={
-          <Button asChild size="sm">
-            <Link href="/connect">Подключить кошелёк</Link>
-          </Button>
-        }
+        action={<ConnectWalletButton />}
       />
     );
   }
@@ -80,17 +77,10 @@ export default function StudioDashboardPage() {
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-h2 text-fg">Последние донаты</h2>
         {donationsQ.isLoading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : donations.length === 0 ? (
-          <EmptyState title="Пока нет донатов" description="Поделись ссылкой на канал, чтобы начать." />
+          <Skeleton className="h-12 w-full rounded-lg" />
         ) : (
-          <div className="flex flex-col gap-2">
-            {donations.slice(0, 6).map((d) => (
-              <DonationCard key={d.id} donation={d} />
-            ))}
-          </div>
+          <DonationHistory donations={donations} />
         )}
       </section>
     </div>

@@ -5,14 +5,16 @@ import { Amount } from "@/components/domain/amount";
 import { DonationCard } from "@/components/domain/donation-card";
 import { ReputationProgress, StandingSeal, TierBadge } from "@/components/domain/standing";
 import { AppHeader } from "@/components/layout/app-header";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
-import { useDiscovery, useDonations, useSession, useStanding } from "@/lib/data/hooks";
+import { useDiscovery, useDonations, useProfile, useSession, useStanding } from "@/lib/data/hooks";
 import type { ChannelCard } from "@/lib/data/types";
 
-export default function MyStandingPage() {
+export default function ProfilePage() {
   const sessionQ = useSession();
   const address = sessionQ.data?.address ?? null;
+  const profileQ = useProfile(address);
   const discoveryQ = useDiscovery();
 
   return (
@@ -20,9 +22,9 @@ export default function MyStandingPage() {
       <AppHeader />
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
         <div className="flex flex-col gap-1">
-          <h1 className="text-display-l text-fg">Моё standing</h1>
+          <h1 className="text-display-l text-fg">Профиль</h1>
           <p className="text-fg-muted">
-            Репутация локальна — у тебя своё standing в каждом комьюнити, общего рейтинга нет.
+            Твой ник, репутация по каналам и история донатов. Репутация локальна — своя в каждом комьюнити.
           </p>
         </div>
 
@@ -31,27 +33,68 @@ export default function MyStandingPage() {
         ) : !address ? (
           <EmptyState
             title="Кошелёк не подключён"
-            description="Подключи кошелёк, чтобы увидеть свой standing по каналам."
-            action={
-              <Button asChild size="sm">
-                <Link href="/connect">Подключить кошелёк</Link>
-              </Button>
-            }
+            description="Подключи кошелёк, чтобы увидеть свой профиль и standing."
+            action={<ConnectWalletButton />}
           />
-        ) : discoveryQ.isLoading ? (
-          <Skeleton className="h-32 w-full" />
         ) : (
-          <div className="flex flex-col gap-3">
-            {(discoveryQ.data?.items ?? []).map((card) => (
-              <StandingRow key={card.channelId} card={card} address={address} />
-            ))}
-            <p className="text-small text-fg-faint">
-              Если канал не показан — ты ещё не донатил на нём; standing появится после первого доната.
-            </p>
-          </div>
+          <>
+            {/* Шапка профиля + отдельная кнопка редактирования */}
+            <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <ProfileAvatar
+                  url={profileQ.data?.avatarUrl}
+                  name={profileQ.data?.displayName}
+                  address={address}
+                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-display text-h3 text-fg">
+                    {profileQ.data?.displayName ?? "Без имени"}
+                  </span>
+                  <span className="mono truncate text-small text-fg-faint">{address}</span>
+                  {profileQ.data?.bio ? (
+                    <p className="text-small text-fg-muted">{profileQ.data.bio}</p>
+                  ) : null}
+                </div>
+              </div>
+              <Button asChild size="sm" variant="secondary">
+                <Link href="/me/profile">Редактировать профиль</Link>
+              </Button>
+            </div>
+
+            {/* Репутация по каналам + история донатов (по всем каналам) */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-h2 text-fg">Моё standing</h2>
+              {discoveryQ.isLoading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {(discoveryQ.data?.items ?? []).map((card) => (
+                    <StandingRow key={card.channelId} card={card} address={address} />
+                  ))}
+                  <p className="text-small text-fg-faint">
+                    Если канал не показан — ты ещё не донатил на нём; standing появится после первого доната.
+                  </p>
+                </div>
+              )}
+            </section>
+          </>
         )}
       </main>
     </>
+  );
+}
+
+/** Аватар профиля: картинка по URL или монограмма-плейсхолдер. */
+function ProfileAvatar({ url, name, address }: { url?: string; name?: string; address: string }) {
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element -- аватар по произвольному URL пользователя
+    return <img src={url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />;
+  }
+  const initial = (name ?? address).slice(0, 1).toUpperCase();
+  return (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-surface-raised font-display text-h3 text-fg-muted">
+      {initial}
+    </div>
   );
 }
 

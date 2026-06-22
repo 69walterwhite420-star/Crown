@@ -1,18 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import { ModerationItem } from "@/components/domain/moderation";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import {
   useDonations,
+  useManagedChannels,
   useModerationQueue,
-  useMyChannel,
   useSetMessageState,
 } from "@/lib/data/hooks";
 
 export default function ModerationQueuePage() {
-  const myChannelQ = useMyChannel();
-  const channelId = myChannelQ.data?.id;
+  // Каналы, которыми управляешь: владелец ИЛИ модератор (раньше очередь брала только канал-владельца через
+  // getMyChannel, поэтому модератор её не видел).
+  const managedQ = useManagedChannels();
+  const channels = managedQ.data ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const channelId = selectedId ?? channels[0]?.id;
+
   const queueQ = useModerationQueue(channelId);
   const donationsQ = useDonations(channelId);
   const setState = useSetMessageState(channelId ?? "");
@@ -20,8 +27,15 @@ export default function ModerationQueuePage() {
   // Джойн message → donation, чтобы показать донора и сумму в очереди.
   const byDonation = new Map((donationsQ.data?.items ?? []).map((d) => [d.id, d]));
 
-  if (myChannelQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
-  if (!channelId) return <EmptyState title="Сначала создай канал" />;
+  if (managedQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
+  if (channels.length === 0) {
+    return (
+      <EmptyState
+        title="Нет каналов на модерации"
+        description="Создай свой канал или попроси владельца добавить твой кошелёк в модераторы."
+      />
+    );
+  }
 
   function act(messageId: string, state: "SHOWN" | "HIDDEN") {
     setState.mutate(
@@ -41,6 +55,21 @@ export default function ModerationQueuePage() {
           Текст приватен до показа. Реши судьбу текста — деньги и standing донора уже зачтены.
         </p>
       </div>
+
+      {channels.length > 1 ? (
+        <Select
+          label="Канал"
+          value={channelId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="sm:w-64"
+        >
+          {channels.map((c) => (
+            <option key={c.id} value={c.id}>
+              @{c.handle}
+            </option>
+          ))}
+        </Select>
+      ) : null}
 
       {queueQ.isLoading ? (
         <Skeleton className="h-40 w-full" />

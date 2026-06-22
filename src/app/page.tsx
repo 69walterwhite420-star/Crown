@@ -1,6 +1,6 @@
 "use client";
 
-import { ChannelCardTile } from "@/components/domain/channel-card";
+import { ChannelBrowser } from "@/components/domain/channel-browser";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDiscovery } from "@/lib/data/hooks";
@@ -31,11 +31,7 @@ export default function DiscoveryPage() {
             description="Подключи кошелёк и активируй свой канал, чтобы он появился здесь."
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {data.items.map((c) => (
-              <ChannelCardTile key={c.channelId} card={c} />
-            ))}
-          </div>
+          <ChannelBrowser channels={data.items} />
         )}
       </main>
     </>

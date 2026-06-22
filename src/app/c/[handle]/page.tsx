@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationCard } from "@/components/domain/donation-card";
+import { DonationHistory } from "@/components/domain/donation-history";
 import { Leaderboard } from "@/components/domain/leaderboard";
 import { ReputationProgress, StandingSeal, TierLadder } from "@/components/domain/standing";
 import { AppHeader } from "@/components/layout/app-header";
-import { Button } from "@/components/ui/button";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import {
   useChannel,
@@ -75,7 +75,7 @@ export default function ChannelPage() {
                       ) : (
                         <div className="flex flex-col gap-2">
                           {shown.map((d) => (
-                            <DonationCard key={d.id} donation={d} />
+                            <DonationCard key={d.id} donation={d} reportable />
                           ))}
                         </div>
                       );
@@ -86,6 +86,14 @@ export default function ChannelPage() {
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h2 text-fg">Лидерборд</h2>
                   {channel ? <Leaderboard channelId={channel.id} currentAddress={address} /> : null}
+                </section>
+
+                <section className="flex flex-col gap-3">
+                  {donationsQ.isLoading ? (
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                  ) : (
+                    <DonationHistory donations={donationsQ.data?.items ?? []} />
+                  )}
                 </section>
 
                 <section className="flex flex-col gap-3">
@@ -103,9 +111,7 @@ export default function ChannelPage() {
                       <p className="text-small text-fg-muted">
                         Подключи кошелёк, чтобы видеть и набирать standing на этом канале.
                       </p>
-                      <Button asChild size="sm" variant="secondary">
-                        <Link href="/connect">Подключить кошелёк</Link>
-                      </Button>
+                      <ConnectWalletButton />
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3">

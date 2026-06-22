@@ -14,7 +14,7 @@ export function AppHeader() {
             Каналы
           </Link>
           <Link href="/me" className="hover:text-fg">
-            Моё standing
+            Профиль
           </Link>
           <Link href="/studio" className="hover:text-fg">
             Студия

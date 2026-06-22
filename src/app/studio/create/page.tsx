@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
@@ -34,11 +35,7 @@ export default function CreateChannelPage() {
       <EmptyState
         title="Подключи кошелёк"
         description="Создание канала доступно после подключения кошелька."
-        action={
-          <Button asChild size="sm">
-            <Link href="/connect">Подключить кошелёк</Link>
-          </Button>
-        }
+        action={<ConnectWalletButton />}
       />
     );
   }

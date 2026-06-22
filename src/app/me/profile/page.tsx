@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
@@ -53,8 +54,11 @@ export default function ProfileSettingsPage() {
     <>
       <AppHeader />
       <main className="mx-auto flex max-w-lg flex-col gap-5 px-4 py-8">
+        <Link href="/me" className="text-small text-fg-muted hover:text-fg">
+          ← К профилю
+        </Link>
         <div className="flex flex-col gap-1">
-          <h1 className="text-display-l text-fg">Лёгкий профиль</h1>
+          <h1 className="text-display-l text-fg">Редактирование профиля</h1>
           <p className="text-fg-muted">
             Профиль необязателен (по умолчанию — адрес-онли). Включение добавляет публичную поверхность:
             ник и аватар видны в ленте и лидерборде.
@@ -66,11 +70,7 @@ export default function ProfileSettingsPage() {
         ) : !address ? (
           <EmptyState
             title="Подключи кошелёк"
-            action={
-              <Button asChild size="sm">
-                <Link href="/connect">Подключить кошелёк</Link>
-              </Button>
-            }
+            action={<ConnectWalletButton />}
           />
         ) : (
           <div className="flex flex-col gap-4">

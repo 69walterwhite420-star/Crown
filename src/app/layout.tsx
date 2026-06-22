@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 // замены из Google Fonts, т.к. UI-копирайт русский (Hanken Grotesk без кириллицы).
 import { Manrope, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Providers } from "./providers";
 
 const display = Manrope({
@@ -35,7 +36,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body>
-        <Providers>{children}</Providers>
+        <div className="flex min-h-screen flex-col">
+          <div className="flex-1">
+            <Providers>{children}</Providers>
+          </div>
+          <AppFooter />
+        </div>
       </body>
     </html>
   );

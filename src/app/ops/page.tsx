@@ -11,12 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
-import { useApplyOperatorAction, useOperatorQueue, useSession } from "@/lib/data/hooks";
+import {
+  useApplyOperatorAction,
+  useDiscovery,
+  useOperatorQueue,
+  useSession,
+} from "@/lib/data/hooks";
 import { timeAgo } from "@/lib/utils";
 import type { IncidentLog, PenaltyAction } from "@/lib/data/types";
 
@@ -39,9 +45,20 @@ const ACTIONS: { value: PenaltyAction; label: string }[] = [
   { value: "ADMIN_VOID", label: "Воид репутации (ADMIN_VOID)" },
 ];
 
+// Какие цели нужны действию: канал и/или адрес кошелька. Под выбранное действие показываем нужные поля.
+const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = {
+  HIDE_MESSAGE: { channel: true, address: false },
+  CHANNEL_BLOCK: { channel: true, address: true },
+  SUSPEND_CHANNEL: { channel: true, address: false },
+  BAN_CREATOR_ROLE: { channel: true, address: false },
+  BAN_WALLET_FULL: { channel: false, address: true },
+  ADMIN_VOID: { channel: true, address: true },
+};
+
 export default function OpsConsolePage() {
   const sessionQ = useSession();
   const queueQ = useOperatorQueue();
+  const discoveryQ = useDiscovery();
   const apply = useApplyOperatorAction();
 
   const [action, setAction] = useState<PenaltyAction>("SUSPEND_CHANNEL");
@@ -50,6 +67,10 @@ export default function OpsConsolePage() {
   const [reason, setReason] = useState("");
   const [preservation, setPreservation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const req = REQUIRES[action];
+  const canApply =
+    (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
 
   function doApply() {
     apply.mutate(
@@ -71,6 +92,19 @@ export default function OpsConsolePage() {
     );
   }
 
+  // Гейт доступа: консоль T&S видна ТОЛЬКО оператору. Прочие действия и так блокирует сервер (requireOperator),
+  // но и саму консоль не показываем. (Источник истины — getSession.isOperator по проверенному адресу.)
+  if (sessionQ.isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
+  if (!sessionQ.data?.isOperator) {
+    return (
+      <EmptyState
+        title="Доступ только для оператора"
+        description="Консоль T&S доступна лишь кошельку-оператору платформы. Войди кошельком оператора."
+        action={<ConnectWalletButton />}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
@@ -78,11 +112,6 @@ export default function OpsConsolePage() {
         <p className="text-fg-muted">
           Платформенный уровень: то, что не может стример. ADMIN_VOID — единственное списание репутации.
         </p>
-        {!sessionQ.data?.isOperator ? (
-          <p className="text-small text-warn">
-            Текущая сессия — не оператор. Переключись на кошелёк оператора (/connect или dev-тулбар).
-          </p>
-        ) : null}
       </div>
 
       <section className="flex flex-col gap-3">
@@ -108,14 +137,36 @@ export default function OpsConsolePage() {
             ))}
           </Select>
           <Input label="Причина" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="CSAM / flood / sanctions" />
-          <Input label="ID канала (опц.)" mono value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="ch-…" />
-          <Input label="Адрес (опц.)" mono value={address} onChange={(e) => setAddress(e.target.value)} />
+          {req.channel ? (
+            <Select label="Канал" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+              <option value="">— выбери канал —</option>
+              {(discoveryQ.data?.items ?? []).map((c) => (
+                <option key={c.channelId} value={c.channelId}>
+                  @{c.handle}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+          {req.address ? (
+            <Input
+              label="Адрес кошелька"
+              mono
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="вставь base58-адрес"
+            />
+          ) : null}
           <Switch checked={preservation} onCheckedChange={setPreservation} label="Preservation + репорт (NCMEC)" />
         </div>
-        <div>
-          <Button variant="danger" onClick={() => setConfirmOpen(true)}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="danger" disabled={!canApply} onClick={() => setConfirmOpen(true)}>
             Применить действие
           </Button>
+          {!canApply ? (
+            <span className="text-small text-fg-faint">
+              Укажи цель: {[req.channel && "канал", req.address && "адрес кошелька"].filter(Boolean).join(" + ")}
+            </span>
+          ) : null}
         </div>
       </section>
 
