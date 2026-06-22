@@ -75,6 +75,10 @@ interface ReportRecord {
 /** Сколько уникальных жалоб авто-скрывает показанный текст (до решения стримера/оператора). */
 const REPORT_HIDE_THRESHOLD = 3;
 
+// Лимиты длины пользовательского ввода (анти-DoS + аккуратные поверхности). Имя/био — ещё и публичны.
+const PROFILE_LIMITS = { name: 40, bio: 280, url: 512, link: 256, links: 10 };
+const REASON_MAX = 500; // причина жалобы/операторского действия/блока (свободный текст)
+
 /**
  * Сериализуемый снимок состояния стора для файловой персистентности (server/persist.ts, ADR 0013).
  * Map → entries; bigint переживает через codec. Не входят: overlaySubs (живые колбэки), sessionAddress/
@@ -339,6 +343,19 @@ export class MockDataProvider implements DataProvider {
     await this.gate("updateProfile");
     const addr = this.session().address;
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
+    // Лимиты длины (анти-DoS) + формат URL.
+    if ((patch.displayName?.length ?? 0) > PROFILE_LIMITS.name)
+      throw new DataError("TOO_LONG", `Имя — до ${PROFILE_LIMITS.name} символов.`);
+    if ((patch.bio?.length ?? 0) > PROFILE_LIMITS.bio)
+      throw new DataError("TOO_LONG", `О себе — до ${PROFILE_LIMITS.bio} символов.`);
+    if (patch.avatarUrl && (patch.avatarUrl.length > PROFILE_LIMITS.url || !/^https?:\/\//i.test(patch.avatarUrl)))
+      throw new DataError("BAD_URL", "Аватар — ссылка http(s) до 512 символов.");
+    if (patch.links && (patch.links.length > PROFILE_LIMITS.links || patch.links.some((l) => l.length > PROFILE_LIMITS.link)))
+      throw new DataError("BAD_LINKS", `Ссылок — до ${PROFILE_LIMITS.links}, каждая до ${PROFILE_LIMITS.link} символов.`);
+    // Модерация ПУБЛИЧНЫХ полей (ник/био видны в ленте и лидерборде): запрещёнка/жёсткое → отказ. Мат — ок.
+    const publicText = [patch.displayName, patch.bio].filter(Boolean).join(" ").trim();
+    if (publicText && (await resolveAutoModerator().classify(publicText, "")) === "HARD_BLOCK")
+      throw new DataError("PROFILE_BLOCKED", "Профиль не прошёл модерацию (запрещённый/жёсткий контент).");
     const updated: LightProfile = {
       ...(this.profiles.get(addr) ?? { address: addr }),
       ...patch,
@@ -739,6 +756,7 @@ export class MockDataProvider implements DataProvider {
     if (this.reports.some((r) => r.messageId === messageId && r.reporter === reporter)) {
       throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
     }
+    reason = reason?.slice(0, REASON_MAX); // ограничиваем длину причины (свободный текст)
     const ts = this.now();
     const author = this.donations.find((d) => d.id === msg.donationId)?.donor; // автор контента
     this.reports.push({ messageId, channelId: msg.channelId, reporter, reason, ts });
@@ -794,7 +812,7 @@ export class MockDataProvider implements DataProvider {
     const block: ChannelBlock = {
       channelId,
       blockedAddress: address,
-      reason,
+      reason: reason?.slice(0, REASON_MAX), // ограничиваем длину причины
       byModerator,
       ts: this.now(),
     };
@@ -822,6 +840,7 @@ export class MockDataProvider implements DataProvider {
     const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, ADMIN_VOID (§4.5)
     const full: OperatorAction = {
       ...action,
+      reason: (action.reason ?? "").slice(0, REASON_MAX), // ограничиваем длину причины
       id: this.nextId("op"),
       ts: this.now(),
       byOperator: operator,
@@ -867,8 +886,8 @@ export class MockDataProvider implements DataProvider {
         id: this.nextId("inc"),
         channelId: action.targetChannelId,
         address: action.targetAddress,
-        kind: action.reason.includes("CSAM") ? "hard_block" : "flood",
-        detail: `Действие оператора: ${action.action} (${action.reason})`,
+        kind: full.reason.includes("CSAM") ? "hard_block" : "flood",
+        detail: `Действие оператора: ${action.action} (${full.reason})`,
         resolution: action.preservation ? "preservation + репорт" : undefined,
         ts: this.now(),
       });

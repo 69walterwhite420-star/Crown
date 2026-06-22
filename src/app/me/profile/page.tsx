@@ -74,8 +74,8 @@ export default function ProfileSettingsPage() {
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <Input label="Имя (display_name)" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <Input label="Аватар (URL)" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
+            <Input label="Имя (display_name)" maxLength={40} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <Input label="Аватар (URL)" maxLength={512} placeholder="https://…" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
             <Textarea label="О себе" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={280} showCount />
             <Textarea
               label="Ссылки (по одной на строку)"
