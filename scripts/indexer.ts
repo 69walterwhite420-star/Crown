@@ -28,16 +28,31 @@ async function main(): Promise<void> {
   console.log("indexer → treasury ATA:", treasuryAta.toBase58());
   console.log("indexer → backend:", API);
 
-  // Старт с текущего конца истории — не переигрываем прошлое (ingest всё равно идемпотентен).
-  let last: string | undefined = (await fetchNewTreasurySignatures(connection, treasuryAta)).pop();
+  // sigs, по которым зачёт завершён (ok) либо они невалидны/не наши/уже приняты — их больше не трогаем.
+  // Остальные (pending: видны на confirmed, но ещё не finalized) ПОВТОРЯЕМ на следующем поле. Нельзя слепо
+  // проматывать прошлое по `last`: донат, увиденный на confirmed до финализации, потерялся бы навсегда
+  // (был ровно такой класс багов — M2/M3). Идемпотентность ingest делает повторы безопасными.
+  const done = new Set<string>();
 
   for (;;) {
     try {
-      const sigs = await fetchNewTreasurySignatures(connection, treasuryAta, last);
+      const sigs = await fetchNewTreasurySignatures(connection, treasuryAta); // последние ~50
       for (const sig of sigs) {
+        if (done.has(sig)) continue;
         const r = await ingest(sig);
-        console.log("ingest", sig.slice(0, 16), "→", JSON.stringify(r));
-        last = sig;
+        const inner = ((r as { result?: unknown })?.result ?? {}) as {
+          ok?: boolean;
+          pending?: boolean;
+        };
+        if (inner.ok) {
+          done.add(sig);
+          console.log("ingest", sig.slice(0, 16), "→ ok", JSON.stringify(inner));
+        } else if (inner.pending) {
+          console.log("ingest", sig.slice(0, 16), "→ pending (повтор позже)");
+        } else {
+          done.add(sig); // невалидная / уже принято / нет канала — не повторяем
+          console.log("ingest", sig.slice(0, 16), "→ skip", JSON.stringify(inner));
+        }
       }
     } catch (e) {
       console.log("poll error:", String(e));

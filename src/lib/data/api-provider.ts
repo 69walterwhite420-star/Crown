@@ -32,8 +32,8 @@ interface RpcResponse<T> {
 
 /**
  * Фаза 2: реализация DataProvider поверх HTTP (RPC-мост /api/v1/rpc). Экраны не знают, что под ними
- * теперь сервер. Личность и MOCK_FAIL мирроятся локально и шлются с каждым запросом → dev-тулбар и
- * /connect работают и под `api`. Оверлей-подписка — заглушка (SSE — дальнейший шаг).
+ * теперь сервер. Личность и MOCK_FAIL мирроятся локально и шлются с каждым запросом → dev-тулбар
+ * работает и под `api`. Оверлей-подписка — заглушка (SSE — дальнейший шаг).
  */
 export class ApiDataProvider implements DataProvider {
   private address: Address | null = null; // DEV-личность (mock/api без кошелька); в проде сервер игнорит
@@ -83,11 +83,11 @@ export class ApiDataProvider implements DataProvider {
   ingestSignature(
     signature: string,
     text?: string,
-  ): Promise<{ ok: boolean; reason?: string; points?: number }> {
+  ): Promise<{ ok: boolean; pending?: boolean; reason?: string; points?: number }> {
     return this.rpc("ingestSignature", [signature, text]);
   }
   /** Приём ончейн-сбора активации по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
-  ingestActivation(signature: string): Promise<{ ok: boolean; reason?: string }> {
+  ingestActivation(signature: string): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
     return this.rpc("ingestActivation", [signature]);
   }
   /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
@@ -114,6 +114,9 @@ export class ApiDataProvider implements DataProvider {
   }
   getMyChannel(): Result<Channel | null> {
     return this.rpc("getMyChannel", []);
+  }
+  getManagedChannels(): Result<Channel[]> {
+    return this.rpc("getManagedChannels", []);
   }
   getChannelConfig(channelId: string): Result<ChannelConfig> {
     return this.rpc("getChannelConfig", [channelId]);
@@ -150,6 +153,9 @@ export class ApiDataProvider implements DataProvider {
   }
   setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef> {
     return this.rpc("setMessageState", [messageId, state]);
+  }
+  reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
+    return this.rpc("reportMessage", [messageId, reason]);
   }
 
   // — Канальный блок-лист —

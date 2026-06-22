@@ -4,6 +4,19 @@
  */
 export const DEVNET_RPC = process.env.NEXT_PUBLIC_DEVNET_RPC ?? "https://api.devnet.solana.com";
 
+/** Кластер для ссылок на эксплорер — выводим из RPC-эндпоинта (по умолчанию devnet). */
+export const EXPLORER_CLUSTER = DEVNET_RPC.includes("devnet")
+  ? "devnet"
+  : DEVNET_RPC.includes("testnet")
+    ? "testnet"
+    : "mainnet-beta";
+
+/** Ссылка на транзакцию в Solana Explorer (с нужным кластером). Строкой — без web3.js, импортится из UI. */
+export function explorerTxUrl(signature: string): string {
+  const url = `https://explorer.solana.com/tx/${signature}`;
+  return EXPLORER_CLUSTER === "mainnet-beta" ? url : `${url}?cluster=${EXPLORER_CLUSTER}`;
+}
+
 export const USDC_DECIMALS = 6;
 export const FEE_BPS = 300; // 3%
 

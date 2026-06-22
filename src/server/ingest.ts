@@ -7,7 +7,7 @@ import {
   mintPubkey,
   treasuryPubkey,
 } from "@/lib/chain/config";
-import { parseActivationTx, parseDonationTx } from "@/lib/chain/indexer";
+import { extractActivation, extractDonation } from "@/lib/chain/indexer";
 import { hashContent } from "@/lib/data/moderation";
 import { CHAIN_MODE } from "@/server/runtime";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
@@ -22,17 +22,24 @@ export async function ingestSignature(
   store: MockDataProvider,
   signature: string,
   text?: string,
-): Promise<{ ok: boolean; reason?: string; points?: number }> {
+): Promise<{ ok: boolean; pending?: boolean; reason?: string; points?: number }> {
   assertMoneyConfig(); // fail-closed: на mainnet без явной денежной конфигурации донат не принимаем (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
 
-  const indexed = await parseDonationTx(connection, signature, {
-    mint,
-    treasuryAta,
-    commitment: CHAIN_MODE ? "finalized" : "confirmed",
+  // M2: в chain-режиме зачёт ждёт "finalized" (анти-реорг). Финализация наступает на ~15-30с ПОЗЖЕ
+  // клиентского "confirmed" → tx может быть ещё не видна. Это НЕ ошибка: возвращаем pending, клиент повторит
+  // (иначе деньги ушли, а зачёта нет). null ПОСЛЕ фетча = реально невалидная tx — не повторяем.
+  const commitment = CHAIN_MODE ? "finalized" : "confirmed";
+  const tx = await connection.getParsedTransaction(signature, {
+    commitment,
+    maxSupportedTransactionVersion: 0,
   });
+  if (!tx) {
+    return { ok: false, pending: true, reason: "транзакция ещё не подтверждена на нужном уровне — повторим" };
+  }
+  const indexed = extractDonation(tx, signature, { mint, treasuryAta });
   if (!indexed) return { ok: false, reason: "не валидная донат-транзакция (нет пары 97/3 + memo)" };
 
   const channelId = indexed.memo.c;
@@ -56,7 +63,7 @@ export async function ingestSignature(
       ? text
       : undefined;
 
-  const res = store.recordDonationFromChain({
+  const res = await store.recordDonationFromChain({
     signature,
     donor: indexed.donor,
     channelId,
@@ -77,17 +84,23 @@ export async function ingestSignature(
 export async function ingestActivation(
   store: MockDataProvider,
   signature: string,
-): Promise<{ ok: boolean; reason?: string }> {
+): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
   assertMoneyConfig(); // fail-closed: на mainnet без денежной конфигурации сбор не принимаем (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
 
-  const indexed = await parseActivationTx(connection, signature, {
-    mint,
-    treasuryAta,
-    commitment: CHAIN_MODE ? "finalized" : "confirmed",
+  // M2: см. ingestSignature — finalized в chain-режиме. tx не видна сразу после client-confirmed → pending
+  // (клиент повторит), иначе сбор уплачен, а канал не активирован (ровно этот баг и был).
+  const commitment = CHAIN_MODE ? "finalized" : "confirmed";
+  const tx = await connection.getParsedTransaction(signature, {
+    commitment,
+    maxSupportedTransactionVersion: 0,
   });
+  if (!tx) {
+    return { ok: false, pending: true, reason: "транзакция активации ещё не финализирована — повторим" };
+  }
+  const indexed = extractActivation(tx, signature, { mint, treasuryAta });
   if (!indexed) return { ok: false, reason: "не валидная транзакция активации (нет перевода + memo {act})" };
 
   const channel = store.__getChannelById(indexed.channelId);

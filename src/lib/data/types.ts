@@ -142,6 +142,7 @@ export interface Donation {
   final: true; // в ядре всегда true
   ts: Iso;
   message?: MessageRef;
+  donorName?: string; // ник донора из лёгкого профиля (только для отображения; в журнал не пишется)
 }
 
 // — Баны и блокировки —

@@ -1,6 +1,7 @@
 import { createPublicKey, randomBytes, verify as edVerify } from "crypto";
 import { PublicKey } from "@solana/web3.js";
 import { buildSiwsMessage, type SiwsFields } from "@/lib/chain/siws";
+import { makeSaver, readSnapshot } from "@/server/persist";
 
 /**
  * Серверная аутентификация (закрывает дыру: раньше личностью был НЕПРОВЕРЕННЫЙ `address` из тела запроса).
@@ -38,9 +39,22 @@ interface SessionRec {
 const g = globalThis as unknown as {
   __standingNonces?: Map<string, NonceRec>;
   __standingSessions?: Map<string, SessionRec>;
+  __authLoaded?: boolean;
+  __authSave?: () => void;
 };
 const nonces = (g.__standingNonces ??= new Map());
 const sessions = (g.__standingSessions ??= new Map());
+
+// Персистентность сессий (ADR 0013): SIWS-сессии переживают рестарт сервера → не нужно переподписываться
+// после каждого перезапуска. nonce'ы НЕ сохраняем (живут 5 мин, транзиентны). Грузим один раз на процесс,
+// отбрасывая протухшие. Сейвер — на globalThis, чтобы переживал HMR.
+if (!g.__authLoaded) {
+  g.__authLoaded = true;
+  const persisted = readSnapshot<[string, SessionRec][]>("auth.json");
+  if (persisted)
+    for (const [token, rec] of persisted) if (rec.exp > Date.now()) sessions.set(token, rec);
+}
+const saveSessions = (g.__authSave ??= makeSaver("auth.json", () => [...sessions.entries()]));
 
 /** Чистка протухших + ограничение размера (вытеснение старейших по insertion order) — анти-DoS памяти. */
 function prune<T extends { exp: number }>(map: Map<string, T>, max: number): void {
@@ -120,6 +134,7 @@ export function verifyAndIssueToken(
   const token = randomBytes(32).toString("hex");
   const exp = Date.now() + SESSION_TTL_MS;
   sessions.set(token, { address, exp });
+  saveSessions(); // сессия переживёт рестарт (ADR 0013)
   return { token, exp };
 }
 
@@ -137,5 +152,8 @@ export function resolveToken(token: string | null | undefined): string | null {
 
 /** Явный выход — инвалидировать токен. */
 export function revokeToken(token: string | null | undefined): void {
-  if (token) sessions.delete(token);
+  if (token) {
+    sessions.delete(token);
+    saveSessions();
+  }
 }

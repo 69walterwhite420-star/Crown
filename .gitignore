@@ -25,3 +25,6 @@ next-env.d.ts
 !.vscode/extensions.json
 .idea
 .treasury-devnet.json
+
+# локальная файловая персистентность (ADR 0013): снимки стора/сессий — приватный текст донатов, не в git
+/.data/

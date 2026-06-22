@@ -58,12 +58,25 @@ export class ChainDataProvider implements DataProvider {
   private authedAddress: string | null = null; // адрес, по которому уже есть проверенный токен
   private authing: Promise<boolean> | null = null;
 
+  constructor() {
+    // Сессия живёт по СОХРАНЁННОМУ токену, а не по живому подключению кошелька. На старте применяем валидный
+    // токен из localStorage сразу → сессия переживает refresh, даже если кошелёк не переподключился
+    // автоматически (напр. Brave не делает autoConnect). Живой кошелёк нужен лишь для ПОДПИСИ транзакций.
+    this.restoreStoredToken();
+  }
+
   setWallet(wallet: WalletContextState | null) {
     this.wallet = wallet;
-    // Личность бэкенда теперь = ПРОВЕРЕННЫЙ токен (ensureAuth), не голый pubkey (закрыта дыра C1).
-    // Сменился/отключился кошелёк → роняем токен; новый вход потребует подписи.
+    // Личность бэкенда = ПРОВЕРЕННЫЙ токен (ensureAuth), не голый pubkey (дыра C1). Роняем сессию ТОЛЬКО при
+    // смене на ДРУГОЙ подключённый адрес. «Кошелёк не подключён» (addr === null, напр. refresh без
+    // autoConnect) НЕ должно ронять восстановленный токен — выход делается явно (__logout из bridge).
     const addr = wallet?.publicKey?.toBase58() ?? null;
-    if (addr !== this.authedAddress) this.clearAuth();
+    if (addr !== null && addr !== this.authedAddress) this.clearAuth();
+  }
+  /** Полный выход: забыть токен (память + localStorage). Зовётся bridge при ЯВНОМ дисконекте кошелька. */
+  __logout() {
+    this.clearAuth();
+    this.clearStoredToken();
   }
   private address(): string | null {
     return this.wallet?.publicKey?.toBase58() ?? null;
@@ -102,6 +115,23 @@ export class ChainDataProvider implements DataProvider {
       /* ignore */
     }
   }
+  /** Применить валидный токен из localStorage без знания адреса (старт) — сессия по токену переживает refresh. */
+  private restoreStoredToken() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      const o = JSON.parse(localStorage.getItem(SIWS_STORAGE_KEY) ?? "null") as {
+        address: string;
+        token: string;
+        exp: number;
+      } | null;
+      if (o?.token && o.address && o.exp > Date.now()) {
+        this.api.__setToken(o.token);
+        this.authedAddress = o.address;
+      }
+    } catch {
+      /* битый/пустой стор */
+    }
+  }
 
   /**
    * Гарантирует проверенную личность для подключённого кошелька. Идемпотентно: при уже валидном токене
@@ -122,12 +152,22 @@ export class ChainDataProvider implements DataProvider {
     if (this.authing) return this.authing;
 
     const p = (async () => {
+      // 1. Пробуем сохранённый токен, но ПРОВЕРЯЕМ его против сервера (источник истины). Сессии на сервере
+      //    in-memory → после рестарта сервера/истечения токена localStorage-токен уже не резолвится. Без этой
+      //    проверки UI оставался бы «полу-залогинен»: кошелёк подключён (адрес виден), но сессия пустая →
+      //    кнопки создателя/после регистрации сброшены.
       const stored = this.loadStoredToken(address);
       if (stored) {
         this.api.__setToken(stored);
-        this.authedAddress = address;
-        return true;
+        const s = await this.api.getSession();
+        if (s.address === address) {
+          this.authedAddress = address;
+          return true;
+        }
+        this.clearStoredToken(); // токен протух на сервере → чистим и идём на свежую подпись
+        this.api.__setToken(null);
       }
+      // 2. Свежий SIWS: серверный nonce + подпись кошельком.
       if (!w.signMessage) throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
       const { message } = await this.api.authNonce(address);
       const sig = await w.signMessage(new TextEncoder().encode(message));
@@ -142,6 +182,25 @@ export class ChainDataProvider implements DataProvider {
       if (this.authing === p) this.authing = null;
     });
     return p;
+  }
+
+  /**
+   * Приём ончейн-tx сервером с ретраями. В chain-режиме сервер принимает только finalized (M2), а это
+   * на ~15-30с позже клиентского "confirmed" — один запрос почти всегда вернул бы pending, и тогда деньги
+   * ушли, а зачёта/активации нет (был такой баг с активацией). Повторяем, пока сервер сигналит pending.
+   * 24×3с ≈ 72с с запасом перекрывают типичную финализацию. Идемпотентно на стороне сервера.
+   */
+  private async ingestWithRetry<T extends { ok: boolean; pending?: boolean }>(
+    call: () => Promise<T>,
+    tries = 24,
+    delayMs = 3000,
+  ): Promise<T> {
+    let res = await call();
+    for (let i = 1; i < tries && !res.ok && res.pending; i++) {
+      await new Promise((r) => setTimeout(r, delayMs));
+      res = await call();
+    }
+    return res;
   }
 
   // — Кошелёк (ончейн) —
@@ -203,13 +262,18 @@ export class ChainDataProvider implements DataProvider {
     tx.recentBlockhash = latest.blockhash;
     const signature = await w.sendTransaction(tx, this.connection);
 
-    // Дожидаемся подтверждения и просим сервер ПРИНЯТЬ донат из цепочки (он сам валидирует tx).
+    // Сначала ждём, что tx вообще попала в сеть (confirmed — быстро).
     await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
-    try {
-      // Шлём текст вместе с подписью — сервер сверит его хэш с memo и заведёт сообщение → HELD/модерация.
-      await this.api.ingestSignature(signature, text);
-    } catch {
-      // не страшно: индексер-сервис подхватит инфлоу позже (текст привяжется при повторном ingest)
+    // Момент «Готово» показываем только после ФИНАЛИЗАЦИИ (необратимо): сервер принимает донат лишь на
+    // finalized, поэтому опрашиваем приём с ретраями, пока tx не финализируется (~15-30с). Только так момент
+    // честен — деньги ушли окончательно, отменить (Brave «Cancel») уже нельзя. Текст сервер сверит с memo-
+    // хэшем и заведёт сообщение → HELD/модерация. Зачёт репутации к этому моменту уже произошёл.
+    const ingest = await this.ingestWithRetry(() => this.api.ingestSignature(signature, text));
+    if (!ingest.ok) {
+      throw new DataError(
+        "DONATION_PENDING",
+        ingest.reason ?? "Донат пока не финализирован в сети — обнови страницу чуть позже.",
+      );
     }
 
     const donation: Donation = {
@@ -255,6 +319,9 @@ export class ChainDataProvider implements DataProvider {
   getMyChannel(): Result<Channel | null> {
     return this.api.getMyChannel();
   }
+  getManagedChannels(): Result<Channel[]> {
+    return this.api.getManagedChannels();
+  }
   getChannelConfig(id: string): Result<ChannelConfig> {
     return this.api.getChannelConfig(id);
   }
@@ -291,7 +358,9 @@ export class ChainDataProvider implements DataProvider {
     const signature = await w.sendTransaction(tx, this.connection);
 
     await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
-    const res = await this.api.ingestActivation(signature);
+    // Сервер принимает сбор только на finalized (M2) — повторяем приём, пока tx не финализируется (~15-30с),
+    // иначе сбор уплачен, а канал не активирован. Блокирующе: пользователь ждёт на экране активации.
+    const res = await this.ingestWithRetry(() => this.api.ingestActivation(signature));
     if (!res.ok) throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
 
     const channel = await this.api.getMyChannel();
@@ -315,6 +384,9 @@ export class ChainDataProvider implements DataProvider {
   }
   setMessageState(id: string, s: "SHOWN" | "HIDDEN"): Result<MessageRef> {
     return this.api.setMessageState(id, s);
+  }
+  reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
+    return this.api.reportMessage(messageId, reason);
   }
   getChannelBlocklist(id: string): Result<ChannelBlock[]> {
     return this.api.getChannelBlocklist(id);

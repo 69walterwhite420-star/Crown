@@ -47,6 +47,10 @@ export function useMyChannel() {
   const data = useData();
   return useQuery({ queryKey: qk.myChannel(), queryFn: () => data.getMyChannel() });
 }
+export function useManagedChannels() {
+  const data = useData();
+  return useQuery({ queryKey: ["managedChannels"], queryFn: () => data.getManagedChannels() });
+}
 export function useChannelConfig(channelId: string | undefined) {
   const data = useData();
   return useQuery({
@@ -116,10 +120,17 @@ export function useDonate(channelId: string) {
     mutationFn: (input: Omit<DonationInput, "channelId">) =>
       data.createDonation({ ...input, channelId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["standing", channelId] });
-      qc.invalidateQueries({ queryKey: ["leaderboard", channelId] });
-      qc.invalidateQueries({ queryKey: qk.donations(channelId) });
-      qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
+      const invalidate = () => {
+        qc.invalidateQueries({ queryKey: ["standing", channelId] });
+        qc.invalidateQueries({ queryKey: ["leaderboard", channelId] });
+        qc.invalidateQueries({ queryKey: qk.donations(channelId) });
+        qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
+      };
+      invalidate();
+      // В chain-режиме зачёт репутации приходит на finalized (~15-30с) В ФОНЕ (см. ChainDataProvider) —
+      // поэтому довыпрашиваем данные ещё несколько раз после доната, чтобы очки/лента появились без ручного
+      // refresh. Для mock/api зачёт мгновенный → лишние рефетчи безвредны (та же выдача).
+      [8000, 18000, 30000].forEach((ms) => setTimeout(invalidate, ms));
     },
   });
 }
@@ -132,6 +143,20 @@ export function useSetMessageState(channelId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
       qc.invalidateQueries({ queryKey: qk.donations(channelId) });
+    },
+  });
+}
+export function useReportMessage(channelId: string) {
+  const data = useData();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, reason }: { messageId: string; reason?: string }) =>
+      data.reportMessage(messageId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.donations(channelId) }); // авто-скрытие могло изменить ленту
+      qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
+      qc.invalidateQueries({ queryKey: qk.operatorQueue() });
+      qc.invalidateQueries({ queryKey: qk.incidentLog() });
     },
   });
 }
@@ -242,7 +267,9 @@ export function useDevControls() {
     failMode: dev?.__getFailMode() ?? false,
     setAddress: (address: Address | null) => {
       dev?.__setAddress(address);
-      qc.invalidateQueries();
+      // Смена личности (вход/выход) в dev — выкидываем кэш сразу, чтобы данные прошлой личности не висели
+      // до рефетча (тот же принцип, что в ChainWalletBridge для реального кошелька).
+      qc.clear();
     },
     setFailMode: (on: boolean) => {
       dev?.__setFailMode(on);

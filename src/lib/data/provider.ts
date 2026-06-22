@@ -47,7 +47,8 @@ export interface DataProvider {
   // — Дискавери / каналы —
   listChannels(opts?: ListOpts): Result<Page<ChannelCard>>; // только ACTIVE, публичные
   getChannel(handle: string): Result<Channel | null>;
-  getMyChannel(): Result<Channel | null>; // канал текущей сессии (один на кошелёк, ADR 0002)
+  getMyChannel(): Result<Channel | null>; // канал, которым ВЛАДЕЕТ текущая сессия (один на кошелёк, ADR 0002)
+  getManagedChannels(): Result<Channel[]>; // каналы, которыми управляешь: владелец ИЛИ модератор (для очереди)
   getChannelConfig(channelId: string): Result<ChannelConfig>;
   createChannel(input: CreateChannelInput): Result<Channel>; // один канал на кошелёк (ADR 0002)
   activateChannel(channelId: string): Result<Channel>; // сбор ~$2 → BASIC→ACTIVE
@@ -64,6 +65,8 @@ export interface DataProvider {
   // — Модерация (стример/модераторы) —
   getModerationQueue(channelId: string): Result<MessageRef[]>;
   setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef>;
+  // Жалоба зрителя на показанный текст (любой вошедший); порог жалоб авто-скрывает + инцидент в T&S.
+  reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }>;
 
   // — Канальный блок-лист (стример) —
   getChannelBlocklist(channelId: string): Result<ChannelBlock[]>;

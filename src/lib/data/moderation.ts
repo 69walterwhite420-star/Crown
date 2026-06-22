@@ -1,23 +1,27 @@
 /**
  * Модерационный конвейер (core-spec.md §8). Структура:
- *   [ВВОД] локальный wordlist → [ЯЗЫК] детект → [АВТО] классификатор → вердикт (+ дедуп по хэшу).
+ *   [ВВОД] → [ЯЗЫК] детект → [АВТО] классификатор → вердикт (+ дедуп по хэшу).
  *
- * Авто-слой подключаемый (AutoModerator). Сейчас — локальный wordlist. Внешний слой (OpenAI
- * omni-moderation, мультиязычный, бесплатный) — drop-in: реализовать AutoModerator с вызовом API и
- * передать в runPipeline. Здесь не подключён (нет ключей в окружении).
+ * Авто-слой подключаемый и АСИНХРОННЫЙ (AutoModerator). По умолчанию — локальный wordlist (только явные
+ * хард-маркеры). Если задан серверный OPENAI_API_KEY — используется OpenAI omni-moderation (бесплатный,
+ * мультиязычный, текст+картинки). Выбор делает resolveAutoModerator() по env (ключ серверный, в браузер не
+ * попадает → клиент всегда на словаре).
  */
 import type { ModerationVerdict } from "./types";
 
 export interface AutoModerator {
-  classify(text: string, lang: string): ModerationVerdict;
+  classify(text: string, lang: string): Promise<ModerationVerdict>;
 }
 
-const DEFAULT_HARD_LIST = ["csam", "hardblock", "убейс"];
-const DEFAULT_FLAG_LIST = ["худший", "лох", "idiot", "scam"];
+// ПОЛИТИКА (решение продукта): отдельные слова и мат НЕ цензурим и НЕ флагаем — это вкус стримера, он
+// скрывает вручную. Авто-слой ловит только запрещёнку → HARD_BLOCK (карантин + эскалация в T&S). FLAG-
+// словаря по умолчанию НЕТ. Семантический детект — OpenAI (ниже); локальный список — заглушка под явные маркеры.
+const DEFAULT_HARD_LIST = ["csam", "childporn", "child porn", "zoophilia", "hardblock"];
+const DEFAULT_FLAG_LIST: string[] = [];
 
-/** Локальный авто-модератор по словарю (дефолт). Дёшево закрывает базу; обходится мисспеллингом. */
+/** Локальный авто-модератор: ловит только хард-маркеры запрещёнки; мат/любые слова пропускает (CLEAR). */
 export const localAutoModerator: AutoModerator = {
-  classify(text) {
+  async classify(text) {
     const lower = text.toLowerCase();
     if (DEFAULT_HARD_LIST.some((w) => lower.includes(w))) return "HARD_BLOCK";
     if (DEFAULT_FLAG_LIST.some((w) => lower.includes(w))) return "FLAG";
@@ -25,16 +29,52 @@ export const localAutoModerator: AutoModerator = {
   },
 };
 
+// Категории OpenAI omni-moderation → авто-карантин (HARD_BLOCK). По умолчанию только сексуализация
+// несовершеннолетних (CSAM) — юридический must, нулевая толерантность. Остальное (sexual/hate/harassment/
+// self-harm/violence) НЕ баним — стример решает сам (политика «не цензурим, стример скрывает»). Чтобы
+// ужесточить — добавь сюда категории (напр. "illicit/violent", "sexual").
+const OPENAI_HARD_CATEGORIES = ["sexual/minors"] as const;
+
 /**
- * Заглушка внешнего слоя (OpenAI omni-moderation). НЕ подключена (нет ключей). Оставлена как точка
- * расширения: реальная реализация делает запрос к API и маппит категории в вердикт.
+ * Внешний авто-модератор поверх OpenAI omni-moderation (бесплатный endpoint /v1/moderations). Мультиязычный.
+ * Маппит флагнутые категории в вердикт по OPENAI_HARD_CATEGORIES. На сбое/таймауте — FLAG (НЕ блокируем
+ * деньги и НЕ авто-публикуем: текст уходит в HELD на ручное решение). Только сервер (ключ серверный).
  */
-export function createOpenAiModerator(_apiKey: string): AutoModerator {
+export function createOpenAiModerator(apiKey: string): AutoModerator {
   return {
-    classify() {
-      throw new Error("OpenAI moderation не подключён в этом окружении (нет ключа).");
+    async classify(text) {
+      try {
+        const res = await fetch("https://api.openai.com/v1/moderations", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: "omni-moderation-latest", input: text }),
+        });
+        if (!res.ok) {
+          console.error("[moderation] OpenAI вернул", res.status);
+          return "FLAG"; // не смогли проверить → на ручное решение (не показываем авто), деньги не трогаем
+        }
+        const data = (await res.json()) as {
+          results?: { categories?: Record<string, boolean> }[];
+        };
+        const cats = data.results?.[0]?.categories ?? {};
+        if (OPENAI_HARD_CATEGORIES.some((c) => cats[c])) return "HARD_BLOCK";
+        return "CLEAR"; // всё прочее (включая мат) пропускаем — стример скрывает вручную
+      } catch (e) {
+        console.error("[moderation] OpenAI ошибка:", e);
+        return "FLAG";
+      }
     },
   };
+}
+
+// Выбор авто-модератора по серверному env (мемоизируется). OPENAI_API_KEY — серверная переменная (НЕ
+// NEXT_PUBLIC), в браузерный bundle не попадает → в mock/api клиенте всегда локальный словарь.
+let cachedModerator: AutoModerator | null = null;
+export function resolveAutoModerator(): AutoModerator {
+  if (cachedModerator) return cachedModerator;
+  const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
+  cachedModerator = key ? createOpenAiModerator(key) : localAutoModerator;
+  return cachedModerator;
 }
 
 export function detectLang(text: string): string {
@@ -66,17 +106,17 @@ export interface ModerationOutcome {
  * на ОДНОМ канале берётся из кэша (флуд схлопывается в O(1), без повторного ревью/репорта), но первое
  * появление на каждом канале ревьюится и репортится отдельно — у каждого стримера своя очередь T&S.
  */
-export function runPipeline(
+export async function runPipeline(
   text: string,
   cache: Map<string, ModerationVerdict>,
   opts?: { scope?: string; auto?: AutoModerator },
-): ModerationOutcome {
+): Promise<ModerationOutcome> {
   const contentHash = hashContent(text);
   const lang = detectLang(text);
   const key = opts?.scope ? `${opts.scope}:${contentHash}` : contentHash;
   const cached = cache.get(key);
   if (cached) return { verdict: cached, lang, contentHash, deduped: true };
-  const verdict = (opts?.auto ?? localAutoModerator).classify(text, lang);
+  const verdict = await (opts?.auto ?? localAutoModerator).classify(text, lang);
   cache.set(key, verdict);
   return { verdict, lang, contentHash, deduped: false };
 }

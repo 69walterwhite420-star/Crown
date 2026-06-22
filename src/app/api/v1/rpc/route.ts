@@ -5,7 +5,7 @@ import { issueNonce, resolveToken, revokeToken, verifyAndIssueToken } from "@/se
 import { ingestActivation, ingestSignature } from "@/server/ingest";
 import { runWithIdentity } from "@/server/request-context";
 import { CHAIN_MODE, IS_PROD } from "@/server/runtime";
-import { getStore } from "@/server/store";
+import { getStore, persistStore } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,21 @@ export const dynamic = "force-dynamic";
 // донат+репутацию+оверлей мимо цепочки (нарушение §4.4/§4.7). Репутацию даёт только ingestSignature.
 // activateChannel так же: оффчейн-флип в ACTIVE мимо сбора → только ингест ончейн-сбора (ingestActivation).
 const CHAIN_FORBIDDEN = new Set<string>(["createDonation", "activateChannel"]);
+
+// Методы, меняющие состояние стора → после них планируем сохранение на диск (ADR 0013). Читающие методы
+// не пишут (лишние записи ни к чему). ingest*/__reset обрабатываются отдельными ветками и сохраняют там же.
+const MUTATING = new Set<string>([
+  "createChannel",
+  "activateChannel",
+  "updateChannelConfig",
+  "createDonation",
+  "updateProfile",
+  "setMessageState",
+  "reportMessage",
+  "addChannelBlock",
+  "removeChannelBlock",
+  "applyOperatorAction",
+]);
 
 // Белый список разрешённых методов стора (методы DataProvider). Авторизацию каждой мутации делает сам
 // store по проверенной личности; здесь — только транспорт. Dev-методы (__reset) и auth-методы (__auth*)
@@ -27,6 +42,7 @@ const ALLOWED = new Set<string>([
   "listChannels",
   "getChannel",
   "getMyChannel",
+  "getManagedChannels",
   "getChannelConfig",
   "createChannel",
   "activateChannel",
@@ -37,6 +53,7 @@ const ALLOWED = new Set<string>([
   "listDonations",
   "getModerationQueue",
   "setMessageState",
+  "reportMessage",
   "getChannelBlocklist",
   "addChannelBlock",
   "removeChannelBlock",
@@ -116,6 +133,7 @@ export async function POST(req: Request): Promise<Response> {
   if (body.method === "__reset") {
     if (IS_PROD) return rpcError("BAD_METHOD", "Метод недоступен.", 403);
     store.__reset();
+    persistStore();
     return json({ ok: true, result: null });
   }
 
@@ -126,6 +144,7 @@ export async function POST(req: Request): Promise<Response> {
     if (typeof sig !== "string") return rpcError("BAD_ARGS", "нужна signature", 400);
     try {
       const result = await ingestSignature(store, sig, typeof text === "string" ? text : undefined);
+      if (result.ok) persistStore(); // донат записан в стор → на диск
       return json({ ok: true, result });
     } catch (e) {
       // Кривая/неизвестная подпись или сбой RPC иначе ронял публичный эндпоинт в 500 (детали — в лог).
@@ -139,6 +158,7 @@ export async function POST(req: Request): Promise<Response> {
     if (typeof sig !== "string") return rpcError("BAD_ARGS", "нужна signature", 400);
     try {
       const result = await ingestActivation(store, sig);
+      if (result.ok) persistStore(); // канал активирован → на диск
       return json({ ok: true, result });
     } catch (e) {
       return caughtError(e, "INGEST_ERROR");
@@ -172,6 +192,7 @@ export async function POST(req: Request): Promise<Response> {
     // H3: диспатч идёт в контексте per-request личности (AsyncLocalStorage), а не из поля singleton —
     // конкурентные RPC не перетирают друг другу сессию, в т.ч. при реальных await (Postgres).
     const result = await runWithIdentity(identity, () => fn.apply(store, body.args));
+    if (MUTATING.has(body.method)) persistStore(); // мутация удалась → планируем сохранение на диск
     return json({ ok: true, result });
   } catch (e) {
     return caughtError(e);

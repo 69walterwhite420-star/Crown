@@ -2,7 +2,7 @@ import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { defaultChannelConfig } from "./fixtures";
-import { runPipeline } from "./moderation";
+import { resolveAutoModerator, runPipeline } from "./moderation";
 import {
   DataError,
   ErrChannelAlreadyExists,
@@ -63,6 +63,39 @@ const MOD_CACHE_CAP = 5000;
  * `createDonation` (оффчейн-симуляция) оставлен для api/mock без кошелька; в режиме chain деньги идут
  * ончейн, а зачёт делает ingest по подписи.
  */
+/** Жалоба зрителя на показанный текст (анти-накрутка: одна на пару messageId+reporter). */
+interface ReportRecord {
+  messageId: string;
+  channelId: string;
+  reporter: Address;
+  reason?: string;
+  ts: string;
+}
+
+/** Сколько уникальных жалоб авто-скрывает показанный текст (до решения стримера/оператора). */
+const REPORT_HIDE_THRESHOLD = 3;
+
+/**
+ * Сериализуемый снимок состояния стора для файловой персистентности (server/persist.ts, ADR 0013).
+ * Map → entries; bigint переживает через codec. Не входят: overlaySubs (живые колбэки), sessionAddress/
+ * failMode/latencyScale (runtime), резолвер личности.
+ */
+export interface StoreSnapshot {
+  channelsById: [string, Channel][];
+  handleToId: [string, string][];
+  configsByChannel: [string, ChannelConfig[]][];
+  profiles: [Address, LightProfile][];
+  ledger: LedgerEvent[];
+  donations: Donation[];
+  messages: [string, MessageRef][];
+  blocks: ChannelBlock[];
+  incidents: IncidentLog[];
+  operatorActions: OperatorAction[];
+  modCache: [string, ModerationVerdict][];
+  reports: ReportRecord[];
+  seq: number;
+}
+
 export class MockDataProvider implements DataProvider {
   private channelsById = new Map<string, Channel>();
   private handleToId = new Map<string, string>();
@@ -74,6 +107,7 @@ export class MockDataProvider implements DataProvider {
   private blocks: ChannelBlock[] = [];
   private incidents: IncidentLog[] = [];
   private operatorActions: OperatorAction[] = [];
+  private reports: ReportRecord[] = [];
   private overlaySubs = new Map<string, Set<(e: OverlayEvent) => void>>();
 
   private sessionAddress: Address | null = null;
@@ -247,6 +281,41 @@ export class MockDataProvider implements DataProvider {
     this.blocks = [];
     this.incidents = [];
     this.operatorActions = [];
+    this.reports = [];
+  }
+
+  // — Персистентность (ADR 0013): снимок/восстановление для файлового хранилища (server/persist.ts) —
+  __snapshot(): StoreSnapshot {
+    return {
+      channelsById: [...this.channelsById.entries()],
+      handleToId: [...this.handleToId.entries()],
+      configsByChannel: [...this.configsByChannel.entries()],
+      profiles: [...this.profiles.entries()],
+      ledger: this.ledger,
+      donations: this.donations,
+      messages: [...this.messages.entries()],
+      blocks: this.blocks,
+      incidents: this.incidents,
+      operatorActions: this.operatorActions,
+      modCache: [...this.modCache.entries()],
+      reports: this.reports,
+      seq: this.seq,
+    };
+  }
+  __restore(s: StoreSnapshot) {
+    this.channelsById = new Map(s.channelsById ?? []);
+    this.handleToId = new Map(s.handleToId ?? []);
+    this.configsByChannel = new Map(s.configsByChannel ?? []);
+    this.profiles = new Map(s.profiles ?? []);
+    this.ledger = s.ledger ?? [];
+    this.donations = s.donations ?? [];
+    this.messages = new Map(s.messages ?? []);
+    this.blocks = s.blocks ?? [];
+    this.incidents = s.incidents ?? [];
+    this.operatorActions = s.operatorActions ?? [];
+    this.modCache = new Map(s.modCache ?? []);
+    this.reports = s.reports ?? [];
+    this.seq = s.seq ?? 0;
   }
 
   // — Сессия / идентичность —
@@ -308,6 +377,17 @@ export class MockDataProvider implements DataProvider {
     const addr = this.session().address;
     if (!addr) return null;
     return [...this.channelsById.values()].find((c) => c.ownerAddress === addr) ?? null;
+  }
+  /** Каналы, которыми текущая сессия управляет: владелец ИЛИ модератор (для очереди модерации). */
+  async getManagedChannels(): Result<Channel[]> {
+    await this.gate("getManagedChannels");
+    const addr = this.session().address;
+    if (!addr) return [];
+    return [...this.channelsById.values()].filter((c) => {
+      if (c.ownerAddress === addr) return true;
+      const cfg = this.configsByChannel.get(c.id)?.slice(-1)[0];
+      return Boolean(cfg?.moderators.some((m) => m.address === addr));
+    });
   }
   /** Внутренний доступ для ingest (вне интерфейса). */
   __getChannelById(id: string): Channel | null {
@@ -441,7 +521,7 @@ export class MockDataProvider implements DataProvider {
     }
     const fee = (amount * 3n) / 100n;
     const net = amount - fee;
-    const result = this.record({
+    return this.record({
       channelId: input.channelId,
       donor,
       amount,
@@ -450,7 +530,6 @@ export class MockDataProvider implements DataProvider {
       text: hasText ? input.text!.trim() : undefined,
       textShowMode: cfg.textShowMode,
     });
-    return result;
   }
 
   /**
@@ -458,7 +537,7 @@ export class MockDataProvider implements DataProvider {
    * уже сверенный по хэшу из memo (см. server/ingest.ts); если донат уже принят без текста, а текст
    * пришёл позже (клиент/индексер в разном порядке) — привязываем сообщение к существующему донату.
    */
-  recordDonationFromChain(params: {
+  async recordDonationFromChain(params: {
     signature: string;
     donor: Address;
     channelId: string;
@@ -466,12 +545,12 @@ export class MockDataProvider implements DataProvider {
     feeMicro: bigint;
     netMicro: bigint;
     text?: string;
-  }): DonationResult | null {
+  }): Promise<DonationResult | null> {
     const existing = this.donations.find((d) => d.txSignature === params.signature);
     if (existing) {
       if (params.text && !existing.message) {
         // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
-        const msg = this.buildMessage(existing, params.text, this.now());
+        const msg = await this.buildMessage(existing, params.text, this.now());
         const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
         if (msg.state === "SHOWN") {
           this.emitOverlay(existing.channelId, { kind: "donation_shown", donation: existing, standing });
@@ -494,11 +573,13 @@ export class MockDataProvider implements DataProvider {
     });
   }
 
-  /** Создаёт сообщение к донату: прогон модерации, дедуп, карантин-инцидент. Привязка donation.message. */
-  private buildMessage(donation: Donation, text: string, ts: string): MessageRef {
+  /** Создаёт сообщение к донату: прогон модерации (async — авто-слой может ходить в OpenAI), дедуп,
+   *  карантин-инцидент. Привязка donation.message. */
+  private async buildMessage(donation: Donation, text: string, ts: string): Promise<MessageRef> {
     const cfg = this.latestConfig(donation.channelId);
-    const { verdict, lang, contentHash, deduped } = runPipeline(text, this.modCache, {
+    const { verdict, lang, contentHash, deduped } = await runPipeline(text, this.modCache, {
       scope: donation.channelId,
+      auto: resolveAutoModerator(), // OpenAI при наличии OPENAI_API_KEY, иначе локальный словарь
     });
     while (this.modCache.size > MOD_CACHE_CAP) {
       const oldest = this.modCache.keys().next().value;
@@ -534,8 +615,9 @@ export class MockDataProvider implements DataProvider {
     return message;
   }
 
-  /** Общая запись доната: банкинг очков СРАЗУ, текст → HELD/модерация (инварианты §4). */
-  private record(p: {
+  /** Общая запись доната: банкинг очков СРАЗУ, текст → HELD/модерация (инварианты §4). Async: модерация
+   *  текста может ходить в OpenAI (см. buildMessage). Очки/журнал банкуются независимо от текста (§4.7). */
+  private async record(p: {
     channelId: string;
     donor: Address;
     amount: bigint;
@@ -544,7 +626,7 @@ export class MockDataProvider implements DataProvider {
     text?: string;
     textShowMode?: ChannelConfig["textShowMode"];
     signature?: string;
-  }): DonationResult {
+  }): Promise<DonationResult> {
     const cfg = this.latestConfig(p.channelId);
     const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 100 очков
     const ts = this.now();
@@ -572,7 +654,7 @@ export class MockDataProvider implements DataProvider {
       txSignature: p.signature,
       ts,
     });
-    if (p.text) this.buildMessage(donation, p.text, ts);
+    if (p.text) await this.buildMessage(donation, p.text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier.name;
@@ -590,7 +672,11 @@ export class MockDataProvider implements DataProvider {
     const items = this.donations
       .filter((d) => d.channelId === channelId)
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
-      .map((d) => this.redactDonation(d, isManager));
+      .map((d) => {
+        const r = this.redactDonation(d, isManager);
+        const donorName = this.profiles.get(d.donor)?.displayName; // ник из профиля (как в лидерборде)
+        return donorName ? { ...r, donorName } : r;
+      });
     return { items };
   }
 
@@ -625,6 +711,54 @@ export class MockDataProvider implements DataProvider {
       if (standing) this.emitOverlay(msg.channelId, { kind: "donation_shown", donation, standing });
     }
     return updated;
+  }
+
+  /**
+   * Жалоба зрителя на ПОКАЗАННЫЙ текст. Любой вошедший, одна жалоба на сообщение с адреса (анти-накрутка).
+   * Первая жалоба → инцидент стримеру/оператору; при пороге уникальных жалоб текст авто-скрывается (HIDDEN)
+   * до решения человека. Деньги/репутация не трогаются (§4.7). Жаловаться можно только на показанное (§4.6).
+   */
+  async reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
+    await this.gate("reportMessage");
+    const reporter = this.requireSession();
+    const msg = this.messages.get(messageId);
+    if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
+    if (msg.state !== "SHOWN") {
+      throw new DataError("NOT_REPORTABLE", "Пожаловаться можно только на показанный текст.");
+    }
+    if (this.reports.some((r) => r.messageId === messageId && r.reporter === reporter)) {
+      throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
+    }
+    const ts = this.now();
+    this.reports.push({ messageId, channelId: msg.channelId, reporter, reason, ts });
+    const count = this.reports.filter((r) => r.messageId === messageId).length;
+
+    if (count === 1) {
+      this.incidents.push({
+        id: this.nextId("inc"),
+        channelId: msg.channelId,
+        kind: "report",
+        detail: `Жалоба зрителя на показанный текст${reason ? `: ${reason}` : ""}.`,
+        ts,
+      });
+    }
+
+    let hidden = false;
+    if (count >= REPORT_HIDE_THRESHOLD && msg.state === "SHOWN") {
+      const updated: MessageRef = { ...msg, state: "HIDDEN" };
+      this.messages.set(messageId, updated);
+      const donation = this.donations.find((d) => d.id === msg.donationId);
+      if (donation) donation.message = updated;
+      this.incidents.push({
+        id: this.nextId("inc"),
+        channelId: msg.channelId,
+        kind: "report",
+        detail: `Авто-скрыто: ${count} жалоб(ы) на текст. Стример/оператор может пересмотреть.`,
+        ts,
+      });
+      hidden = true;
+    }
+    return { reports: count, hidden };
   }
 
   // — Канальный блок-лист —
