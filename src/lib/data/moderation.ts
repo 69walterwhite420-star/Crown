@@ -29,16 +29,27 @@ export const localAutoModerator: AutoModerator = {
   },
 };
 
-// Категории OpenAI omni-moderation → авто-карантин (HARD_BLOCK). По умолчанию только сексуализация
-// несовершеннолетних (CSAM) — юридический must, нулевая толерантность. Остальное (sexual/hate/harassment/
-// self-harm/violence) НЕ баним — стример решает сам (политика «не цензурим, стример скрывает»). Чтобы
-// ужесточить — добавь сюда категории (напр. "illicit/violent", "sexual").
-const OPENAI_HARD_CATEGORIES = ["sexual/minors"] as const;
+// Маппинг категорий OpenAI omni-moderation → авто-карантин (HARD_BLOCK).
+//  • HARD_ALWAYS — нулевая толерантность: карантин при ЛЮБОЙ уверенности (нелегальщина, юридический must).
+//  • HARD_IF_SEVERE — жёсткие угрозы/насилие: карантин ТОЛЬКО при ВЫСОКОЙ уверенности (по category_scores),
+//    чтобы шутки/банты/«я тебя урою в катке» с низким скором проходили. Порог поднимай/опускай SEVERE_THRESHOLD.
+//  Всё прочее (мат, оскорбления, обычный hate/sexual) НЕ баним — стример скрывает сам.
+const HARD_ALWAYS = ["sexual/minors"] as const;
+// Жёсткие угрозы/насилие — карантин при ВЫСОКОМ скоре, порог СВОЙ на категорию (шутки/гейминг-банты дают
+// низкий скор и проходят). Калибровано на примерах: реальная угроза violence≈0.95, harassment/threatening
+// ≈0.55-0.74; шуточное «урою в катке лол» violence≈0.42, h/threatening≈0.26. Поднимай пороги — мягче.
+const SEVERE_THRESHOLDS: Record<string, number> = {
+  violence: 0.8, // «прям жёсткое насилие»; гейминг-банты (~0.4) проходят
+  "violence/graphic": 0.6, // гор/расчленёнка
+  "harassment/threatening": 0.5, // адресная угроза человеку
+  "hate/threatening": 0.5, // угроза на почве ненависти
+};
 
 /**
  * Внешний авто-модератор поверх OpenAI omni-moderation (бесплатный endpoint /v1/moderations). Мультиязычный.
- * Маппит флагнутые категории в вердикт по OPENAI_HARD_CATEGORIES. На сбое/таймауте — FLAG (НЕ блокируем
- * деньги и НЕ авто-публикуем: текст уходит в HELD на ручное решение). Только сервер (ключ серверный).
+ * Нелегальщина (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие (HARD_IF_SEVERE) → карантин лишь
+ * при score ≥ SEVERE_THRESHOLD (шутки не режем). На сбое/таймауте — FLAG (не блокируем деньги, не авто-
+ * публикуем — текст в HELD на ручное решение). Только сервер (ключ серверный).
  */
 export function createOpenAiModerator(apiKey: string): AutoModerator {
   return {
@@ -53,12 +64,21 @@ export function createOpenAiModerator(apiKey: string): AutoModerator {
           console.error("[moderation] OpenAI вернул", res.status);
           return "FLAG"; // не смогли проверить → на ручное решение (не показываем авто), деньги не трогаем
         }
-        const data = (await res.json()) as {
-          results?: { categories?: Record<string, boolean> }[];
-        };
-        const cats = data.results?.[0]?.categories ?? {};
-        if (OPENAI_HARD_CATEGORIES.some((c) => cats[c])) return "HARD_BLOCK";
-        return "CLEAR"; // всё прочее (включая мат) пропускаем — стример скрывает вручную
+        const r = (
+          (await res.json()) as {
+            results?: {
+              categories?: Record<string, boolean>;
+              category_scores?: Record<string, number>;
+            }[];
+          }
+        ).results?.[0];
+        const cats = r?.categories ?? {};
+        const scores = r?.category_scores ?? {};
+        if (HARD_ALWAYS.some((c) => cats[c])) return "HARD_BLOCK"; // нелегальщина — при любой уверенности
+        if (Object.entries(SEVERE_THRESHOLDS).some(([c, t]) => (scores[c] ?? 0) >= t)) {
+          return "HARD_BLOCK"; // жёсткая угроза/насилие при высоком скоре
+        }
+        return "CLEAR"; // мат/шутки/обычный негатив — пропускаем, стример скрывает вручную
       } catch (e) {
         console.error("[moderation] OpenAI ошибка:", e);
         return "FLAG";
