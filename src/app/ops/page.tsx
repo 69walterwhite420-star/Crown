@@ -23,8 +23,16 @@ import {
   useOperatorQueue,
   useSession,
 } from "@/lib/data/hooks";
-import { timeAgo } from "@/lib/utils";
+import { cn, shortAddress, timeAgo } from "@/lib/utils";
 import type { IncidentLog, PenaltyAction } from "@/lib/data/types";
+
+// Тип инцидента → понятная подпись и цвет (читается с одного взгляда).
+const KIND: Record<IncidentLog["kind"], { label: string; cls: string }> = {
+  report: { label: "Жалоба", cls: "border-warn text-warn" },
+  hard_block: { label: "Авто-карантин", cls: "border-danger text-danger" },
+  sanction_hit: { label: "Санкции", cls: "border-danger text-danger" },
+  flood: { label: "Флуд", cls: "border-warn text-warn" },
+};
 
 const LADDER = [
   "Скрыть / карантин сообщения",
@@ -71,6 +79,21 @@ export default function OpsConsolePage() {
   const req = REQUIRES[action];
   const canApply =
     (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
+
+  // channelId → @handle (читаемо). Не найден в активных (саспенднут/забанен) → как есть.
+  const handleFor = (id: string): string => {
+    const card = (discoveryQ.data?.items ?? []).find((c) => c.channelId === id);
+    return card ? `@${card.handle}` : id;
+  };
+
+  // «Разобрать»: подставить цель инцидента в форму действия и проскроллить к ней.
+  function fillFromIncident(inc: IncidentLog) {
+    if (inc.channelId) setChannelId(inc.channelId);
+    if (inc.address) setAddress(inc.address);
+    if (inc.kind === "hard_block" || inc.kind === "sanction_hit") setAction("SUSPEND_CHANNEL");
+    document.getElementById("ops-action")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    toast({ title: "Цель подставлена в форму", description: "Проверь действие и применяй." });
+  }
 
   function doApply() {
     apply.mutate(
@@ -126,7 +149,7 @@ export default function OpsConsolePage() {
         </ol>
       </section>
 
-      <section className="flex flex-col gap-3">
+      <section id="ops-action" className="flex flex-col gap-3 scroll-mt-4">
         <h2 className="text-h2 text-fg">Применить действие</h2>
         <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
           <Select label="Действие" value={action} onChange={(e) => setAction(e.target.value as PenaltyAction)}>
@@ -181,14 +204,31 @@ export default function OpsConsolePage() {
         ) : (
           <ul className="flex flex-col gap-2">
             {queueQ.data!.map((inc: IncidentLog) => (
-              <li key={inc.id} className="flex flex-col gap-1 rounded border border-border bg-surface px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="mono text-small text-status">{inc.kind}</span>
-                  <span className="text-small text-fg-faint">{timeAgo(inc.ts)}</span>
+              <li key={inc.id} className="flex flex-col gap-1.5 rounded border border-border bg-surface px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn("rounded border px-1.5 py-0.5 text-caption", KIND[inc.kind].cls)}>
+                    {KIND[inc.kind].label}
+                  </span>
+                  {inc.channelId ? (
+                    <span className="text-small text-fg">{handleFor(inc.channelId)}</span>
+                  ) : null}
+                  {inc.address ? (
+                    <span className="mono text-small text-fg-muted">{shortAddress(inc.address)}</span>
+                  ) : null}
+                  <span className="ml-auto text-small text-fg-faint">{timeAgo(inc.ts)}</span>
                 </div>
-                <span className="text-small text-fg">{inc.detail}</span>
+                <span className="text-small text-fg-muted">{inc.detail}</span>
                 {inc.resolution ? (
                   <span className="text-small text-fg-faint">→ {inc.resolution}</span>
+                ) : null}
+                {inc.channelId || inc.address ? (
+                  <button
+                    type="button"
+                    onClick={() => fillFromIncident(inc)}
+                    className="self-start text-small text-info hover:underline"
+                  >
+                    Разобрать →
+                  </button>
                 ) : null}
               </li>
             ))}
