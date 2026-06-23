@@ -17,6 +17,12 @@ export function explorerTxUrl(signature: string): string {
   return EXPLORER_CLUSTER === "mainnet-beta" ? url : `${url}?cluster=${EXPLORER_CLUSTER}`;
 }
 
+/** Ссылка на адрес (аккаунт) в Solana Explorer — для «открыть payout канала в проводнике». */
+export function explorerAddressUrl(address: string): string {
+  const url = `https://explorer.solana.com/address/${address}`;
+  return EXPLORER_CLUSTER === "mainnet-beta" ? url : `${url}?cluster=${EXPLORER_CLUSTER}`;
+}
+
 export const USDC_DECIMALS = 6;
 export const FEE_BPS = 300; // 3%
 

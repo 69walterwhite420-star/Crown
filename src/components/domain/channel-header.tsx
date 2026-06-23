@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
+import { toast } from "@/components/ui/toast";
+import { explorerAddressUrl } from "@/lib/chain/addresses";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
@@ -41,11 +44,92 @@ function StatusBadge() {
   );
 }
 
+// — Иконки-действия (stroke, currentColor). Те же в hero и в компактной плашке (как на polymarket). —
+const iconProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+};
+
+function ShareIcon({ done }: { done: boolean }) {
+  return (
+    <svg {...iconProps} className="h-[18px] w-[18px]">
+      {done ? (
+        <path d="M20 6 9 17l-5-5" />
+      ) : (
+        <>
+          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+          <path d="M12 16V4" />
+          <path d="m7 9 5-5 5 5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function ExplorerIcon() {
+  return (
+    <svg {...iconProps} className="h-[18px] w-[18px]">
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 14v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+    </svg>
+  );
+}
+
+const actionBtn =
+  "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-strong hover:text-fg";
+
+/** Ряд иконок-действий: поделиться (копирует ссылку на канал) + открыть payout в Solana Explorer. */
+function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <button
+        type="button"
+        className={actionBtn}
+        title="Поделиться (скопировать ссылку)"
+        aria-label="Поделиться"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+            toast({ variant: "success", title: "Ссылка скопирована" });
+          } catch {
+            toast({ variant: "error", title: "Не удалось скопировать" });
+          }
+        }}
+      >
+        <ShareIcon done={copied} />
+      </button>
+      <a
+        className={actionBtn}
+        href={explorerAddressUrl(payoutAddress)}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Payout-адрес в Solana Explorer"
+        aria-label="Открыть в проводнике"
+      >
+        <ExplorerIcon />
+      </a>
+    </div>
+  );
+}
+
+function formatMonthYear(iso: string): string {
+  return new Date(iso).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+}
+
 /**
- * Сворачивающаяся шапка канала (по мотивам polymarket). Вверху — богатая карточка (монограмма, название,
- * @handle, описание, статистика, ссылки). При небольшом скролле, когда заголовок уходит под глобальную
- * шапку, появляется компактная ЛИПКАЯ плашка (монограмма + название) — она fixed-оверлей, поэтому не
- * сдвигает контент. `onCollapse` сообщает странице о смене состояния (правый сайдбар опускается под плашку).
+ * Сворачивающаяся шапка канала (по мотивам polymarket). Вверху — hero: монограмма, хлебные крошки, крупный
+ * тайтл, иконки-действия справа, мета-строка (донатеры · сумма · с даты), затем описание и ссылки. При
+ * небольшом скролле, когда тайтл уходит под глобальную шапку, появляется компактная ЛИПКАЯ плашка
+ * (монограмма + тайтл + те же действия) — fixed-оверлей шириной левой колонки, без сдвига контента.
  */
 export function ChannelHeader({
   channel,
@@ -72,7 +156,7 @@ export function ChannelHeader({
         if (!e) return;
         setCollapsed(!e.isIntersecting);
       },
-      // верхняя граница наблюдения = низ глобальной шапки: заголовок «исчез» → свернуть.
+      // верхняя граница наблюдения = низ глобальной шапки: тайтл «исчез» → свернуть.
       { rootMargin: `-${HEADER_H}px 0px 0px 0px`, threshold: 0 },
     );
     obs.observe(el);
@@ -81,8 +165,8 @@ export function ChannelHeader({
 
   return (
     <>
-      {/* Компактная плашка — fixed-оверлей под глобальной шапкой; без сдвига контента. Ширина = ЛЕВАЯ
-          колонка (на lg справа резервируем рейл 360px + gap-6=32px), поэтому она не лезет на сайдбар. */}
+      {/* Компактная плашка — fixed-оверлей под глобальной шапкой; ширина = левая колонка (резерв рейла
+          360px + gap-6=32px справа), без сдвига контента. fade + лёгкий slide сверху. */}
       <div
         aria-hidden={!collapsed}
         className={cn(
@@ -91,50 +175,64 @@ export function ChannelHeader({
         )}
       >
         <div className="mx-auto max-w-content px-4 lg:pr-[calc(360px+2rem+1rem)]">
-          <div className="flex items-center gap-3 rounded-b-lg border border-t-0 border-border bg-surface px-4 py-2 shadow-sm">
+          <div className="flex h-[54px] items-center gap-3 border-b border-border bg-surface px-4 shadow-sm">
             <Monogram name={name} size="sm" />
-            <span className="truncate font-display text-fg">{name}</span>
+            <span className="min-w-0 flex-1 truncate font-display text-fg">{name}</span>
             {basic ? <StatusBadge /> : null}
+            <HeaderActions payoutAddress={channel.payoutAddress} />
           </div>
         </div>
       </div>
 
-      {/* Большая шапка-карточка в обычном потоке. */}
+      {/* Hero-блок в обычном потоке. */}
       <header className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5">
         <div className="flex items-start gap-4">
           <Monogram name={name} size="lg" />
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* хлебные крошки */}
+            <Link href="/" className="w-fit text-small text-fg-faint hover:text-fg-muted">
+              Каналы
+            </Link>
             <div className="flex flex-wrap items-center gap-3">
               <h1 ref={titleRef} className="text-display-l text-fg">
                 {name}
               </h1>
               {basic ? <StatusBadge /> : null}
             </div>
-            {config?.displayName?.trim() ? (
-              <span className="mono text-small text-fg-faint">@{channel.handle}</span>
-            ) : null}
+            {/* мета-строка под тайтлом */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
+              {config?.displayName?.trim() ? (
+                <>
+                  <span className="mono text-fg-faint">@{channel.handle}</span>
+                  <span className="text-fg-faint">·</span>
+                </>
+              ) : null}
+              {donorsCount !== undefined ? (
+                <>
+                  <span>
+                    <span className="font-medium text-fg">{donorsCount}</span>{" "}
+                    {donorsCount === 1 ? "донатер" : "донатеров"}
+                  </span>
+                  {totalDonated !== undefined ? (
+                    <>
+                      <span className="text-fg-faint">·</span>
+                      <span className="flex items-center gap-1">
+                        всего <Amount micro={totalDonated} variant="money" />
+                      </span>
+                    </>
+                  ) : null}
+                  <span className="text-fg-faint">·</span>
+                </>
+              ) : null}
+              <span>с {formatMonthYear(channel.createdAt)}</span>
+            </div>
           </div>
+          {/* иконки-действия справа */}
+          <HeaderActions payoutAddress={channel.payoutAddress} />
         </div>
 
         {config?.description?.trim() ? (
           <p className="max-w-2xl text-fg-muted">{config.description}</p>
-        ) : null}
-
-        {donorsCount !== undefined ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-fg-muted">
-            <span>
-              <span className="font-medium text-fg">{donorsCount}</span>{" "}
-              {donorsCount === 1 ? "донатер" : "донатеров"}
-            </span>
-            {totalDonated !== undefined ? (
-              <>
-                <span className="text-fg-faint">·</span>
-                <span className="flex items-center gap-1">
-                  всего <Amount micro={totalDonated} variant="money" />
-                </span>
-              </>
-            ) : null}
-          </div>
         ) : null}
 
         {config?.links?.length ? <ChannelLinkButtons links={config.links} /> : null}
