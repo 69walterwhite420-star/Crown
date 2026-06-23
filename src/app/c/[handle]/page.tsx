@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { ChannelLinkButtons } from "@/components/domain/channel-links";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { Leaderboard } from "@/components/domain/leaderboard";
@@ -45,14 +46,25 @@ export default function ChannelPage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-display-l text-fg">@{channel.handle}</h1>
-              {channel.status === "BASIC" ? (
-                <span className="rounded-pill border border-border px-2 py-0.5 text-small text-fg-faint">
-                  не активирован
-                </span>
+            <header className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-display-l text-fg">
+                  {configQ.data?.displayName?.trim() || `@${channel.handle}`}
+                </h1>
+                {channel.status === "BASIC" ? (
+                  <span className="rounded-pill border border-border px-2 py-0.5 text-small text-fg-faint">
+                    не активирован
+                  </span>
+                ) : null}
+              </div>
+              {configQ.data?.displayName?.trim() ? (
+                <span className="mono text-small text-fg-faint">@{channel.handle}</span>
               ) : null}
-            </div>
+              {configQ.data?.description?.trim() ? (
+                <p className="max-w-2xl text-fg-muted">{configQ.data.description}</p>
+              ) : null}
+              {configQ.data?.links?.length ? <ChannelLinkButtons links={configQ.data.links} /> : null}
+            </header>
 
             <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
               {/* Левая колонка — контент канала */}

@@ -1,4 +1,5 @@
 import { OPERATOR_ADDRESS } from "../chain/addresses";
+import { CHANNEL_DESC_MAX, CHANNEL_NAME_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { defaultChannelConfig } from "./fixtures";
@@ -478,8 +479,20 @@ export class MockDataProvider implements DataProvider {
     const list = this.configsByChannel.get(channelId);
     const current = list?.[list.length - 1];
     if (!list || !current) throw new DataError("NO_CONFIG", "Нет конфига канала.");
+    // — Публичная личность канала (UGC): лимиты + модерация имени/описания + санитизация ссылок —
+    if (patch.displayName !== undefined && patch.displayName.length > CHANNEL_NAME_MAX)
+      throw new DataError("TOO_LONG", `Название канала — до ${CHANNEL_NAME_MAX} символов.`);
+    if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
+      throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);
+    const idText = [patch.displayName, patch.description].filter(Boolean).join(" ").trim();
+    if (idText && (await resolveAutoModerator().classify(idText, "")) === "HARD_BLOCK")
+      throw new DataError("CHANNEL_BLOCKED", "Название/описание не прошло модерацию (запрещённый/жёсткий контент).");
+    const safePatch: ConfigPatch = { ...patch };
+    // Ссылки — только профиль/канал на доменах из allowlist; чужой URL/глубокая ссылка отбрасываются
+    // (страховка поверх клиентской валидации; прямой RPC с произвольным URL так не пройдёт).
+    if (patch.links !== undefined) safePatch.links = sanitizeChannelLinks(patch.links);
     // Курс репутации фиксирован → версионировать нечего. Тиры/минимумы/настройки применяются сразу.
-    const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
+    const updated: ChannelConfig = { ...current, ...safePatch, updatedAt: this.now() };
     list[list.length - 1] = updated;
     return updated;
   }

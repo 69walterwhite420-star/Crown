@@ -65,10 +65,33 @@ export interface ModeratorRef {
   scope: "queue" | "queue_and_block";
 }
 
+// — Публичная личность канала —
+// Платформа из фиксированного allowlist; url — каноничный https профиля/канала (валидируется доменом +
+// шаблоном пути в lib/channel-links.ts: произвольный URL/глубокую ссылку вписать нельзя).
+export type ChannelLinkPlatform =
+  | "youtube"
+  | "twitch"
+  | "kick"
+  | "x"
+  | "tiktok"
+  | "instagram"
+  | "discord"
+  | "telegram";
+
+export interface ChannelLink {
+  platform: ChannelLinkPlatform;
+  url: string;
+}
+
 export interface ChannelConfig {
   channelId: string;
   version: number;
   hash: string; // версия конфига (метаданные; курс репутации фиксирован, не версионируется)
+  // Публичная личность канала (видна на странице канала). Имя/описание модерируются как UGC; ссылки —
+  // только профиль/канал на доменах из allowlist. Инертны для репутации (формула их не читает, §4.4).
+  displayName?: string;
+  description?: string;
+  links?: ChannelLink[];
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
@@ -246,6 +269,9 @@ export interface CreateChannelInput {
 export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,
+    | "displayName"
+    | "description"
+    | "links"
     | "tiers"
     | "minDonation"
     | "minDonationWithText"

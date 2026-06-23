@@ -1,18 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PlatformIcon } from "@/components/domain/channel-links";
 import { TierEditor } from "@/components/domain/settings";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import {
+  CHANNEL_DESC_MAX,
+  CHANNEL_NAME_MAX,
+  CHANNEL_PLATFORMS,
+  normalizeChannelLink,
+} from "@/lib/channel-links";
 import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
 import { fromMicro, toMicro } from "@/lib/utils";
-import type { ChannelConfig, ConfigPatch, ModeratorRef, OverlaySettings, Tier } from "@/lib/data/types";
+import type {
+  ChannelConfig,
+  ChannelLink,
+  ChannelLinkPlatform,
+  ConfigPatch,
+  ModeratorRef,
+  OverlaySettings,
+  Tier,
+} from "@/lib/data/types";
+
+type LinkInputs = Partial<Record<ChannelLinkPlatform, string>>;
+
+/** Каноничные ссылки из сырого ввода по платформам (невалидные/пустые отбрасываются; порядок — фикс). */
+function linksFromInputs(inputs: LinkInputs): ChannelLink[] {
+  const out: ChannelLink[] = [];
+  for (const p of CHANNEL_PLATFORMS) {
+    const raw = inputs[p.key]?.trim();
+    if (!raw) continue;
+    const url = normalizeChannelLink(p.key, raw);
+    if (url) out.push({ platform: p.key, url });
+  }
+  return out;
+}
 
 interface Draft {
+  displayName: string;
+  description: string;
+  linkInputs: LinkInputs;
   tiers: Tier[];
   minDonation: bigint;
   minDonationWithText: bigint;
@@ -26,6 +59,9 @@ interface Draft {
 
 function deriveDraft(c: ChannelConfig): Draft {
   return {
+    displayName: c.displayName ?? "",
+    description: c.description ?? "",
+    linkInputs: Object.fromEntries((c.links ?? []).map((l) => [l.platform, l.url])) as LinkInputs,
     tiers: c.tiers,
     minDonation: c.minDonation,
     minDonationWithText: c.minDonationWithText,
@@ -44,6 +80,12 @@ const eq = (a: unknown, b: unknown) => enc(a) === enc(b);
 
 function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   const patch: ConfigPatch = {};
+  const dn = draft.displayName.trim();
+  if ((dn || undefined) !== (original.displayName || undefined)) patch.displayName = dn || undefined;
+  const ds = draft.description.trim();
+  if ((ds || undefined) !== (original.description || undefined)) patch.description = ds || undefined;
+  const links = linksFromInputs(draft.linkInputs);
+  if (!eq(links, original.links ?? [])) patch.links = links;
   if (!eq(draft.tiers, original.tiers)) patch.tiers = draft.tiers;
   if (draft.minDonation !== original.minDonation) patch.minDonation = draft.minDonation;
   if (draft.minDonationWithText !== original.minDonationWithText)
@@ -94,6 +136,30 @@ export default function ChannelSettingsPage() {
   return (
     <div className="flex flex-col gap-8 pb-24">
       <h1 className="text-display-l text-fg">Настройки канала</h1>
+
+      <Section title="Личность канала">
+        <p className="text-small text-fg-muted">
+          Название, описание и ссылки видны на странице канала. Текст модерируется как любой UGC (мат — ок,
+          запрещёнка — нет). Ссылки принимаются только на профиль/канал в поддерживаемых сервисах.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Название канала"
+            maxLength={CHANNEL_NAME_MAX}
+            value={draft.displayName}
+            placeholder={`@${myChannelQ.data?.handle ?? ""}`}
+            onChange={(e) => set("displayName", e.target.value)}
+          />
+        </div>
+        <Textarea
+          label="Описание"
+          maxLength={CHANNEL_DESC_MAX}
+          showCount
+          value={draft.description}
+          onChange={(e) => set("description", e.target.value)}
+        />
+        <LinkEditor value={draft.linkInputs} onChange={(v) => set("linkInputs", v)} />
+      </Section>
 
       <Section title="Тиры и пороги участия">
         <p className="text-small text-fg-muted">
@@ -203,6 +269,45 @@ export default function ChannelSettingsPage() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function LinkEditor({ value, onChange }: { value: LinkInputs; onChange: (v: LinkInputs) => void }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {CHANNEL_PLATFORMS.map((p) => {
+        const raw = value[p.key] ?? "";
+        const invalid = raw.trim().length > 0 && !normalizeChannelLink(p.key, raw);
+        return (
+          <div key={p.key} className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <span className="flex w-28 shrink-0 items-center gap-2 text-small text-fg-muted">
+                <PlatformIcon platform={p.key} brand className="h-4 w-4 shrink-0" />
+                {p.label}
+              </span>
+              <div className="min-w-0 flex-1">
+                <Input
+                  mono
+                  placeholder={p.example}
+                  value={raw}
+                  onChange={(e) => onChange({ ...value, [p.key]: e.target.value })}
+                  aria-invalid={invalid || undefined}
+                />
+              </div>
+            </div>
+            {invalid ? (
+              <span className="pl-[7.75rem] text-small text-danger">
+                Нужна ссылка на профиль/канал в {p.label} (напр. {p.example}).
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+      <p className="text-small text-fg-faint">
+        Можно без https://. Лишние параметры срезаются — остаётся чистый адрес профиля. Произвольные сайты
+        и глубокие ссылки (напр. youtube.com/watch) не принимаются.
+      </p>
     </div>
   );
 }
