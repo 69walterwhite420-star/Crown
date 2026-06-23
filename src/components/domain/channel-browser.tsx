@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { ChannelCardTile } from "./channel-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { ChannelCard } from "@/lib/data/types";
 
@@ -24,11 +23,11 @@ export function ChannelBrowser({
   channels: ChannelCard[];
   initialQuery?: string;
 }) {
-  const [query, setQuery] = useState(initialQuery);
   const [pageSize, setPageSize] = useState(12);
   const [page, setPage] = useState(0);
 
-  const q = query.trim().toLowerCase();
+  // Запрос приходит из поиска в ШАПКЕ (?q) — отдельного поля на странице каналов нет.
+  const q = initialQuery.trim().toLowerCase();
   const filtered = useMemo(() => channels.filter((c) => matches(c, q)), [channels, q]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -38,39 +37,30 @@ export function ChannelBrowser({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <Input
-            label="Поиск канала"
-            placeholder="хэндл, имя, тир…"
-            value={query}
+      {filtered.length > PAGE_SIZES[0]! ? (
+        <div className="flex justify-end">
+          <Select
+            label="На странице"
+            value={String(pageSize)}
             onChange={(e) => {
-              setQuery(e.target.value);
+              setPageSize(Number(e.target.value));
               setPage(0);
             }}
-          />
+            className="w-28"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
         </div>
-        <Select
-          label="На странице"
-          value={String(pageSize)}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(0);
-          }}
-          className="sm:w-28"
-        >
-          {PAGE_SIZES.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </Select>
-      </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState
           title="Ничего не найдено"
-          description={query ? "Измени запрос поиска." : "Пока нет каналов."}
+          description={q ? "Под запрос из поиска ничего нет." : "Пока нет каналов."}
         />
       ) : (
         <>

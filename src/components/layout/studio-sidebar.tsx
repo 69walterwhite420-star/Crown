@@ -17,7 +17,7 @@ const items = [
 export function StudioSidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-full shrink-0 md:sticky md:top-4 md:w-56 md:self-start">
+    <aside className="w-full shrink-0 md:sticky md:top-20 md:w-56 md:self-start">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
         {items.map((it) => {
