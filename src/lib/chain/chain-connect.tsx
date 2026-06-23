@@ -28,40 +28,52 @@ export function ChainConnect() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
-  // Лимбо: кошелёк выбран, но не подключён. Установленному даём время на штатное подключение (спиннер);
-  // не-installed «зависнет» — показываем выход сразу. После выхода/штатного disconnect выбор уже очищен
-  // самим адаптером (setWalletName(null)), так что сюда попадает только «выбран, но так и не подключился».
+  // Лимбо: кошелёк выбран, но не подключён. После выхода/штатного disconnect выбор уже очищен самим
+  // адаптером (setWalletName(null)), так что сюда попадает только «выбран, но так и не подключился».
   const selected = wallet.wallet;
   const installed = selected?.readyState === WalletReadyState.Installed;
   const limbo = !!selected && !wallet.connected;
   const [showBail, setShowBail] = useState(false);
+  // Установленный кошелёк может штатно подключаться пару секунд — спиннер. Если завис дольше, дадим выход.
   useEffect(() => {
-    if (!limbo) {
+    if (!limbo || !installed) {
       setShowBail(false);
-      return;
-    }
-    if (!installed) {
-      setShowBail(true);
       return;
     }
     const t = setTimeout(() => setShowBail(true), 6000);
     return () => clearTimeout(t);
-  }, [limbo, installed, selected]);
+  }, [limbo, installed]);
 
-  if (limbo) {
+  // Сбросить «прилипший» выбор → вернуться к кнопке «Войти».
+  async function bail() {
+    try {
+      await wallet.disconnect();
+    } catch {
+      // мог быть и не подключён — это и есть причина выхода
+    }
+    wallet.select(null); // забыть выбор (чистит walletName в localStorage)
+  }
+
+  if (selected && !wallet.connected) {
+    // Выбран кошелёк, которого НЕТ (напр. Trust без расширения): подключение к нему не пойдёт (autoConnect
+    // гейтит не-installed, см. wallet-provider). Не молчим — ведём ставить его на сайте кошелька + даём отмену.
+    if (!installed) {
+      return (
+        <div className="flex items-center gap-2">
+          <Button size="sm" asChild>
+            <a href={selected.adapter.url} target="_blank" rel="noreferrer">
+              Установить {selected.adapter.name}
+            </a>
+          </Button>
+          <Button size="sm" variant="ghost" onClick={bail}>
+            Отмена
+          </Button>
+        </div>
+      );
+    }
+    // Установленный — подключается; если подвис дольше grace, показываем выход.
     return showBail ? (
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={async () => {
-          try {
-            await wallet.disconnect();
-          } catch {
-            // мог быть и не подключён — это и есть причина выхода
-          }
-          wallet.select(null); // забыть выбор (чистит walletName в localStorage) → вернёт кнопку «Войти»
-        }}
-      >
+      <Button size="sm" variant="secondary" onClick={bail}>
         Отменить вход
       </Button>
     ) : (
