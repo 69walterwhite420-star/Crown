@@ -1,10 +1,14 @@
 "use client";
 
-import type { WalletError } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork, type WalletError } from "@solana/wallet-adapter-base";
+import { CoinbaseWalletAdapter } from "@solana/wallet-adapter-coinbase";
+import { LedgerWalletAdapter } from "@solana/wallet-adapter-ledger";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { ConnectionProvider, useWallet, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
+import { TrustWalletAdapter } from "@solana/wallet-adapter-trust";
+import { WalletConnectWalletAdapter } from "@solana/wallet-adapter-walletconnect";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChainDataProvider } from "@/lib/data/chain-provider";
@@ -12,13 +16,42 @@ import { DEVNET_RPC } from "./config";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
+// WalletConnect (подключает мобильные/прочие кошельки по QR) требует projectId с cloud.reown.com.
+// Без него адаптер не добавляем (и не ломаемся). Серверная переменная не нужна — это публичный id.
+const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+
 /**
- * Дерево wallet-adapter (devnet). Явные адаптеры Phantom/Solflare (из отдельных пакетов, без тяжёлого
- * WalletConnect-стека), чтобы кошельки всегда были в модалке — даже если не установлены (со ссылкой на
- * установку). Standard-кошельки (Backpack и пр.) подхватятся автоматически.
+ * Дерево wallet-adapter (devnet). Явные адаптеры (Phantom/Solflare/Coinbase/Trust/Ledger) — чтобы кошельки
+ * были в модалке даже если не установлены (со ссылкой на установку). Прочие Standard-кошельки (Backpack,
+ * OKX и пр.) подхватятся автоматически. WalletConnect — по QR для мобильных, если задан projectId.
  */
 export function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter(),
+      new CoinbaseWalletAdapter(),
+      new TrustWalletAdapter(),
+      new LedgerWalletAdapter(),
+      ...(WC_PROJECT_ID
+        ? [
+            new WalletConnectWalletAdapter({
+              network: WalletAdapterNetwork.Devnet,
+              options: {
+                projectId: WC_PROJECT_ID,
+                metadata: {
+                  name: "Standing",
+                  description: "Локальная репутация за донаты в USDC на Solana",
+                  url: typeof window !== "undefined" ? window.location.origin : "https://standing.local",
+                  icons: [],
+                },
+              },
+            }),
+          ]
+        : []),
+    ],
+    [],
+  );
   // wallet-adapter по умолчанию делает console.error на ЛЮБОЙ ошибке кошелька — а Next.js 15 в dev рисует
   // любой console.error огромным красным оверлеем. Отказ пользователя ("User rejected the request") и
   // неготовность кошелька — штатные ситуации, не краш: понижаем до warn. Пользовательский тост про
