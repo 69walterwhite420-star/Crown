@@ -6,8 +6,8 @@ import { WalletConnectButton } from "./wallet-connect";
 /** Публичная шапка (frontend/spec.md §2). Липкая. Слева — логотип + поиск каналов + nav; справа — кошелёк. */
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-content items-center gap-4 px-4 py-3">
+    <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-surface">
+      <div className="mx-auto flex h-full max-w-content items-center gap-4 px-4">
         <Link href="/" className="font-display text-h3 text-fg">
           Standing
         </Link>
