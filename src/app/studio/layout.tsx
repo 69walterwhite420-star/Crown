@@ -5,7 +5,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   return (
     <>
       <AppHeader />
-      <div className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8 md:flex-row">
+      <div className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8 md:flex-row md:items-start">
         <StudioSidebar />
         <main className="min-w-0 flex-1">{children}</main>
       </div>

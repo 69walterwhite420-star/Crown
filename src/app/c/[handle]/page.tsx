@@ -54,7 +54,7 @@ export default function ChannelPage() {
               ) : null}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
               {/* Левая колонка — контент канала */}
               <div className="flex flex-col gap-8">
                 <section className="flex flex-col gap-3">
