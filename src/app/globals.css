@@ -198,18 +198,16 @@
   }
 }
 
-/* Зафиксированные на экране панели (по просьбе: правый рейл канала и сайдбар студии не двигаются ВООБЩЕ
-   при скролле — в отличие от sticky, который уезжает у футтера). position:fixed выровнен по центрированному
-   контейнеру (--maxw) с учётом px-4=1rem; колонку грид резервирует пустым треком, поэтому контент не плывёт.
-   Высокая панель скроллится внутри себя, чтобы низ был доступен. Включается только на десктопе. */
+/* Прикреплённые панели: sticky прямо под хедером (top = --header-h, без зазора → «прикован к хедеру»).
+   Стоят на месте весь скролл и сами упираются в футер, когда колонка кончается (footer идёт сразу под
+   контентом) — без fixed/JS. Если панель выше экрана — внутренний скролл со скрытым ползунком. items-start
+   на гридах не даёт растягиваться. Десктоп; на мобиле — обычным блоком в потоке. */
 @media (min-width: 1024px) {
-  /* правый рейл страницы канала (грид [1fr_360px]) */
   .rail-pinned-right {
-    position: fixed;
-    top: calc(var(--header-h) + var(--space-8));
-    right: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
-    width: 360px;
-    max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
+    position: sticky;
+    top: var(--header-h);
+    align-self: start;
+    max-height: calc(100dvh - var(--header-h) - 1rem);
     overflow-y: auto;
     scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
   }
@@ -218,13 +216,11 @@
   }
 }
 @media (min-width: 768px) {
-  /* левый сайдбар студии (грид [14rem_1fr]) */
   .rail-pinned-left {
-    position: fixed;
-    top: calc(var(--header-h) + var(--space-8));
-    left: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
-    width: 14rem;
-    max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
+    position: sticky;
+    top: var(--header-h);
+    align-self: start;
+    max-height: calc(100dvh - var(--header-h) - 1rem);
     overflow-y: auto;
     scrollbar-width: none;
   }

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePinAboveFooter } from "@/lib/use-pin-above-footer";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -20,9 +19,8 @@ const items = [
  */
 export function StudioSidebar() {
   const pathname = usePathname();
-  const ref = usePinAboveFooter<HTMLElement>();
   return (
-    <aside ref={ref} className="w-full shrink-0 rail-pinned-left">
+    <aside className="w-full shrink-0 rail-pinned-left">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
         {items.map((it) => {
