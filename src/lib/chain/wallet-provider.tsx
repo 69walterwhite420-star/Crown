@@ -1,6 +1,6 @@
 "use client";
 
-import { WalletAdapterNetwork, type WalletError } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork, WalletReadyState, type Adapter, type WalletError } from "@solana/wallet-adapter-base";
 import { CoinbaseWalletAdapter } from "@solana/wallet-adapter-coinbase";
 import { LedgerWalletAdapter } from "@solana/wallet-adapter-ledger";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
@@ -59,9 +59,19 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
   const onError = useCallback((error: WalletError) => {
     console.warn("[wallet]", error.name, error.message);
   }, []);
+  // autoConnect ТОЛЬКО к реально установленному кошельку. Эта функция консультируется не только при
+  // восстановлении выбора на reload, но и при КЛИКЕ по кошельку в модалке. Без гейта выбор кошелька,
+  // которого нет (напр. Trust без расширения — readyState Loadable/NotDetected), запускал connect(),
+  // который на десктопе уходит в deep-link и НЕ резолвится: UI висит «подключается» без выхода, а
+  // autoConnect воспроизводит залипание на каждом reload. Не-installed → не подключаемся; кошелёк
+  // останется выбран, и ChainConnect покажет «Отменить вход».
+  const onlyInstalled = useCallback(
+    (adapter: Adapter) => Promise.resolve(adapter.readyState === WalletReadyState.Installed),
+    [],
+  );
   return (
     <ConnectionProvider endpoint={DEVNET_RPC}>
-      <WalletProvider wallets={wallets} autoConnect onError={onError}>
+      <WalletProvider wallets={wallets} autoConnect={onlyInstalled} onError={onError}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
