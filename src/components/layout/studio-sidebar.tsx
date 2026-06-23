@@ -14,14 +14,14 @@ const items = [
 ];
 
 /**
- * Сайдбар студии: липкий ПРЯМО под шапкой (top = --header-h, без зазора — «стукается»). При скролле вниз
- * стоит на месте; sticky (не fixed) → когда колонка кончается, уезжает вместе со страницей. Если сам выше
- * экрана — внутренний скролл (max-h + overflow), чтобы низ был доступен.
+ * Сайдбар студии: липкий ПРЯМО под шапкой (top = --header-h, без зазора — «стукается»). Весь скролл стоит
+ * твёрдо на месте; sticky (не fixed) → его колонка кончается у футтера, и там он упирается в футтер и едет
+ * вверх вместе со страницей. Без внутреннего скролла — стоит цельно (как на polymarket).
  */
 export function StudioSidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-full shrink-0 md:sticky md:top-[var(--header-h)] md:max-h-[calc(100dvh_-_var(--header-h))] md:w-56 md:self-start md:overflow-y-auto">
+    <aside className="w-full shrink-0 md:sticky md:top-[var(--header-h)] md:w-56 md:self-start">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
         {items.map((it) => {

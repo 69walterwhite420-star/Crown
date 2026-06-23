@@ -92,10 +92,10 @@ export default function ChannelPage() {
               </div>
 
               {/* Правая колонка — моё standing + донат */}
-              {/* Липкая ПРЯМО под шапкой (top = --header-h, без зазора). Стоит при скролле; sticky (не fixed)
-                  → уедет, когда левая колонка кончится. Если выше экрана — внутренний скролл. items-start на
-                  гриде не даёт растягиваться. */}
-              <aside className="flex flex-col gap-6 lg:sticky lg:top-[var(--header-h)] lg:max-h-[calc(100dvh_-_var(--header-h))] lg:self-start lg:overflow-y-auto">
+              {/* Липкая ПРЯМО под шапкой (top = --header-h, без зазора). Весь скролл стоит твёрдо; sticky
+                  (не fixed) → когда левая колонка кончится (у футтера), упирается и едет вверх. Без внутреннего
+                  скролла — стоит цельно (как на polymarket). items-start на гриде не даёт растягиваться. */}
+              <aside className="flex flex-col gap-6 lg:sticky lg:top-[var(--header-h)] lg:self-start">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (
