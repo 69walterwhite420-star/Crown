@@ -60,8 +60,8 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         </div>
       </Link>
 
-      {/* Футер: мини-ссылки на соцсети + payout-адрес в проводник (отдельные ссылки). */}
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+      {/* Футер всегда одной высоты (h-9) и прижат к низу (mt-auto) — карточки/футеры выровнены, тонко. */}
+      <div className="mt-auto flex h-9 items-center justify-between gap-2 border-t border-border">
         <div className="flex min-w-0 items-center gap-1">
           {links.length > 0 ? (
             <>
@@ -73,7 +73,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
                   rel="noopener noreferrer"
                   title={platformDef(l.platform)?.label ?? l.platform}
                   aria-label={platformDef(l.platform)?.label ?? l.platform}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
                 >
                   <PlatformIcon platform={l.platform} brand className="h-4 w-4" />
                 </a>
@@ -83,7 +83,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
                   href={`/c/${card.handle}`}
                   title={`Ещё ${hiddenLinks} — на странице канала`}
                   aria-label={`Ещё ${hiddenLinks} ссылок на странице канала`}
-                  className="flex h-7 items-center justify-center rounded-md px-2 text-small leading-none text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
+                  className="flex h-6 items-center justify-center rounded-md px-1.5 text-small leading-none text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
                 >
                   …
                 </Link>
