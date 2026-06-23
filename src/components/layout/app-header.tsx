@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderBalance } from "./header-balance";
 import { HeaderSearch } from "./header-search";
 import { WalletConnectButton } from "./wallet-connect";
 
@@ -22,7 +23,8 @@ export function AppHeader() {
             Студия
           </Link>
         </nav>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <HeaderBalance />
           <WalletConnectButton />
         </div>
       </div>
