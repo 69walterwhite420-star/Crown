@@ -92,7 +92,8 @@ export default function ChannelPage() {
               </div>
 
               {/* Правая колонка — моё standing + донат */}
-              <aside className="flex flex-col gap-6">
+              {/* Липкая панель (как трейд-панель Polymarket): standing + донат остаются на виду при скролле ленты */}
+              <aside className="flex flex-col gap-6 lg:sticky lg:top-4 lg:self-start">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (

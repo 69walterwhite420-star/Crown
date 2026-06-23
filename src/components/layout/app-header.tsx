@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { HeaderSearch } from "./header-search";
 import { WalletConnectButton } from "./wallet-connect";
 
-/** Публичная шапка (frontend/spec.md §2). */
+/** Публичная шапка (frontend/spec.md §2). Слева — логотип + nav; справа — поиск каналов + кошелёк. */
 export function AppHeader() {
   return (
     <header className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-content items-center justify-between gap-4 px-4 py-3">
+      <div className="mx-auto flex max-w-content items-center gap-4 px-4 py-3">
         <Link href="/" className="font-display text-h3 text-fg">
           Standing
         </Link>
@@ -20,7 +21,10 @@ export function AppHeader() {
             Студия
           </Link>
         </nav>
-        <WalletConnectButton />
+        <div className="ml-auto flex items-center gap-3">
+          <HeaderSearch />
+          <WalletConnectButton />
+        </div>
       </div>
     </header>
   );

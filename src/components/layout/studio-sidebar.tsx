@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/studio", label: "Обзор" },
@@ -9,21 +13,29 @@ const items = [
   { href: "/studio/blocklist", label: "Блок-лист" },
 ];
 
-/** Сайдбар студии (frontend/spec.md §2). Подсветку активного пункта добавим в Фазе 1. */
+/** Сайдбар студии: липкий при скролле (как nav Polymarket) + подсветка активного пункта. */
 export function StudioSidebar() {
+  const pathname = usePathname();
   return (
-    <aside className="w-56 shrink-0">
+    <aside className="w-full shrink-0 md:sticky md:top-4 md:w-56 md:self-start">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
-        {items.map((it) => (
-          <Link
-            key={it.href}
-            href={it.href}
-            className="rounded px-3 py-2 text-fg-muted transition-colors duration-fast ease-ease hover:bg-surface hover:text-fg"
-          >
-            {it.label}
-          </Link>
-        ))}
+        {items.map((it) => {
+          const active = pathname === it.href;
+          return (
+            <Link
+              key={it.href}
+              href={it.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "rounded px-3 py-2 transition-colors duration-fast ease-ease",
+                active ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg",
+              )}
+            >
+              {it.label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );

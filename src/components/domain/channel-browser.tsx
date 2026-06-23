@@ -17,8 +17,14 @@ function matches(c: ChannelCard, q: string): boolean {
 }
 
 /** Сетка карточек каналов с поиском и постраничной разбивкой. Сами карточки остаются прежними. */
-export function ChannelBrowser({ channels }: { channels: ChannelCard[] }) {
-  const [query, setQuery] = useState("");
+export function ChannelBrowser({
+  channels,
+  initialQuery = "",
+}: {
+  channels: ChannelCard[];
+  initialQuery?: string;
+}) {
+  const [query, setQuery] = useState(initialQuery);
   const [pageSize, setPageSize] = useState(12);
   const [page, setPage] = useState(0);
 
