@@ -211,6 +211,10 @@
     width: 360px;
     max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
     overflow-y: auto;
+    scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
+  }
+  .rail-pinned-right::-webkit-scrollbar {
+    display: none;
   }
 }
 @media (min-width: 768px) {
@@ -222,5 +226,9 @@
     width: 14rem;
     max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .rail-pinned-left::-webkit-scrollbar {
+    display: none;
   }
 }
