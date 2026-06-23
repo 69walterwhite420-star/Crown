@@ -197,3 +197,30 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Зафиксированные на экране панели (по просьбе: правый рейл канала и сайдбар студии не двигаются ВООБЩЕ
+   при скролле — в отличие от sticky, который уезжает у футтера). position:fixed выровнен по центрированному
+   контейнеру (--maxw) с учётом px-4=1rem; колонку грид резервирует пустым треком, поэтому контент не плывёт.
+   Высокая панель скроллится внутри себя, чтобы низ был доступен. Включается только на десктопе. */
+@media (min-width: 1024px) {
+  /* правый рейл страницы канала (грид [1fr_360px]) */
+  .rail-pinned-right {
+    position: fixed;
+    top: calc(var(--header-h) + var(--space-8));
+    right: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
+    width: 360px;
+    max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
+    overflow-y: auto;
+  }
+}
+@media (min-width: 768px) {
+  /* левый сайдбар студии (грид [14rem_1fr]) */
+  .rail-pinned-left {
+    position: fixed;
+    top: calc(var(--header-h) + var(--space-8));
+    left: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
+    width: 14rem;
+    max-height: calc(100dvh - var(--header-h) - var(--space-8) - 1rem);
+    overflow-y: auto;
+  }
+}

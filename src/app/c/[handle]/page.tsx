@@ -97,10 +97,10 @@ export default function ChannelPage() {
                 </section>
               </div>
 
-              {/* Правая колонка — моё standing + донат. Липкая прямо под шапкой; компактная плашка теперь
-                  шириной левой колонки и сайдбар не задевает. Sticky (не fixed): у футтера упирается и едет
-                  вверх. items-start на гриде не даёт растягиваться. */}
-              <aside className="flex flex-col gap-6 lg:sticky lg:top-[var(--header-h)] lg:self-start">
+              {/* Правая колонка — моё standing + донат. ФИКСИРОВАНА на экране (rail-pinned-right): не
+                  двигается ВООБЩЕ при скролле, даже у футтера. Грид резервирует 360px-трек, поэтому левая
+                  колонка не плывёт. На мобиле (<lg) — обычным блоком в потоке. */}
+              <aside className="flex flex-col gap-6 rail-pinned-right">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (

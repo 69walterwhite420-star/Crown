@@ -14,14 +14,13 @@ const items = [
 ];
 
 /**
- * Сайдбар студии: липкий ПРЯМО под шапкой (top = --header-h, без зазора — «стукается»). Весь скролл стоит
- * твёрдо на месте; sticky (не fixed) → его колонка кончается у футтера, и там он упирается в футтер и едет
- * вверх вместе со страницей. Без внутреннего скролла — стоит цельно (как на polymarket).
+ * Сайдбар студии: на десктопе ФИКСИРОВАН на экране (rail-pinned-left) — не двигается ВООБЩЕ при скролле.
+ * Его трек в гриде студии остаётся зарезервированным, поэтому контент не плывёт. На мобиле — обычным блоком.
  */
 export function StudioSidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-full shrink-0 md:sticky md:top-[var(--header-h)] md:w-56 md:self-start">
+    <aside className="w-full shrink-0 rail-pinned-left">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
         {items.map((it) => {
