@@ -8,7 +8,7 @@ const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 // (ssr:false), только в режиме chain → wallet-adapter-стек не попадает в bundle mock/api.
 const ChainConnect = dynamic(() => import("@/lib/chain/chain-connect").then((m) => m.ChainConnect), {
   ssr: false,
-  loading: () => <div className="h-8 w-40 animate-pulse rounded bg-surface-raised" />,
+  loading: () => <div className="h-9 w-40 animate-pulse rounded bg-surface-raised" />,
 });
 
 /**

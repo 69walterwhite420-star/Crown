@@ -14,7 +14,7 @@ export function WalletConnectButton() {
   if (IS_CHAIN) return <ConnectWalletButton />;
 
   // api/mock — dev: вход по адресу идёт через DevToolbar; в шапке просто показываем адрес сессии, если есть.
-  if (isLoading) return <div className="h-8 w-32 animate-pulse rounded bg-surface-raised" />;
+  if (isLoading) return <div className="h-9 w-32 animate-pulse rounded bg-surface-raised" />;
   return session?.address ? (
     <span className="mono text-small text-fg-muted">{shortAddress(session.address)}</span>
   ) : null;

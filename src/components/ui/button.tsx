@@ -20,7 +20,9 @@ const buttonVariants = cva(
         money: "bg-money text-[#06140d] hover:brightness-110",
       },
       size: {
-        sm: "h-8 px-3 text-small",
+        // ВНИМАНИЕ: в tailwind.config шкала spacing переопределена на --space-* (1–8), и это влияет на h-*.
+        // --space-8=64px → h-8 дал бы 64px (кнопка выше хедера!). Берём высоту ВНЕ диапазона 1–8: h-9=36px.
+        sm: "h-9 px-3 text-small",
         md: "h-10 px-4 text-small",
         lg: "h-12 px-6 text-body",
       },
