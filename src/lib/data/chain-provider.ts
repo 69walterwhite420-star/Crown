@@ -170,7 +170,17 @@ export class ChainDataProvider implements DataProvider {
       // 2. Свежий SIWS: серверный nonce + подпись кошельком.
       if (!w.signMessage) throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
       const { message } = await this.api.authNonce(address);
-      const sig = await w.signMessage(new TextEncoder().encode(message));
+      let sig: Uint8Array;
+      try {
+        sig = await w.signMessage(new TextEncoder().encode(message));
+      } catch {
+        // Пользователь отклонил подпись SIWS (или кошелёк не смог) — это ШТАТНЫЙ отказ, не краш. Отключаем
+        // кошелёк, чтобы UI вернулся к исходной «Войти» (а не залип в «Войти (подпись)»), и НЕ пробрасываем
+        // ошибку — иначе всплывает dev-overlay и кнопка подвисает.
+        await w.disconnect?.().catch(() => {});
+        this.clearAuth();
+        return false;
+      }
       const { token, exp } = await this.api.authVerify(address, toBase64(sig));
       this.api.__setToken(token);
       this.storeToken(address, token, exp);
@@ -178,9 +188,13 @@ export class ChainDataProvider implements DataProvider {
       return true;
     })();
     this.authing = p;
-    p.finally(() => {
-      if (this.authing === p) this.authing = null;
-    });
+    // finally-цепочка может ОТКЛОНИТЬСЯ (ошибка сервера в authNonce/authVerify) → гасим её .catch, иначе
+    // unhandled rejection всплывёт dev-overlay'ем. Саму ошибку получает вызывающий через `return p`.
+    void p
+      .finally(() => {
+        if (this.authing === p) this.authing = null;
+      })
+      .catch(() => {});
     return p;
   }
 
