@@ -55,8 +55,10 @@ export default function ChannelPage() {
           />
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
-            {/* Левая колонка — шапка канала + контент (как на polymarket: вся инфа слева, не на весь экран) */}
-            <div className="flex flex-col gap-8">
+            {/* Левая колонка — шапка канала + контент (как на polymarket: вся инфа слева, не на весь экран).
+                min-w-0: иначе широкий контент (длинные ники/mono-адреса) раздувает 1fr-трек → страница шире
+                вьюпорта и правый блок хедера («Войти») уезжает за край. */}
+            <div className="flex min-w-0 flex-col gap-8">
               <ChannelHeader
                 channel={channel}
                 config={configQ.data}
