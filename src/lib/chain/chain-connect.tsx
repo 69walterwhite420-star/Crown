@@ -2,13 +2,10 @@
 
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { LabeledWalletButton } from "./wallet-multi-button";
 import { WalletPickerDialog } from "./wallet-picker";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toast";
-import { useData } from "@/lib/data/context";
 import { useSession } from "@/lib/data/hooks";
 
 /**
@@ -22,9 +19,6 @@ import { useSession } from "@/lib/data/hooks";
 export function ChainConnect() {
   const wallet = useWallet();
   const session = useSession();
-  const data = useData();
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const selected = wallet.wallet;
@@ -74,29 +68,15 @@ export function ChainConnect() {
     );
   }
 
+  // Подключён, но сессии ещё нет: подпись SIWS уже запускается АВТОМАТИЧЕСКИ (ChainWalletBridge при
+  // подключении). Показываем НЕкликабельный спиннер — раньше тут была кнопка «Войти (подпись)», клик по
+  // которой запускал непонятную загрузку, и таких кнопок было несколько (хедер+панель) → можно было
+  // нажать все разом. Кликать нечего: подпиши в кошельке. Отказ от подписи отключает кошелёк → «Войти».
   const connectedNoSession = connected && !session.data?.address;
   if (connectedNoSession) {
     return (
-      <Button
-        size="sm"
-        loading={busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await data.connect(); // chain: ensureAuth → подпись SIWS текущим кошельком
-            await qc.invalidateQueries(); // обновить сессию и все гейты
-          } catch (e) {
-            toast({
-              variant: "error",
-              title: "Не удалось войти",
-              description: e instanceof Error ? e.message : String(e),
-            });
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        Войти (подпись)
+      <Button size="sm" loading disabled>
+        Вход…
       </Button>
     );
   }
