@@ -44,26 +44,28 @@ export function AccountMenu() {
       <div className="invisible absolute right-0 top-full z-40 pt-2 opacity-0 transition-opacity duration-fast ease-ease group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
         <div className="w-52 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
           <div className="truncate px-3 pt-2 font-display text-fg">{display || "Аккаунт"}</div>
-          <div className="flex items-center gap-1.5 px-3 pb-2">
-            <span className="mono truncate text-small text-fg-faint">{shortAddress(address)}</span>
-            <button
-              type="button"
-              title={copied ? "Скопировано" : "Копировать адрес"}
-              aria-label="Копировать адрес"
-              className="shrink-0 text-fg-faint transition-colors hover:text-fg"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(address);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1200);
-                } catch {
-                  toast({ variant: "error", title: "Не удалось скопировать" });
-                }
-              }}
-            >
-              {copied ? <CheckIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
-            </button>
-          </div>
+          <button
+            type="button"
+            title={copied ? "Скопировано" : "Копировать адрес"}
+            aria-label="Копировать адрес"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(address);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1200);
+              } catch {
+                toast({ variant: "error", title: "Не удалось скопировать" });
+              }
+            }}
+            className="flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-left text-fg-faint transition-colors hover:bg-surface hover:text-fg"
+          >
+            <span className="mono truncate text-small">{shortAddress(address)}</span>
+            {copied ? (
+              <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <CopyIcon className="h-3.5 w-3.5 shrink-0" />
+            )}
+          </button>
           <div className="my-1 border-t border-border" />
           <Link href="/me" className={itemCls}>
             Профиль
