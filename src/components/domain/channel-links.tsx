@@ -1,3 +1,12 @@
+"use client";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { platformDef } from "@/lib/channel-links";
 import type { ChannelLink, ChannelLinkPlatform } from "@/lib/data/types";
 
@@ -26,31 +35,67 @@ export function PlatformIcon({
   );
 }
 
+/** Одна ссылка-«пилюля» с логотипом. Ведёт на каноничный профиль/канал, открывается в новой вкладке. */
+function LinkPill({ link }: { link: ChannelLink }) {
+  const def = platformDef(link.platform);
+  if (!def) return null;
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={def.label}
+      className="group inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+    >
+      <PlatformIcon platform={link.platform} brand className="h-4 w-4 shrink-0" />
+      <span>{def.label}</span>
+    </a>
+  );
+}
+
 /**
- * Ссылки канала кнопками с логотипами (не голые URL). Ведут на каноничный профиль/канал (валидация при
- * сохранении, см. lib/channel-links). Внешние ссылки — rel=noopener noreferrer, открываются в новой вкладке.
+ * Ссылки канала/профиля кнопками с логотипами (не голые URL). Чтобы длинный список не растягивал блок (и
+ * соседний по сетке), показываем максимум `max` ссылок в ряд, а остальные прячем за «…» — по клику
+ * всплывает мини-окно (Dialog) со ВСЕМИ ссылками.
  */
-export function ChannelLinkButtons({ links }: { links: ChannelLink[] }) {
-  if (!links.length) return null;
+export function ChannelLinkButtons({ links, max = 4 }: { links: ChannelLink[]; max?: number }) {
+  const valid = links.filter((l) => platformDef(l.platform));
+  if (!valid.length) return null;
+
+  // Прячем за «…» только если скрытых ≥ 2 — иначе «…» занял бы то же место, что и одна ссылка.
+  const collapse = valid.length > max + 1;
+  const shown = collapse ? valid.slice(0, max) : valid;
+  const hiddenCount = valid.length - shown.length;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {links.map((l) => {
-        const def = platformDef(l.platform);
-        if (!def) return null;
-        return (
-          <a
-            key={l.platform}
-            href={l.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={def.label}
-            className="group inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
-          >
-            <PlatformIcon platform={l.platform} brand className="h-4 w-4 shrink-0" />
-            <span>{def.label}</span>
-          </a>
-        );
-      })}
+      {shown.map((l) => (
+        <LinkPill key={l.platform} link={l} />
+      ))}
+      {collapse ? (
+        <Dialog>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              title={`Ещё ${hiddenCount} — показать все ссылки`}
+              aria-label={`Ещё ${hiddenCount} ссылок — показать все`}
+              className="inline-flex items-center rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+            >
+              … +{hiddenCount}
+            </button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ссылки</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-wrap gap-2">
+              {valid.map((l) => (
+                <LinkPill key={l.platform} link={l} />
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
