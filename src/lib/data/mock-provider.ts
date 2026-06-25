@@ -613,6 +613,8 @@ export class MockDataProvider implements DataProvider {
       (best, x) => (!best || x.points > best.points ? x : best),
       undefined,
     );
+    // Владеет ли этот адрес каналом (один на кошелёк, ADR 0002) — чтобы с профиля можно было перейти на канал.
+    const ownedChannel = [...this.channelsById.values()].find((c) => c.ownerAddress === address);
 
     return {
       address,
@@ -621,6 +623,7 @@ export class MockDataProvider implements DataProvider {
       channelsSupported: standings.length,
       firstDonationAt,
       topStanding,
+      ownedChannelHandle: ownedChannel?.handle,
       standings,
       donations,
     };

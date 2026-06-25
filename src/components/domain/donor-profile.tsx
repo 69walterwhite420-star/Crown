@@ -381,6 +381,14 @@ function DonorDashboard({
                 донатит с {monthYear(overview.firstDonationAt)} · {overview.donationCount}{" "}
                 {overview.donationCount === 1 ? "донат" : "донатов"}
               </span>
+              {overview.ownedChannelHandle ? (
+                <Link
+                  href={`/c/${overview.ownedChannelHandle}`}
+                  className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
+                >
+                  Канал @{overview.ownedChannelHandle} →
+                </Link>
+              ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <CopyIconButton value={overview.address} title="Скопировать адрес" />

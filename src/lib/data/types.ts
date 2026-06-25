@@ -291,6 +291,7 @@ export interface DonorOverview {
   channelsSupported: number;
   firstDonationAt?: Iso; // «донатит с …» (самый ранний донат)
   topStanding?: DonorChannelStanding; // канал с наивысшими ЛОКАЛЬНЫМИ очками (для «высший тир», не глобал)
+  ownedChannelHandle?: string; // если этот адрес ВЛАДЕЕТ каналом (один на кошелёк, ADR 0002) — его handle
   standings: DonorChannelStanding[]; // позиции по каналам (по убыванию суммы донатов)
   donations: Donation[]; // активность: все донаты по всем каналам, новые сверху (текст приватен до показа)
 }

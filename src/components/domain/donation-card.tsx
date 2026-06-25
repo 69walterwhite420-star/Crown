@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Amount } from "./amount";
 import { ModerationMenu } from "./moderation-menu";
 import { ReportDialog } from "./report-dialog";
@@ -28,9 +29,12 @@ export function DonationCard({
     <div className="flex flex-col gap-2 rounded border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-small text-fg">
+          <Link
+            href={`/u/${donation.donor}`}
+            className="truncate text-small text-fg transition-colors hover:text-status"
+          >
             {displayName ?? donation.donorName ?? shortAddress(donation.donor)}
-          </span>
+          </Link>
           {tier ? <TierBadge tier={tier} /> : null}
         </div>
         <Amount micro={donation.amount} />
