@@ -344,19 +344,19 @@ export class MockDataProvider implements DataProvider {
     await this.gate("updateProfile");
     const addr = this.session().address;
     if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
-    // Лимиты длины (анти-DoS) + формат URL.
+    // Лимиты длины (анти-DoS).
     if ((patch.displayName?.length ?? 0) > PROFILE_LIMITS.name)
       throw new DataError("TOO_LONG", `Имя — до ${PROFILE_LIMITS.name} символов.`);
     if ((patch.bio?.length ?? 0) > PROFILE_LIMITS.bio)
       throw new DataError("TOO_LONG", `О себе — до ${PROFILE_LIMITS.bio} символов.`);
-    if (patch.links && (patch.links.length > PROFILE_LIMITS.links || patch.links.some((l) => l.length > PROFILE_LIMITS.link)))
-      throw new DataError("BAD_LINKS", `Ссылок — до ${PROFILE_LIMITS.links}, каждая до ${PROFILE_LIMITS.link} символов.`);
     // Модерация ПУБЛИЧНЫХ полей (ник/био видны в ленте и лидерборде): запрещёнка/жёсткое → отказ. Мат — ок.
     const publicText = [patch.displayName, patch.bio].filter(Boolean).join(" ").trim();
     if (publicText && (await resolveAutoModerator().classify(publicText, "")) === "HARD_BLOCK")
       throw new DataError("PROFILE_BLOCKED", "Профиль не прошёл модерацию (запрещённый/жёсткий контент).");
     // Аватарки по URL отключены (канал для нецензурного контента) — не принимаем avatarUrl даже из прямого RPC.
     const { avatarUrl: _ignoredAvatar, ...safePatch } = patch;
+    // Ссылки на платформы — только профиль/канал на доменах из allowlist (как у канала); чужой URL отброшен.
+    if (patch.links !== undefined) safePatch.links = sanitizeChannelLinks(patch.links);
     const updated: LightProfile = {
       ...(this.profiles.get(addr) ?? { address: addr }),
       ...safePatch,

@@ -19,7 +19,7 @@ export interface LightProfile {
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
-  links?: string[];
+  links?: ChannelLink[]; // ссылки на платформы (allowlist), как у канала — см. ChannelLink
 }
 
 // — Канал —

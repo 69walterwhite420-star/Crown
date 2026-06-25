@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChannelLinkButtons } from "@/components/domain/channel-links";
 import { ChannelStandingList, ProfileAvatar } from "@/components/domain/standing-list";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
@@ -37,6 +38,11 @@ export default function ProfilePage() {
                   <span className="mono truncate text-small text-fg-faint">{address}</span>
                   {profileQ.data?.bio ? (
                     <p className="text-small text-fg-muted">{profileQ.data.bio}</p>
+                  ) : null}
+                  {profileQ.data?.links?.length ? (
+                    <div className="mt-1">
+                      <ChannelLinkButtons links={profileQ.data.links} />
+                    </div>
                   ) : null}
                 </div>
               </div>

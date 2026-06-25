@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  inputsFromLinks,
+  LinkEditor,
+  type LinkInputs,
+  linksFromInputs,
+} from "@/components/domain/link-editor";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
@@ -19,14 +25,14 @@ export default function ProfileSettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [links, setLinks] = useState("");
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>({});
 
   useEffect(() => {
     const p = profileQ.data;
     if (p) {
       setDisplayName(p.displayName ?? "");
       setBio(p.bio ?? "");
-      setLinks((p.links ?? []).join("\n"));
+      setLinkInputs(inputsFromLinks(p.links));
     }
   }, [profileQ.data]);
 
@@ -35,10 +41,7 @@ export default function ProfileSettingsPage() {
       {
         displayName: displayName.trim() || undefined,
         bio: bio.trim() || undefined,
-        links: links
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(Boolean),
+        links: linksFromInputs(linkInputs),
       },
       {
         onSuccess: () => toast({ variant: "success", title: "Профиль сохранён" }),
@@ -73,11 +76,10 @@ export default function ProfileSettingsPage() {
           <div className="flex flex-col gap-4">
             <Input label="Имя (display_name)" maxLength={40} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             <Textarea label="О себе" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={280} showCount />
-            <Textarea
-              label="Ссылки (по одной на строку)"
-              value={links}
-              onChange={(e) => setLinks(e.target.value)}
-            />
+            <div className="flex flex-col gap-2">
+              <span className="text-small text-fg-muted">Ссылки</span>
+              <LinkEditor value={linkInputs} onChange={setLinkInputs} />
+            </div>
             <Button onClick={save} loading={update.isPending}>
               Сохранить профиль
             </Button>

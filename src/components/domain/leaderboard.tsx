@@ -7,30 +7,27 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeaderboard } from "@/lib/data/hooks";
+import type { Address, LeaderboardEntry, LeaderboardPeriod, Tier } from "@/lib/data/types";
 import { cn, formatPoints, shortAddress } from "@/lib/utils";
-import type { Address, LeaderboardEntry, LeaderboardPeriod } from "@/lib/data/types";
 
-// «Топ месяца» (top_donor_month) убран: он показывал лишь донатера №1 за месяц — это и есть верх вкладки
-// «Месяц», т.е. дубль. Сам период в типе остаётся (его использует оверлей), но отдельной вкладки нет.
+// «Топ месяца» (top_donor_month) убран как дубль верха «Месяца». Период остаётся в типе (его юзает оверлей).
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
   { value: "all_time", label: "За всё время" },
   { value: "month", label: "Месяц" },
 ];
 
-type SortKey = "points" | "total" | "tier";
+type SortKey = "points" | "total";
 
 function sortEntries(entries: LeaderboardEntry[], sort: SortKey): LeaderboardEntry[] {
   const arr = [...entries];
   if (sort === "total") arr.sort((a, b) => Number(b.totalDonated - a.totalDonated));
-  else if (sort === "tier")
-    arr.sort((a, b) => b.tier.threshold - a.tier.threshold || b.points - a.points);
   // "points" — сервер уже отдаёт по очкам (это и есть ранг), не пересортировываем.
   return arr;
 }
 
 /**
- * Список донатеров канала: ранжирование по периоду (всё время / месяц) + сортировка (standing / сумма /
- * тир). Каждая строка — ссылка на публичный профиль донатера (/u/[address]). Номер = позиция в текущей сортировке.
+ * Донатеры канала: период (всё время / месяц) + сортировка (standing / сумма) + ФИЛЬТР по тиру (показать
+ * только донатеров конкретного локального тира). Каждая строка — ссылка на профиль (/u/[address]).
  */
 export function Leaderboard({
   channelId,
@@ -41,8 +38,20 @@ export function Leaderboard({
 }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>("all_time");
   const [sort, setSort] = useState<SortKey>("points");
+  const [tierFilter, setTierFilter] = useState<string>("all"); // имя тира или "all"
   const { data, isLoading, error, refetch } = useLeaderboard(channelId, period);
-  const rows = useMemo(() => sortEntries(data ?? [], sort), [data, sort]);
+
+  // Тиры, реально присутствующие среди донатеров (для фильтра), по возрастанию порога.
+  const tiers = useMemo(() => {
+    const byName = new Map<string, Tier>();
+    for (const e of data ?? []) byName.set(e.tier.name, e.tier);
+    return [...byName.values()].sort((a, b) => a.threshold - b.threshold);
+  }, [data]);
+
+  const rows = useMemo(() => {
+    const filtered = (data ?? []).filter((e) => tierFilter === "all" || e.tier.name === tierFilter);
+    return sortEntries(filtered, sort);
+  }, [data, sort, tierFilter]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -56,16 +65,30 @@ export function Leaderboard({
             ))}
           </TabsList>
         </Tabs>
-        <Select
-          aria-label="Сортировка"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          className="w-44"
-        >
-          <option value="points">По standing</option>
-          <option value="total">По сумме</option>
-          <option value="tier">По тиру</option>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select
+            aria-label="Фильтр по тиру"
+            value={tierFilter}
+            onChange={(e) => setTierFilter(e.target.value)}
+            className="w-40"
+          >
+            <option value="all">Все тиры</option>
+            {tiers.map((t) => (
+              <option key={t.name} value={t.name}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Сортировка"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="w-40"
+          >
+            <option value="points">По standing</option>
+            <option value="total">По сумме</option>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -77,7 +100,14 @@ export function Leaderboard({
       ) : error ? (
         <ErrorState description="Не удалось загрузить лидерборд." onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
-        <EmptyState title="Пока пусто" description="Будь первым, кто наберёт standing на этом канале." />
+        <EmptyState
+          title="Пусто"
+          description={
+            tierFilter === "all"
+              ? "Будь первым, кто наберёт standing на этом канале."
+              : "Нет донатеров в этом тире."
+          }
+        />
       ) : (
         <ol className="flex flex-col gap-1">
           {rows.map((e, i) => (
