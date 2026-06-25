@@ -47,6 +47,21 @@ function monthYear(iso?: string): string {
   return new Date(iso).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 }
 
+/** Дата для подсказки графика: «24 июн 2026». */
+function chartDate(t: number): string {
+  return new Date(t).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Число долларов → «$88.60» (для подсказки графика; деньги уже в USDC-числе). */
+function dollars(n: number): string {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 /** Кнопка-иконка «скопировать» (адрес / ссылка) с галочкой-подтверждением. */
 function CopyIconButton({ value, title }: { value: string; title: string }) {
   const [copied, setCopied] = useState(false);
@@ -175,6 +190,8 @@ const RANGE_LABEL: Record<ChartRange, string> = { "1M": "1М", "1Y": "1Г", ALL:
  * ровная линия до «сейчас». Деньги в micro-USDC; на UI-границе → number (fromMicro) только для геометрии.
  */
 function DonationsAreaChart({ donations, range }: { donations: Donation[]; range: ChartRange }) {
+  // Доля 0..1 по X под курсором (null — мышь вне графика). Хук — ДО раннего выхода (правило хуков).
+  const [hoverFx, setHoverFx] = useState<number | null>(null);
   const series = useMemo(() => {
     const asc = [...donations].sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
     let running = 0;
@@ -220,25 +237,76 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   const line = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(p.t).toFixed(2)} ${sy(p.y).toFixed(2)}`).join(" ");
   const area = `${line} L ${sx(pts[pts.length - 1]!.t).toFixed(2)} ${H} L ${sx(pts[0]!.t).toFixed(2)} ${H} Z`;
 
+  // Значение под курсором: курсор по X → время → значение на линии (линейная интерполяция по сегментам,
+  // т.е. ровно по нарисованной линии, чтобы точка лежала на ней).
+  let hover: { fx: number; y: number; t: number } | null = null;
+  if (hoverFx != null) {
+    const t = xMin + hoverFx * (xMax - xMin);
+    let y = pts[0]!.y;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      if (t >= a.t && t <= b.t) {
+        const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+        y = a.y + f * (b.y - a.y);
+        break;
+      }
+      if (t > b.t) y = b.y;
+    }
+    hover = { fx: hoverFx, y, t };
+  }
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-24 w-full" aria-hidden>
-      <defs>
-        <linearGradient id="donChartFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--money)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="var(--money)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#donChartFill)" stroke="none" />
-      <path
-        d={line}
-        fill="none"
-        stroke="var(--money)"
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div
+      className="relative h-24 w-full"
+      onMouseMove={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setHoverFx(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+      }}
+      onMouseLeave={() => setHoverFx(null)}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-hidden>
+        <defs>
+          <linearGradient id="donChartFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--money)" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="var(--money)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#donChartFill)" stroke="none" />
+        <path
+          d={line}
+          fill="none"
+          stroke="var(--money)"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {hover ? (
+        <>
+          {/* вертикальная линия-курсор */}
+          <div
+            className="pointer-events-none absolute inset-y-0 w-px bg-fg-faint"
+            style={{ left: `${hover.fx * 100}%` }}
+          />
+          {/* точка на линии (HTML-оверлей — остаётся круглой, svg растянут) */}
+          <div
+            className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-surface bg-money"
+            style={{ left: `${hover.fx * 100}%`, top: `${(sy(hover.y) / H) * 100}%` }}
+          />
+          {/* подсказка: сумма + дата в этой точке */}
+          <div
+            className="pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded border border-border bg-surface-raised px-2 py-1 text-caption shadow-md"
+            style={{ left: `${Math.min(88, Math.max(12, hover.fx * 100))}%` }}
+          >
+            <span className="mono text-money">{dollars(hover.y)}</span>
+            <span className="ml-1.5 text-fg-faint">{chartDate(hover.t)}</span>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 
