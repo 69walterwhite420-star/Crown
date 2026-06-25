@@ -389,12 +389,12 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
       <div className="hidden shrink-0 sm:block">
         <TierBadge tier={s.tier} />
       </div>
-      <div className="hidden w-20 shrink-0 flex-col items-end sm:flex">
-        <span className="mono text-fg">{formatPoints(s.points)}</span>
+      <div className="hidden min-w-[5rem] shrink-0 flex-col items-end sm:flex">
+        <span className="mono whitespace-nowrap text-fg">{formatPoints(s.points)}</span>
         <span className="text-small text-fg-faint">{plural(s.points, POINTS)}</span>
       </div>
-      <div className="flex w-24 shrink-0 flex-col items-end">
-        <Amount micro={s.totalDonated} variant="money" />
+      <div className="flex min-w-[6rem] shrink-0 flex-col items-end">
+        <Amount micro={s.totalDonated} variant="money" className="whitespace-nowrap" />
         <span className="text-small text-fg-faint">задонатил</span>
       </div>
     </Link>

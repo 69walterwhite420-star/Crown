@@ -64,9 +64,10 @@ export default function StudioDashboardPage() {
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-surface p-4">
       <span className="text-caption">{label}</span>
-      <span className="text-h2 text-fg">{value}</span>
+      {/* break-words — чтобы экстремально большой «Оборот» переносился внутри плитки, а не вылезал. */}
+      <span className="break-words text-h2 text-fg">{value}</span>
     </div>
   );
 }
