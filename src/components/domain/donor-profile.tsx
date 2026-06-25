@@ -32,7 +32,7 @@ import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
 import type { Donation, DonorChannelStanding, DonorOverview } from "@/lib/data/types";
-import { channelHue, cn, formatPoints, fromMicro, plural, timeAgo } from "@/lib/utils";
+import { channelHue, cn, collapseWhitespace, formatPoints, fromMicro, plural, timeAgo } from "@/lib/utils";
 
 const DONATIONS = ["донат", "доната", "донатов"] as const;
 const CHANNELS = ["канал", "канала", "каналов"] as const;
@@ -418,7 +418,7 @@ function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string;
         <Amount micro={d.amount} variant="money" />
       </div>
       {shown && d.message ? (
-        <p className="whitespace-pre-wrap break-words text-body text-fg">{d.message.text}</p>
+        <p className="break-words text-body text-fg">{collapseWhitespace(d.message.text)}</p>
       ) : null}
       <div className="flex items-center gap-2 text-small text-fg-faint">
         <span title={d.ts}>{timeAgo(d.ts)}</span>

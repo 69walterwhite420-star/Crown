@@ -5,7 +5,7 @@ import { ReportDialog } from "./report-dialog";
 import { TierBadge } from "./standing";
 import { ExternalLinkIcon } from "@/components/ui/icons";
 import { explorerTxUrl } from "@/lib/chain/addresses";
-import { shortAddress, timeAgo } from "@/lib/utils";
+import { collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Donation, Tier } from "@/lib/data/types";
 
 /** Карточка доната: донор, бейдж тира, сумма, текст (если SHOWN), время. Лента канала и история /me. */
@@ -40,7 +40,7 @@ export function DonationCard({
         <Amount micro={donation.amount} />
       </div>
       {shown && donation.message ? (
-        <p className="whitespace-pre-wrap break-words text-body text-fg">{donation.message.text}</p>
+        <p className="break-words text-body text-fg">{collapseWhitespace(donation.message.text)}</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
         <span title={donation.ts}>{timeAgo(donation.ts)}</span>

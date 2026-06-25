@@ -70,6 +70,15 @@ export function pluralize(
   return `${n} ${plural(n, forms)}`;
 }
 
+/**
+ * Схлопывает любые серии пробелов/переносов в один пробел (+ trim). Только для ПОКАЗА доната: иначе
+ * «пробел/перенос-флуд» (каждый символ в пределах лимита) растягивает карточку на пол-экрана. Контент
+ * в сторе и модерации (хэш, вердикт) остаётся исходным — это чисто визуальная нормализация.
+ */
+export function collapseWhitespace(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
 /** Адрес → "7xKp…3fQa" (усечённо). */
 export function shortAddress(address: string): string {
   if (address.length <= 10) return address;

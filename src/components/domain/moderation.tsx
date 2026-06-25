@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Amount } from "./amount";
 import { ModerationMenu } from "./moderation-menu";
 import { Button } from "@/components/ui/button";
-import { channelHue, cn, shortAddress, timeAgo } from "@/lib/utils";
+import { channelHue, cn, collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/data/types";
 
 // Бейдж только для того, что требует внимания (FLAG/HARD_BLOCK); CLEAR — без метки, чтобы не зашумлять.
@@ -75,8 +75,8 @@ export function ModerationItem({
       </div>
 
       {/* Текст — главный фокус */}
-      <p className="whitespace-pre-wrap break-words rounded-md bg-surface-raised p-3 text-body text-fg">
-        {message.text}
+      <p className="break-words rounded-md bg-surface-raised p-3 text-body text-fg">
+        {collapseWhitespace(message.text)}
       </p>
 
       {/* Метки слева, действия справа */}
