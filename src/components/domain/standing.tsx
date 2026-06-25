@@ -102,19 +102,24 @@ export function TierLadder({ tiers, currentTierName }: { tiers: Tier[]; currentT
         <li
           key={t.name}
           className={cn(
-            "flex items-center justify-between rounded border border-border bg-surface px-3 py-2",
+            "flex flex-col gap-1 rounded border border-border bg-surface px-3 py-2",
             t.name === currentTierName && "border-status",
           )}
         >
-          <div className="flex items-center gap-2">
-            <TierBadge tier={t} />
-            {t.perks.length > 0 ? (
-              <span className="text-small text-fg-faint">
-                {t.perks.map((p) => p.label).join(" · ")}
-              </span>
-            ) : null}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <TierBadge tier={t} />
+              {t.perks.length > 0 ? (
+                <span className="text-small text-fg-faint">
+                  {t.perks.map((p) => p.label).join(" · ")}
+                </span>
+              ) : null}
+            </div>
+            <span className="mono text-small text-fg-muted">{formatPoints(t.threshold)}</span>
           </div>
-          <span className="mono text-small text-fg-muted">{formatPoints(t.threshold)}</span>
+          {t.description?.trim() ? (
+            <p className="text-small text-fg-muted">{t.description}</p>
+          ) : null}
         </li>
       ))}
     </ul>

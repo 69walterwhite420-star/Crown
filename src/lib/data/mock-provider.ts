@@ -2,7 +2,7 @@ import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
-import { defaultChannelConfig, MAX_TIERS } from "./fixtures";
+import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
 import { resolveAutoModerator, runPipeline } from "./moderation";
 import {
   DataError,
@@ -490,6 +490,20 @@ export class MockDataProvider implements DataProvider {
     // Потолок числа тиров (анти-«бесконечный список»; страховка поверх UI).
     if (patch.tiers && patch.tiers.length > MAX_TIERS)
       throw new DataError("TOO_MANY_TIERS", `Тиров — не больше ${MAX_TIERS}.`);
+    // Описания тиров (UGC, опц.) — тот же лимит-стиль и та же модерация, что у описания канала.
+    if (patch.tiers) {
+      for (const t of patch.tiers) {
+        const d = t.description?.trim();
+        if (!d) continue;
+        if (d.length > TIER_DESC_MAX)
+          throw new DataError("TOO_LONG", `Описание тира — до ${TIER_DESC_MAX} символов.`);
+        if ((await resolveAutoModerator().classify(d, "")) === "HARD_BLOCK")
+          throw new DataError(
+            "CHANNEL_BLOCKED",
+            "Описание тира не прошло модерацию (запрещённый/жёсткий контент).",
+          );
+      }
+    }
     // Описание канала (UGC): лимит + модерация. Имя/ссылки канала живут в профиле владельца, не здесь.
     if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
       throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);

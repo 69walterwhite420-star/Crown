@@ -50,6 +50,7 @@ export interface Tier {
   threshold: Points; // порог в очках
   color: string; // цвет ника
   badge: string; // id/ключ бейджа
+  description?: string; // опц. описание тира (UGC; модерируется как описание канала; задел под перки/игры)
   perks: Perk[];
 }
 
