@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { Amount } from "@/components/domain/amount";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
-import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useModerationQueue, useMyChannel, useSession } from "@/lib/data/hooks";
 
@@ -51,18 +49,6 @@ export default function StudioDashboardPage() {
         <Metric label="Донатов" value={String(donations.length)} />
         <Metric label="Оборот" value={<Amount micro={turnover} />} />
         <Metric label="В очереди модерации" value={String(heldCount)} />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button asChild variant="secondary" size="sm">
-          <Link href="/studio/queue">Очередь модерации</Link>
-        </Button>
-        <Button asChild variant="secondary" size="sm">
-          <Link href="/studio/settings">Настройки канала</Link>
-        </Button>
-        <Button asChild variant="secondary" size="sm">
-          <Link href={`/c/${channel.handle}/overlay`}>Оверлей для OBS</Link>
-        </Button>
       </div>
 
       <section className="flex flex-col gap-3">
