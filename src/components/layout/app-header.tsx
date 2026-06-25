@@ -8,16 +8,11 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-surface">
       <div className="mx-auto flex h-full max-w-content items-center gap-4 px-4">
-        <Link href="/" className="font-display text-h3 text-fg">
+        {/* Логотип = переход на каналы (дискавери). Отдельной ссылки «Каналы» нет. Профиль/Студия — в аватаре. */}
+        <Link href="/" className="font-display text-h3 text-fg hover:text-status">
           Standing
         </Link>
         <HeaderSearch />
-        {/* Профиль/Студия переехали в меню аватара (AccountMenu) — здесь только дискавери. */}
-        <nav className="hidden items-center gap-5 text-small text-fg-muted sm:flex">
-          <Link href="/" className="hover:text-fg">
-            Каналы
-          </Link>
-        </nav>
         <div className="ml-auto flex items-center gap-3">
           <HeaderBalance />
           <WalletConnectButton />
