@@ -88,6 +88,7 @@ export default function ModerationQueuePage() {
                 key={m.id}
                 message={m}
                 donor={d?.donor}
+                donorName={d?.donorName}
                 amount={d?.amount}
                 pending={setState.isPending && setState.variables?.messageId === m.id}
                 onShow={() => act(m.id, "SHOWN")}
