@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
@@ -84,6 +84,48 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
     >
       {copied ? <CheckIcon className="h-[18px] w-[18px]" /> : <CopyIcon className="h-[18px] w-[18px]" />}
     </button>
+  );
+}
+
+/**
+ * Био профиля: превью в 3 строки, чтобы длинный текст не растил карточку (и соседнюю по сетке). Если текст
+ * обрезан — кнопка «…ещё» открывает окно с полным описанием (тот же приём, что и у длинного списка ссылок).
+ */
+function ProfileBio({ bio }: { bio: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bio]);
+
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <p ref={ref} className="line-clamp-3 break-words text-small text-fg-muted">
+        {bio}
+      </p>
+      {clamped ? (
+        <Dialog>
+          <DialogTrigger asChild>
+            <button type="button" className="text-small text-fg-faint transition-colors hover:text-fg">
+              …ещё
+            </button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>О себе</DialogTitle>
+            </DialogHeader>
+            <p className="whitespace-pre-wrap break-words text-body text-fg-muted">{bio}</p>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </div>
   );
 }
 
@@ -472,9 +514,7 @@ function DonorDashboard({
             </div>
           </div>
 
-          {profileQ.data?.bio ? (
-            <p className="whitespace-pre-wrap break-words text-small text-fg-muted">{profileQ.data.bio}</p>
-          ) : null}
+          {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
           {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
 
           <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
