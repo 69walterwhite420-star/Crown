@@ -9,6 +9,7 @@ import type {
   DonationInput,
   DonationResult,
   Donation,
+  DonorOverview,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -58,6 +59,8 @@ export interface DataProvider {
   // — Репутация / статус —
   getStanding(channelId: string, donor: Address): Result<ViewerStanding | null>;
   getLeaderboard(channelId: string, period: LeaderboardPeriod): Result<LeaderboardEntry[]>;
+  // Агрегат по донору для публичного профиля /u/[address]: standing по каналам + активность (read-only).
+  getDonorOverview(address: Address): Result<DonorOverview>;
 
   // — Донаты —
   createDonation(input: DonationInput): Result<DonationResult>;

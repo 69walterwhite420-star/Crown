@@ -269,6 +269,32 @@ export interface CreateChannelInput {
   payoutAddress: Address;
 }
 
+// — Профиль донатера: агрегат по всем каналам (для публичной страницы /u/[address]) —
+// ВАЖНО (инвариант §4.3): глобального рейтинга нет. Деньги агрегируемы (сумма донатов — факт), но
+// очки репутации остаются ПОканальными — в overview суммы очков по каналам НЕ складываем.
+export interface DonorChannelStanding {
+  channelId: string;
+  handle: string;
+  channelName?: string; // имя владельца канала (его профиль), если задано
+  tier: Tier;
+  points: Points; // локальная репутация в ЭТОМ канале
+  totalDonated: MicroUSDC; // задонатил этому каналу
+  donationCount: number;
+  firstDonationAt?: Iso;
+  lastDonationAt?: Iso;
+}
+
+export interface DonorOverview {
+  address: Address;
+  totalDonated: MicroUSDC; // сумма по всем каналам (деньги — агрегируемы)
+  donationCount: number;
+  channelsSupported: number;
+  firstDonationAt?: Iso; // «донатит с …» (самый ранний донат)
+  topStanding?: DonorChannelStanding; // канал с наивысшими ЛОКАЛЬНЫМИ очками (для «высший тир», не глобал)
+  standings: DonorChannelStanding[]; // позиции по каналам (по убыванию суммы донатов)
+  donations: Donation[]; // активность: все донаты по всем каналам, новые сверху (текст приватен до показа)
+}
+
 export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,

@@ -31,6 +31,16 @@ export function formatUSDC(micro: bigint): string {
   });
 }
 
+/** micro-USDC → "$21.3K" (компактно, для плиток-статов и осей графика). */
+export function formatUSDCCompact(micro: bigint): string {
+  return fromMicro(micro).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+}
+
 /** Очки репутации → "5,000". */
 export function formatPoints(points: number): string {
   return Math.round(points).toLocaleString("en-US");

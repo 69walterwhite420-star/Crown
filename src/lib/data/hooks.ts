@@ -23,6 +23,7 @@ export const qk = {
   leaderboard: (channelId: string, period: LeaderboardPeriod) =>
     ["leaderboard", channelId, period] as const,
   donations: (channelId: string) => ["donations", channelId] as const,
+  donorOverview: (address: Address) => ["donorOverview", address] as const,
   moderationQueue: (channelId: string) => ["moderation", channelId] as const,
   blocklist: (channelId: string) => ["blocklist", channelId] as const,
   operatorQueue: () => ["operatorQueue"] as const,
@@ -85,6 +86,14 @@ export function useDonations(channelId: string | undefined) {
     queryKey: qk.donations(channelId ?? ""),
     queryFn: () => data.listDonations(channelId!),
     enabled: Boolean(channelId),
+  });
+}
+export function useDonorOverview(address: Address | null | undefined) {
+  const data = useData();
+  return useQuery({
+    queryKey: qk.donorOverview(address ?? ""),
+    queryFn: () => data.getDonorOverview(address!),
+    enabled: Boolean(address),
   });
 }
 export function useModerationQueue(channelId: string | undefined) {

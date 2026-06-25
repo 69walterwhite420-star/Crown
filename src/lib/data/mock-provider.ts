@@ -22,6 +22,8 @@ import type {
   Donation,
   DonationInput,
   DonationResult,
+  DonorChannelStanding,
+  DonorOverview,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -552,6 +554,76 @@ export class MockDataProvider implements DataProvider {
     entries.sort((a, b) => b.points - a.points);
     entries.forEach((e, i) => (e.rank = i + 1));
     return period === "top_donor_month" ? entries.slice(0, 1) : entries.slice(0, 50);
+  }
+
+  async getDonorOverview(address: Address): Result<DonorOverview> {
+    await this.gate("getDonorOverview");
+    // Все каналы, где у донора есть события (значит, есть standing). Обходим ledger напрямую — профиль
+    // показывает ВСЮ историю донора, включая каналы вне дискавери (SUSPENDED/BANNED).
+    const channelIds = new Set(
+      this.ledger.filter((e) => e.donor === address).map((e) => e.creator),
+    );
+    const standings: DonorChannelStanding[] = [];
+    for (const channelId of channelIds) {
+      const s = this.standingFor(channelId, address);
+      const ch = this.channelsById.get(channelId);
+      if (!s || !ch) continue;
+      const myDonations = this.donations.filter(
+        (d) => d.channelId === channelId && d.donor === address,
+      );
+      const lastDonationAt = myDonations.reduce<string | undefined>(
+        (max, d) => (max && max > d.ts ? max : d.ts),
+        undefined,
+      );
+      standings.push({
+        channelId,
+        handle: ch.handle,
+        channelName: this.profiles.get(ch.ownerAddress)?.displayName,
+        tier: s.tier,
+        points: s.points,
+        totalDonated: s.totalDonated,
+        donationCount: myDonations.length,
+        firstDonationAt: s.firstDonationAt,
+        lastDonationAt,
+      });
+    }
+    // Позиции — по убыванию суммы донатов (как «по стоимости» у polymarket).
+    standings.sort((a, b) =>
+      b.totalDonated > a.totalDonated ? 1 : b.totalDonated < a.totalDonated ? -1 : 0,
+    );
+
+    // Активность: все донаты донора по всем каналам, новые сверху. Текст приватен (зритель не менеджер) → редактируем.
+    const donations = this.donations
+      .filter((d) => d.donor === address)
+      .sort((a, b) => (a.ts < b.ts ? 1 : -1))
+      .map((d) => {
+        const r = this.redactDonation(d, false);
+        const donorName = this.profiles.get(d.donor)?.displayName;
+        return donorName ? { ...r, donorName } : r;
+      });
+
+    const totalDonated = standings.reduce((sum, x) => sum + x.totalDonated, 0n);
+    const firstDonationAt = donations.reduce<string | undefined>(
+      (min, d) => (min && min < d.ts ? min : d.ts),
+      undefined,
+    );
+    // «Высший тир» = канал с наибольшими ЛОКАЛЬНЫМИ очками. Это НЕ глобальный рейтинг (§4.3) — просто
+    // лучшее достижение донора где-то, для бейджа. Очки по каналам не складываем.
+    const topStanding = standings.reduce<DonorChannelStanding | undefined>(
+      (best, x) => (!best || x.points > best.points ? x : best),
+      undefined,
+    );
+
+    return {
+      address,
+      totalDonated,
+      donationCount: donations.length,
+      channelsSupported: standings.length,
+      firstDonationAt,
+      topStanding,
+      standings,
+      donations,
+    };
   }
 
   // — Донаты —

@@ -11,6 +11,7 @@ import type {
   Donation,
   DonationInput,
   DonationResult,
+  DonorOverview,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -144,6 +145,9 @@ export class ApiDataProvider implements DataProvider {
   }
   getLeaderboard(channelId: string, period: LeaderboardPeriod): Result<LeaderboardEntry[]> {
     return this.rpc("getLeaderboard", [channelId, period]);
+  }
+  getDonorOverview(address: Address): Result<DonorOverview> {
+    return this.rpc("getDonorOverview", [address]);
   }
 
   // — Донаты —

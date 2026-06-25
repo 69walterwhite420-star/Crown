@@ -21,6 +21,7 @@ import type {
   Donation,
   DonationInput,
   DonationResult,
+  DonorOverview,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -404,6 +405,9 @@ export class ChainDataProvider implements DataProvider {
   }
   getLeaderboard(id: string, p: LeaderboardPeriod): Result<LeaderboardEntry[]> {
     return this.api.getLeaderboard(id, p);
+  }
+  getDonorOverview(a: Address): Result<DonorOverview> {
+    return this.api.getDonorOverview(a);
   }
   listDonations(id: string, o?: ListOpts): Result<Page<Donation>> {
     return this.api.listDonations(id, o);
