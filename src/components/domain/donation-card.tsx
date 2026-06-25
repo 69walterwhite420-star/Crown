@@ -2,6 +2,7 @@ import { Amount } from "./amount";
 import { ModerationMenu } from "./moderation-menu";
 import { ReportDialog } from "./report-dialog";
 import { TierBadge } from "./standing";
+import { ExternalLinkIcon } from "@/components/ui/icons";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { shortAddress, timeAgo } from "@/lib/utils";
 import type { Donation, Tier } from "@/lib/data/types";
@@ -46,10 +47,11 @@ export function DonationCard({
               href={explorerTxUrl(donation.txSignature)}
               target="_blank"
               rel="noreferrer"
-              className="text-info hover:underline"
-              title={donation.txSignature}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+              title="Транзакция в проводнике"
+              aria-label="Транзакция в проводнике"
             >
-              транзакция ↗
+              <ExternalLinkIcon className="h-4 w-4" />
             </a>
           ) : null}
           {reportable && shown && donation.message ? (

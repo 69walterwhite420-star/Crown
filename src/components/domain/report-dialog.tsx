@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FlagIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
@@ -72,9 +73,11 @@ export function ReportDialog({
       <DialogTrigger asChild>
         <button
           type="button"
-          className="text-small text-fg-faint transition-colors hover:text-danger"
+          title={label}
+          aria-label={label}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface-raised hover:text-danger"
         >
-          {label}
+          <FlagIcon className="h-4 w-4" />
         </button>
       </DialogTrigger>
       <DialogContent>

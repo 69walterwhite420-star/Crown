@@ -59,3 +59,24 @@ export function ShieldIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Внешняя ссылка (открыть в новой вкладке) — напр. транзакция в проводнике. */
+export function ExternalLinkIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </svg>
+  );
+}
+
+/** Флажок — жалоба/репорт. */
+export function FlagIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <path d="M4 22v-7" />
+    </svg>
+  );
+}
