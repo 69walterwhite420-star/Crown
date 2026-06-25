@@ -8,10 +8,11 @@ import { useLeaderboard } from "@/lib/data/hooks";
 import { cn, formatPoints, shortAddress } from "@/lib/utils";
 import type { Address, LeaderboardPeriod } from "@/lib/data/types";
 
+// «Топ месяца» (top_donor_month) убран: он показывал лишь донатера №1 за месяц — это и есть верх вкладки
+// «Месяц», т.е. дубль. Сам период в типе остаётся (его использует оверлей), но отдельной вкладки нет.
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
   { value: "all_time", label: "За всё время" },
   { value: "month", label: "Месяц" },
-  { value: "top_donor_month", label: "Топ месяца" },
 ];
 
 export function Leaderboard({
