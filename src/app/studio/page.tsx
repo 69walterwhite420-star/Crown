@@ -1,11 +1,18 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Amount } from "@/components/domain/amount";
+import { CumulativeAreaChart, RangeTabs, type ChartRange } from "@/components/domain/area-chart";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useModerationQueue, useMyChannel, useSession } from "@/lib/data/hooks";
+import { fromMicro, plural } from "@/lib/utils";
+
+const DONORS = ["донатер", "донатера", "донатеров"] as const;
+const usd = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function StudioDashboardPage() {
   const sessionQ = useSession();
@@ -13,6 +20,24 @@ export default function StudioDashboardPage() {
   const channel = myChannelQ.data;
   const donationsQ = useDonations(channel?.id);
   const queueQ = useModerationQueue(channel?.id);
+  const [range, setRange] = useState<ChartRange>("ALL");
+
+  const donations = useMemo(() => donationsQ.data?.items ?? [], [donationsQ.data?.items]);
+
+  // События для графиков: оборот (v = сумма в USDC) и новые донатеры (первый донат каждого, v = 1).
+  const turnoverEvents = useMemo(
+    () => donations.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) })),
+    [donations],
+  );
+  const donorEvents = useMemo(() => {
+    const firstByDonor = new Map<string, number>();
+    for (const d of donations) {
+      const t = Date.parse(d.ts);
+      const prev = firstByDonor.get(d.donor);
+      if (prev === undefined || t < prev) firstByDonor.set(d.donor, t);
+    }
+    return [...firstByDonor.values()].map((t) => ({ t, v: 1 }));
+  }, [donations]);
 
   if (sessionQ.isLoading || myChannelQ.isLoading) {
     return <Skeleton className="h-64 w-full rounded-lg" />;
@@ -34,9 +59,9 @@ export default function StudioDashboardPage() {
     return <CreateChannelForm />;
   }
 
-  const donations = donationsQ.data?.items ?? [];
   const turnover = donations.reduce((s, d) => s + d.amount, 0n);
   const heldCount = (queueQ.data ?? []).length;
+  const donorsCount = donorEvents.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,8 +72,43 @@ export default function StudioDashboardPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Донатов" value={String(donations.length)} />
-        <Metric label="Оборот" value={<Amount micro={turnover} />} />
+        <Metric label="Донатеров" value={String(donorsCount)} />
         <Metric label="В очереди модерации" value={String(heldCount)} />
+      </div>
+
+      {/* Аналитика: графики в стиле профиля (кумулятивная area-диаграмма с наведением). */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-h2 text-fg">Аналитика</h2>
+        <RangeTabs range={range} onChange={setRange} />
+      </div>
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <ChartCard
+          title="Оборот"
+          headline={<Amount micro={turnover} variant="money" className="text-display-l" />}
+        >
+          <CumulativeAreaChart
+            events={turnoverEvents}
+            range={range}
+            formatValue={usd}
+            emptyHint="Оборот появится после первого доната."
+          />
+        </ChartCard>
+        <ChartCard
+          title="Донатеры"
+          headline={
+            <span className="font-display text-display-l text-fg">
+              {donorsCount} <span className="text-h3 text-fg-muted">{plural(donorsCount, DONORS)}</span>
+            </span>
+          }
+        >
+          <CumulativeAreaChart
+            events={donorEvents}
+            range={range}
+            color="var(--info)"
+            formatValue={(v) => `${Math.round(v)} ${plural(Math.round(v), DONORS)}`}
+            emptyHint="Донатеры появятся после первого доната."
+          />
+        </ChartCard>
       </div>
 
       <section className="flex flex-col gap-3">
@@ -68,6 +128,24 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="text-caption">{label}</span>
       {/* break-words — чтобы экстремально большой «Оборот» переносился внутри плитки, а не вылезал. */}
       <span className="break-words text-h2 text-fg">{value}</span>
+    </div>
+  );
+}
+
+function ChartCard({
+  title,
+  headline,
+  children,
+}: {
+  title: string;
+  headline: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+      <span className="text-small text-fg-muted">{title}</span>
+      <div className="break-words">{headline}</div>
+      {children}
     </div>
   );
 }
