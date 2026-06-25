@@ -120,7 +120,7 @@ export function TierLadder({ tiers, currentTierName }: { tiers: Tier[]; currentT
             <span className="mono text-small text-fg-muted">{formatPoints(t.threshold)}</span>
           </div>
           {t.description?.trim() ? (
-            <p className="text-small text-fg-muted">{t.description}</p>
+            <p className="whitespace-pre-wrap break-words text-small text-fg-muted">{t.description}</p>
           ) : null}
         </li>
       ))}

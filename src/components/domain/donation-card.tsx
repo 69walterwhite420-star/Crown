@@ -40,7 +40,7 @@ export function DonationCard({
         <Amount micro={donation.amount} />
       </div>
       {shown && donation.message ? (
-        <p className="text-body text-fg">{donation.message.text}</p>
+        <p className="whitespace-pre-wrap break-words text-body text-fg">{donation.message.text}</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
         <span title={donation.ts}>{timeAgo(donation.ts)}</span>

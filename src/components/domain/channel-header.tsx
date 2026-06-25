@@ -237,7 +237,7 @@ export function ChannelHeader({
         </div>
 
         {config?.description?.trim() ? (
-          <p className="max-w-2xl text-fg-muted">{config.description}</p>
+          <p className="max-w-2xl whitespace-pre-wrap break-words text-fg-muted">{config.description}</p>
         ) : null}
 
         {links.length > 0 ? <ChannelLinkButtons links={links} /> : null}

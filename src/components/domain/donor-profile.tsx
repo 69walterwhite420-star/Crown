@@ -372,7 +372,9 @@ function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string;
         )}
         <Amount micro={d.amount} variant="money" />
       </div>
-      {shown && d.message ? <p className="text-body text-fg">{d.message.text}</p> : null}
+      {shown && d.message ? (
+        <p className="whitespace-pre-wrap break-words text-body text-fg">{d.message.text}</p>
+      ) : null}
       <div className="flex items-center gap-2 text-small text-fg-faint">
         <span title={d.ts}>{timeAgo(d.ts)}</span>
         {d.txSignature ? (
@@ -470,7 +472,9 @@ function DonorDashboard({
             </div>
           </div>
 
-          {profileQ.data?.bio ? <p className="text-small text-fg-muted">{profileQ.data.bio}</p> : null}
+          {profileQ.data?.bio ? (
+            <p className="whitespace-pre-wrap break-words text-small text-fg-muted">{profileQ.data.bio}</p>
+          ) : null}
           {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
 
           <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
