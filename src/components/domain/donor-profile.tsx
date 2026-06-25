@@ -242,13 +242,13 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   );
 }
 
-/** Плитка-стат (как у polymarket: крупное значение + подпись). */
+/** Инлайн-стат: крупное число и подпись на одной базовой линии (одна ось Y). */
 function StatTile({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <p className="flex items-baseline gap-1.5">
       <span className="font-display text-h3 text-fg">{value}</span>
       <span className="text-small text-fg-muted">{label}</span>
-    </div>
+    </p>
   );
 }
 
@@ -403,11 +403,12 @@ function DonorDashboard({
           {profileQ.data?.bio ? <p className="text-small text-fg-muted">{profileQ.data.bio}</p> : null}
           {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 border-t border-border pt-3">
+          <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
             <StatTile
               value={overview.channelsSupported}
               label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
             />
+            <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
             <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
           </div>
         </div>
