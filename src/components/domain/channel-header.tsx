@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
+import { VerifiedBadge } from "./verified-badge";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
@@ -31,13 +32,6 @@ function Monogram({ name, size }: { name: string; size: "sm" | "lg" }) {
   );
 }
 
-function StatusBadge() {
-  return (
-    <span className="shrink-0 rounded-pill border border-border px-2 py-0.5 text-small text-fg-faint">
-      не активирован
-    </span>
-  );
-}
 
 // — Иконки-действия (stroke, currentColor). Те же в hero и в компактной плашке (как на polymarket). —
 const iconProps = {
@@ -160,7 +154,7 @@ export function ChannelHeader({
   const ownerProfile = useProfile(channel.ownerAddress);
   const name = ownerProfile.data?.displayName?.trim() || `@${channel.handle}`;
   const links = ownerProfile.data?.links ?? [];
-  const basic = channel.status === "BASIC";
+  const activated = channel.status === "ACTIVE";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -195,7 +189,7 @@ export function ChannelHeader({
           <div className="flex h-[54px] items-center gap-3 border-b border-border bg-surface px-4 shadow-sm">
             <Monogram name={name} size="sm" />
             <span className="min-w-0 flex-1 truncate font-display text-fg">{name}</span>
-            {basic ? <StatusBadge /> : null}
+            {activated ? <VerifiedBadge /> : null}
             <HeaderActions payoutAddress={channel.payoutAddress} />
           </div>
         </div>
@@ -214,7 +208,7 @@ export function ChannelHeader({
               <h1 ref={titleRef} className="text-display-l text-fg">
                 {name}
               </h1>
-              {basic ? <StatusBadge /> : null}
+              {activated ? <VerifiedBadge /> : null}
             </div>
             {/* мета-строка под тайтлом */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">

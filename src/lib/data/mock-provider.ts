@@ -371,7 +371,9 @@ export class MockDataProvider implements DataProvider {
   async listChannels(_opts?: ListOpts): Result<Page<ChannelCard>> {
     await this.gate("listChannels");
     const items: ChannelCard[] = [...this.channelsById.values()]
-      .filter((c) => c.status === "ACTIVE")
+      // Показываем и BASIC (без активации) — активация лишь разблокирует донат-с-текстом, а не сам показ.
+      // Скрыты только SUSPENDED/BANNED.
+      .filter((c) => c.status === "ACTIVE" || c.status === "BASIC")
       .map((c) => {
         const cfg = this.latestConfig(c.id);
         const board = this.computeLeaderboard(c.id, "all_time");
@@ -387,6 +389,7 @@ export class MockDataProvider implements DataProvider {
           topTierName: top ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
           donorsCount: board.length,
           totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
+          activated: c.status === "ACTIVE",
         };
       });
     return { items };
