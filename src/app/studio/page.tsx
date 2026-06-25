@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Amount } from "@/components/domain/amount";
-import { ChannelStatusBanner } from "@/components/domain/channel-status";
+import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
@@ -32,17 +32,8 @@ export default function StudioDashboardPage() {
     );
   }
   if (!channel) {
-    return (
-      <EmptyState
-        title="У тебя ещё нет канала"
-        description="Создай канал, чтобы принимать донаты и копить комьюнити. Один канал на кошелёк."
-        action={
-          <Button asChild size="sm">
-            <Link href="/studio/create">Создать канал</Link>
-          </Button>
-        }
-      />
-    );
+    // Канала нет → форма создания прямо здесь (отдельной страницы /studio/create больше нет).
+    return <CreateChannelForm />;
   }
 
   const donations = donationsQ.data?.items ?? [];
@@ -55,8 +46,6 @@ export default function StudioDashboardPage() {
         <h1 className="text-display-l text-fg">@{channel.handle}</h1>
         <span className="mono text-caption text-fg-faint">{channel.status}</span>
       </div>
-
-      <ChannelStatusBanner status={channel.status} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Донатов" value={String(donations.length)} />

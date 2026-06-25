@@ -2,23 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMyChannel } from "@/lib/data/hooks";
 import { cn } from "@/lib/utils";
 
-const items = [
+const MANAGE_ITEMS = [
   { href: "/studio", label: "Обзор" },
-  { href: "/studio/create", label: "Создать канал" },
   { href: "/studio/queue", label: "Очередь модерации" },
   { href: "/studio/settings", label: "Настройки канала" },
-  { href: "/studio/activation", label: "Активация" },
   { href: "/studio/blocklist", label: "Блок-лист" },
 ];
 
 /**
- * Сайдбар студии: на десктопе ФИКСИРОВАН на экране (rail-pinned-left) — не двигается ВООБЩЕ при скролле.
- * Его трек в гриде студии остаётся зарезервированным, поэтому контент не плывёт. На мобиле — обычным блоком.
+ * Сайдбар студии (десктоп — фиксирован, rail-pinned-left). Без канала показываем только «Обзор» (там форма
+ * создания). Создание/активация — НЕ отдельные пункты: создание инлайн в обзоре, активация — контекстным
+ * баннером во всех вкладках (ChannelStatusBanner), чтобы пункты не висели после выполнения шага.
  */
 export function StudioSidebar() {
   const pathname = usePathname();
+  const { data: channel } = useMyChannel();
+  const items = channel ? MANAGE_ITEMS : [{ href: "/studio", label: "Обзор" }];
   return (
     <aside className="w-full shrink-0 rail-pinned-left">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
