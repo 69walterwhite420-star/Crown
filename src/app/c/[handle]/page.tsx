@@ -29,6 +29,9 @@ export default function ChannelPage() {
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
 
+  // Владелец, смотрящий свой канал → в ленте доступна кнопка «Забанить» (модераторы банят из студии/очереди).
+  const canManage = !!address && channel?.ownerAddress === address;
+
   // Статистика для большой шапки (из загруженных донатов; уникальные донатеры + сумма).
   const allDonations = donationsQ.data?.items ?? [];
   const stats = donationsQ.data
@@ -84,6 +87,7 @@ export default function ChannelPage() {
                       title="Показанные сообщения"
                       reportable
                       defaultOpen
+                      manageChannelId={canManage ? channel.id : undefined}
                     />
                   )}
                 </TabsContent>
@@ -92,7 +96,11 @@ export default function ChannelPage() {
                   {donationsQ.isLoading ? (
                     <Skeleton className="h-24 w-full rounded-lg" />
                   ) : (
-                    <DonationHistory donations={donationsQ.data?.items ?? []} defaultOpen />
+                    <DonationHistory
+                      donations={donationsQ.data?.items ?? []}
+                      defaultOpen
+                      manageChannelId={canManage ? channel.id : undefined}
+                    />
                   )}
                 </TabsContent>
 

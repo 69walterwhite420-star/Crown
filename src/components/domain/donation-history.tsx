@@ -38,11 +38,13 @@ export function DonationHistory({
   title = "История донатов",
   defaultOpen = false,
   reportable = false,
+  manageChannelId,
 }: {
   donations: Donation[];
   title?: string;
   defaultOpen?: boolean;
   reportable?: boolean; // показывать «Пожаловаться» на показанных сообщениях (для публичной ленты)
+  manageChannelId?: string; // задан → у каждого доната кнопка «Забанить» (владелец/модератор канала)
 }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
@@ -106,7 +108,12 @@ export function DonationHistory({
         <>
           <div className="flex flex-col gap-2">
             {pageItems.map((d) => (
-              <DonationCard key={d.id} donation={d} reportable={reportable} />
+              <DonationCard
+                key={d.id}
+                donation={d}
+                reportable={reportable}
+                manageChannelId={manageChannelId}
+              />
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 text-small text-fg-faint">

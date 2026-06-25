@@ -69,7 +69,7 @@ export default function StudioDashboardPage() {
         {donationsQ.isLoading ? (
           <Skeleton className="h-12 w-full rounded-lg" />
         ) : (
-          <DonationHistory donations={donations} />
+          <DonationHistory donations={donations} manageChannelId={channel.id} />
         )}
       </section>
     </div>
