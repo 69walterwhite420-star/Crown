@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChannelCardTile } from "./channel-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/select";
 import type { ChannelCard } from "@/lib/data/types";
 
@@ -78,7 +79,8 @@ export function ChannelBrowser({
                 disabled={safePage <= 0}
                 onClick={() => setPage(safePage - 1)}
               >
-                ← Назад
+                <ChevronLeftIcon className="h-4 w-4" />
+                Назад
               </Button>
               <span className="mono">
                 {safePage + 1} / {pageCount}
@@ -89,7 +91,8 @@ export function ChannelBrowser({
                 disabled={safePage >= pageCount - 1}
                 onClick={() => setPage(safePage + 1)}
               >
-                Вперёд →
+                Вперёд
+                <ChevronRightIcon className="h-4 w-4" />
               </Button>
             </div>
           </div>

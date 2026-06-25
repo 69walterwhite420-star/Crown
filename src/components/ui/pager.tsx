@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "./button";
+import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
 import { Select } from "./select";
 
 const SIZES = [10, 25, 50];
@@ -62,7 +63,8 @@ export function Pager({
           ))}
         </Select>
         <Button variant="ghost" size="sm" disabled={page <= 0} onClick={() => setPage(page - 1)}>
-          ← Назад
+          <ChevronLeftIcon className="h-4 w-4" />
+          Назад
         </Button>
         <span className="mono">
           {page + 1} / {pageCount}
@@ -73,7 +75,8 @@ export function Pager({
           disabled={page >= pageCount - 1}
           onClick={() => setPage(page + 1)}
         >
-          Вперёд →
+          Вперёд
+          <ChevronRightIcon className="h-4 w-4" />
         </Button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { DonationCard } from "./donation-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Donation } from "@/lib/data/types";
@@ -70,6 +71,7 @@ export function DonationHistory({
         <div className="flex-1">
           <Input
             label="Поиск"
+            icon={<SearchIcon className="h-4 w-4" />}
             placeholder="ник, хеш транзакции, текст, сумма…"
             value={query}
             onChange={(e) => {
@@ -116,7 +118,8 @@ export function DonationHistory({
                 disabled={safePage <= 0}
                 onClick={() => setPage(safePage - 1)}
               >
-                ← Назад
+                <ChevronLeftIcon className="h-4 w-4" />
+                Назад
               </Button>
               <span className="mono">
                 {safePage + 1} / {pageCount}
@@ -127,7 +130,8 @@ export function DonationHistory({
                 disabled={safePage >= pageCount - 1}
                 onClick={() => setPage(safePage + 1)}
               >
-                Вперёд →
+                Вперёд
+                <ChevronRightIcon className="h-4 w-4" />
               </Button>
             </div>
           </div>
