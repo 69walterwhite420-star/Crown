@@ -88,17 +88,17 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
 }
 
 /**
- * Био профиля: превью в одну строку, чтобы длинный текст не растил карточку (и соседнюю по сетке). Если
- * текст обрезан — кнопка «…ещё» открывает окно с полным описанием (тот же приём, что и у списка ссылок).
+ * Био профиля: одна строка — текст обрезается многоточием, «…ещё» стоит инлайн справа на той же строке
+ * (не растит карточку и соседнюю по сетке). Клик по «…ещё» открывает окно с полным описанием.
  */
 function ProfileBio({ bio }: { bio: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLSpanElement>(null);
   const [clamped, setClamped] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    const check = () => setClamped(el.scrollWidth > el.clientWidth + 1);
     check();
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -106,14 +106,17 @@ function ProfileBio({ bio }: { bio: string }) {
   }, [bio]);
 
   return (
-    <div className="flex flex-col items-start gap-0.5">
-      <p ref={ref} className="line-clamp-1 break-words text-small text-fg-muted">
+    <div className="flex w-full items-baseline gap-1">
+      <span ref={ref} className="min-w-0 truncate text-small text-fg-muted">
         {bio}
-      </p>
+      </span>
       {clamped ? (
         <Dialog>
           <DialogTrigger asChild>
-            <button type="button" className="text-small text-fg-faint transition-colors hover:text-fg">
+            <button
+              type="button"
+              className="shrink-0 text-small text-fg-faint transition-colors hover:text-fg"
+            >
               …ещё
             </button>
           </DialogTrigger>
