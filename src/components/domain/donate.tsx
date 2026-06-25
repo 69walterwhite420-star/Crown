@@ -75,7 +75,13 @@ export function DonateWidget({
     donate.mutate(
       { amountUSDC: amountNum, text: withText ? text.trim() : undefined },
       {
-        onSuccess: (r) => setResult(r),
+        onSuccess: (r) => {
+          setResult(r);
+          // Донат отправлен → сразу чистим форму (особенно текст сообщения), чтобы он не оставался в поле.
+          setAmount("");
+          setText("");
+          setWithText(false);
+        },
         onError: (e) =>
           toast({
             variant: "error",
