@@ -10,10 +10,13 @@ import type { ChannelCard } from "@/lib/data/types";
 
 const PAGE_SIZES = [6, 12, 24, 48];
 
-/** Поиск по каналу: хэндл, отображаемое имя, верхний тир. Регистронезависимая подстрока. */
+/** Поиск по каналу: хэндл, имя, верхний тир, АДРЕС (payout) и id канала. Регистронезависимая подстрока. */
 function matches(c: ChannelCard, q: string): boolean {
   if (!q) return true;
-  return [c.handle, c.displayName ?? "", c.topTierName].join(" ").toLowerCase().includes(q);
+  return [c.handle, c.displayName ?? "", c.topTierName, c.payoutAddress, c.channelId]
+    .join(" ")
+    .toLowerCase()
+    .includes(q);
 }
 
 /** Сетка карточек каналов с поиском и постраничной разбивкой. Сами карточки остаются прежними. */

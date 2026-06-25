@@ -80,3 +80,22 @@ export function FlagIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Копирование (две накладки) — скопировать адрес/хэш. */
+export function CopyIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+/** Галочка — успех/скопировано. */
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}

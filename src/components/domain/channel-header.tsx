@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
+import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { useProfile } from "@/lib/data/hooks";
@@ -78,9 +79,10 @@ function ExplorerIcon() {
 const actionBtn =
   "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
 
-/** Ряд иконок-действий: поделиться (копирует ссылку на канал) + открыть payout в Solana Explorer. */
+/** Ряд иконок-действий: поделиться (ссылка) + скопировать адрес канала + открыть payout в Solana Explorer. */
 function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
   const [copied, setCopied] = useState(false);
+  const [addrCopied, setAddrCopied] = useState(false);
   return (
     <div className="flex shrink-0 items-center gap-2">
       <button
@@ -100,6 +102,24 @@ function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
         }}
       >
         <ShareIcon done={copied} />
+      </button>
+      <button
+        type="button"
+        className={actionBtn}
+        title="Скопировать адрес канала"
+        aria-label="Скопировать адрес канала"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(payoutAddress);
+            setAddrCopied(true);
+            setTimeout(() => setAddrCopied(false), 1500);
+            toast({ variant: "success", title: "Адрес канала скопирован" });
+          } catch {
+            toast({ variant: "error", title: "Не удалось скопировать" });
+          }
+        }}
+      >
+        {addrCopied ? <CheckIcon className="h-[18px] w-[18px]" /> : <CopyIcon className="h-[18px] w-[18px]" />}
       </button>
       <a
         className={actionBtn}
