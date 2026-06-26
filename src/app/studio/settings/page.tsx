@@ -7,13 +7,12 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { CHANNEL_DESC_MAX } from "@/lib/channel-links";
 import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
 import { fromMicro, toMicro } from "@/lib/utils";
-import type { ChannelConfig, ConfigPatch, ModeratorRef, OverlaySettings, Tier } from "@/lib/data/types";
+import type { ChannelConfig, ConfigPatch, ModeratorRef, Tier } from "@/lib/data/types";
 
 interface Draft {
   description: string;
@@ -24,7 +23,6 @@ interface Draft {
   profanityPolicy: ChannelConfig["profanityPolicy"];
   nameMode: ChannelConfig["nameMode"];
   textShowMode: ChannelConfig["textShowMode"];
-  overlay: OverlaySettings;
   moderators: ModeratorRef[];
 }
 
@@ -38,7 +36,6 @@ function deriveDraft(c: ChannelConfig): Draft {
     profanityPolicy: c.profanityPolicy,
     nameMode: c.nameMode,
     textShowMode: c.textShowMode,
-    overlay: c.overlay,
     moderators: c.moderators,
   };
 }
@@ -59,7 +56,6 @@ function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   if (draft.profanityPolicy !== original.profanityPolicy) patch.profanityPolicy = draft.profanityPolicy;
   if (draft.nameMode !== original.nameMode) patch.nameMode = draft.nameMode;
   if (draft.textShowMode !== original.textShowMode) patch.textShowMode = draft.textShowMode;
-  if (!eq(draft.overlay, original.overlay)) patch.overlay = draft.overlay;
   if (!eq(draft.moderators, original.moderators)) patch.moderators = draft.moderators;
   return patch;
 }
@@ -184,29 +180,6 @@ export default function ChannelSettingsPage() {
             Hard-block-категории не авто-показываются никогда.
           </p>
         ) : null}
-      </Section>
-
-      <Section title="Оверлей / алерты">
-        <div className="flex flex-col gap-3">
-          <Input
-            label="Мин. сумма показа, USDC"
-            mono
-            value={String(fromMicro(draft.overlay.minAmountToShow))}
-            onChange={(e) =>
-              set("overlay", { ...draft.overlay, minAmountToShow: toMicro(Number(e.target.value) || 0) })
-            }
-          />
-          <Switch
-            checked={draft.overlay.sound}
-            onCheckedChange={(v) => set("overlay", { ...draft.overlay, sound: v })}
-            label="Звук алертов"
-          />
-          <Switch
-            checked={draft.overlay.tts}
-            onCheckedChange={(v) => set("overlay", { ...draft.overlay, tts: v })}
-            label="TTS (озвучка сообщений)"
-          />
-        </div>
       </Section>
 
       <Section title="Модераторы">

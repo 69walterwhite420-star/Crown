@@ -33,7 +33,6 @@ import type {
   MessageRef,
   ModerationVerdict,
   OperatorAction,
-  OverlayEvent,
   Page,
   Session,
   ViewerStanding,
@@ -84,8 +83,8 @@ const REASON_MAX = 500; // причина жалобы/операторског�
 
 /**
  * Сериализуемый снимок состояния стора для файловой персистентности (server/persist.ts, ADR 0013).
- * Map → entries; bigint переживает через codec. Не входят: overlaySubs (живые колбэки), sessionAddress/
- * failMode/latencyScale (runtime), резолвер личности.
+ * Map → entries; bigint переживает через codec. Не входят: sessionAddress/failMode/latencyScale (runtime),
+ * резолвер личности.
  */
 export interface StoreSnapshot {
   channelsById: [string, Channel][];
@@ -115,7 +114,6 @@ export class MockDataProvider implements DataProvider {
   private incidents: IncidentLog[] = [];
   private operatorActions: OperatorAction[] = [];
   private reports: ReportRecord[] = [];
-  private overlaySubs = new Map<string, Set<(e: OverlayEvent) => void>>();
 
   private sessionAddress: Address | null = null;
   // H3: на сервере личность инжектится резолвером (per-request AsyncLocalStorage, см. server/store.ts);
@@ -247,9 +245,6 @@ export class MockDataProvider implements DataProvider {
       firstDonationAt,
     };
   }
-  private emitOverlay(channelId: string, event: OverlayEvent) {
-    this.overlaySubs.get(channelId)?.forEach((cb) => cb(event));
-  }
 
   // — Dev/инжект адреса (вне интерфейса) —
   __setAddress(address: Address | null) {
@@ -277,7 +272,6 @@ export class MockDataProvider implements DataProvider {
     this.latencyScale = 1;
     this.seq = 0;
     this.modCache.clear();
-    this.overlaySubs.clear();
     this.channelsById.clear();
     this.handleToId.clear();
     this.configsByChannel.clear();
@@ -680,11 +674,8 @@ export class MockDataProvider implements DataProvider {
     if (existing) {
       if (params.text && !existing.message) {
         // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
-        const msg = await this.buildMessage(existing, params.text, this.now());
+        await this.buildMessage(existing, params.text, this.now());
         const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
-        if (msg.state === "SHOWN") {
-          this.emitOverlay(existing.channelId, { kind: "donation_shown", donation: existing, standing });
-        }
         return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): успех, а не null
       }
       return null; // дубль подписи без нового текста — идемпотентно, добавлять нечего
@@ -790,11 +781,6 @@ export class MockDataProvider implements DataProvider {
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier.name;
-    if (donation.message?.state === "SHOWN") {
-      this.emitOverlay(p.channelId, { kind: "donation_shown", donation, standing });
-    }
-    if (tierChanged)
-      this.emitOverlay(p.channelId, { kind: "tier_up", donor: p.donor, tier: standing.tier });
     return { donation, standing, tierChanged };
   }
 
@@ -850,10 +836,6 @@ export class MockDataProvider implements DataProvider {
     this.messages.set(messageId, updated);
     const donation = this.donations.find((d) => d.id === msg.donationId);
     if (donation) donation.message = updated;
-    if (state === "SHOWN" && donation) {
-      const standing = this.standingFor(msg.channelId, donation.donor);
-      if (standing) this.emitOverlay(msg.channelId, { kind: "donation_shown", donation, standing });
-    }
     return updated;
   }
   /** Скрыть ВСЕ сообщения донора на канале (одной кнопкой). Только менеджер; деньги/standing не трогаются. */
@@ -1033,15 +1015,5 @@ export class MockDataProvider implements DataProvider {
     this.requireOperator();
     const items = [...this.incidents].sort((a, b) => (a.ts < b.ts ? 1 : -1));
     return { items };
-  }
-
-  // — Оверлей —
-  subscribeOverlay(channelId: string, cb: (e: OverlayEvent) => void): () => void {
-    const set = this.overlaySubs.get(channelId) ?? new Set();
-    set.add(cb);
-    this.overlaySubs.set(channelId, set);
-    return () => {
-      set.delete(cb);
-    };
   }
 }

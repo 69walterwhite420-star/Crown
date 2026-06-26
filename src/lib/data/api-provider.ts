@@ -19,7 +19,6 @@ import type {
   ListOpts,
   MessageRef,
   OperatorAction,
-  OverlayEvent,
   Page,
   Session,
   ViewerStanding,
@@ -194,23 +193,6 @@ export class ApiDataProvider implements DataProvider {
   }
   getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>> {
     return this.rpc("getIncidentLog", [opts]);
-  }
-
-  // — Оверлей — живой поток через SSE (GET /api/v1/overlay/[channelId]).
-  subscribeOverlay(channelId: string, cb: (e: OverlayEvent) => void): () => void {
-    if (typeof window === "undefined" || typeof EventSource === "undefined") return () => {};
-    const es = new EventSource(`/api/v1/overlay/${encodeURIComponent(channelId)}`);
-    es.onmessage = (ev) => {
-      try {
-        cb(decode<OverlayEvent>(ev.data));
-      } catch {
-        // игнор битых кадров
-      }
-    };
-    es.onerror = () => {
-      // Транзиентный обрыв: EventSource переподключается сам. Явный хук — чтобы ошибка не всплывала.
-    };
-    return () => es.close();
   }
 
   // — Адрес сессии (кошелёк/dev) + dev-контролы; шлются с каждым запросом —

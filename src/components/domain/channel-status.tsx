@@ -29,7 +29,7 @@ export function ChannelStatusBanner() {
         <div className="flex flex-col gap-1">
           <span className="text-h3 text-fg">Канал @{channel.handle} не активирован</span>
           <span className="text-small text-fg-muted">
-            Активируй, чтобы разблокировать донаты-с-текстом, публичную индексацию и оверлей. Одноразовый
+            Активируй, чтобы разблокировать донаты-с-текстом и публичную индексацию. Одноразовый
             сбор <Amount micro={ACTIVATION_FEE_MICRO} />.
           </span>
         </div>

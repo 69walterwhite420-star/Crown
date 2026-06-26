@@ -29,7 +29,6 @@ import type {
   ListOpts,
   MessageRef,
   OperatorAction,
-  OverlayEvent,
   Page,
   Session,
   ViewerStanding,
@@ -441,8 +440,5 @@ export class ChainDataProvider implements DataProvider {
   }
   getIncidentLog(o?: ListOpts): Result<Page<IncidentLog>> {
     return this.api.getIncidentLog(o);
-  }
-  subscribeOverlay(id: string, cb: (e: OverlayEvent) => void): () => void {
-    return this.api.subscribeOverlay(id, cb);
   }
 }

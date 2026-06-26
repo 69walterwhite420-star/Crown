@@ -45,7 +45,6 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     profanityPolicy: "queue",
     nameMode: "addresses_only",
     textShowMode: "manual",
-    overlay: { style: "default", sound: false, minAmountToShow: toMicro(0.1), tts: false },
     moderators: [],
     updatedAt: new Date().toISOString(),
   };

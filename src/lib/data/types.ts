@@ -54,13 +54,6 @@ export interface Tier {
   perks: Perk[];
 }
 
-export interface OverlaySettings {
-  style: string;
-  sound: boolean;
-  minAmountToShow: MicroUSDC;
-  tts: boolean;
-}
-
 export interface ModeratorRef {
   address: Address;
   scope: "queue" | "queue_and_block";
@@ -99,7 +92,6 @@ export interface ChannelConfig {
   profanityPolicy: "mask" | "hide" | "queue";
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
-  overlay: OverlaySettings;
   moderators: ModeratorRef[];
   updatedAt: Iso;
 }
@@ -307,11 +299,6 @@ export type ConfigPatch = Partial<
     | "profanityPolicy"
     | "nameMode"
     | "textShowMode"
-    | "overlay"
     | "moderators"
   >
 >;
-
-export type OverlayEvent =
-  | { kind: "donation_shown"; donation: Donation; standing: ViewerStanding }
-  | { kind: "tier_up"; donor: Address; tier: Tier };

@@ -17,7 +17,6 @@ import type {
   ListOpts,
   MessageRef,
   OperatorAction,
-  OverlayEvent,
   Page,
   Session,
   ViewerStanding,
@@ -85,9 +84,6 @@ export interface DataProvider {
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction>;
   getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>>;
-
-  // — Оверлей (read-only поток для OBS) —
-  subscribeOverlay(channelId: string, cb: (e: OverlayEvent) => void): () => void;
 }
 
 // — Доменные ошибки (бросаются провайдером, ловятся UI) —
