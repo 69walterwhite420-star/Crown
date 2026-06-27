@@ -38,7 +38,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             onChange?.(e);
           }}
           className={cn(
-            "scroll-thin min-h-24 resize-none rounded border border-border bg-surface px-3 py-2 text-body text-fg placeholder:text-fg-faint",
+            "scroll-thin min-h-24 resize-none rounded border border-border bg-[var(--bg)] px-3 py-2 text-body text-fg placeholder:text-fg-faint",
             "transition-colors duration-fast ease-ease focus-visible:outline focus-visible:outline-2 focus-visible:outline-info",
             error && "border-danger",
             className,

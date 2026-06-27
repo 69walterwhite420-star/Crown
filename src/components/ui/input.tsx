@@ -35,7 +35,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             aria-invalid={error ? true : undefined}
             className={cn(
-              "h-10 w-full rounded border border-border bg-surface px-3 text-body text-fg placeholder:text-fg-faint",
+              "h-10 w-full rounded border border-border bg-[var(--bg)] px-3 text-body text-fg placeholder:text-fg-faint",
               "transition-colors duration-fast ease-ease focus-visible:outline focus-visible:outline-2 focus-visible:outline-info",
               icon && "pl-9",
               mono && "mono tabular-nums",

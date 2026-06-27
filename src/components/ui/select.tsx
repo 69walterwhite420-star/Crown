@@ -156,7 +156,7 @@ export function Select({
           onClick={() => (open ? setOpen(false) : openMenu())}
           onKeyDown={onKeyDown}
           className={cn(
-            "flex h-10 w-full items-center justify-between gap-2 rounded border border-border bg-surface px-3 text-body text-fg",
+            "flex h-10 w-full items-center justify-between gap-2 rounded border border-border bg-[var(--bg)] px-3 text-body text-fg",
             "transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-info",
             "disabled:cursor-not-allowed disabled:opacity-50",
             className,
