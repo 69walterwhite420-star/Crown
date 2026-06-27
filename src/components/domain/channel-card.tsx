@@ -26,7 +26,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         <div className="flex items-start gap-3">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-h3"
-            style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
+            style={{ backgroundColor: `hsl(${hue} 16% 15%)`, color: `hsl(${hue} 18% 64%)` }}
           >
             {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
           </div>
@@ -38,7 +38,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
               <div className="mono truncate text-small text-fg-faint">@{card.handle}</div>
             ) : null}
           </div>
-          <span className="shrink-0 rounded-pill bg-status-bg px-2 py-0.5 text-small text-status">
+          <span className="shrink-0 rounded-pill border border-border px-2 py-0.5 text-small text-fg-muted">
             {card.topTierName}
           </span>
         </div>
@@ -70,7 +70,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
                   aria-label={platformDef(l.platform)?.label ?? l.platform}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
                 >
-                  <PlatformIcon platform={l.platform} brand className="h-4 w-4" />
+                  <PlatformIcon platform={l.platform} className="h-4 w-4" />
                 </a>
               ))}
               {hiddenLinks > 0 ? (
