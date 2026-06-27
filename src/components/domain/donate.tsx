@@ -96,6 +96,15 @@ export function DonateWidget({
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
       <h3 className="text-h3 text-fg">Задонатить</h3>
 
+      {!connected ? (
+        <>
+          <p className="text-small text-fg-muted">
+            Подключи кошелёк, чтобы поддержать канал и набирать standing.
+          </p>
+          <ConnectWalletButton />
+        </>
+      ) : (
+        <>
       <div className="flex flex-col gap-2">
         <Input
           label="Сумма, USDC"
@@ -158,18 +167,14 @@ export function DonateWidget({
 
       {amountValid ? <FeeSplit amount={micro} /> : null}
 
-      {connected ? (
-        <Button
-          variant="secondary"
-          disabled={!canDonate}
-          onClick={openFlow}
-          className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
-        >
-          Задонатить
-        </Button>
-      ) : (
-        <ConnectWalletButton />
-      )}
+      <Button
+        variant="secondary"
+        disabled={!canDonate}
+        onClick={openFlow}
+        className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
+      >
+        Задонатить
+      </Button>
 
       <Dialog
         open={open}
@@ -214,6 +219,8 @@ export function DonateWidget({
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }
