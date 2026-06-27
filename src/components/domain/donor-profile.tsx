@@ -476,6 +476,8 @@ function DonorDashboard({
   const [sort, setSort] = useState<PosSort>("donated");
   const [actLimit, setActLimit] = useState(12);
   const profileQ = useProfile(overview.address || null);
+  // Защита от старого ответа без журнала очков (напр. устаревший серверный стор) — не падаем.
+  const pointEvents = overview.pointEvents ?? [];
 
   // Канал по id → handle/имя (для подписей в активности).
   const handleById = useMemo(() => {
@@ -587,7 +589,7 @@ function DonorDashboard({
           {(
             [
               ["channels", `Каналы · ${overview.channelsSupported}`],
-              ["activity", `Активность · ${overview.pointEvents.length}`],
+              ["activity", `Активность · ${pointEvents.length}`],
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -652,17 +654,17 @@ function DonorDashboard({
               Этот адрес ещё не донатил ни одному каналу.
             </p>
           )
-        ) : overview.pointEvents.length > 0 ? (
+        ) : pointEvents.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-col [&>:last-child]:border-b-0">
-              {overview.pointEvents.slice(0, actLimit).map((e) => {
+              {pointEvents.slice(0, actLimit).map((e) => {
                 const ref = handleById.get(e.channelId);
                 return (
                   <ActivityRow key={e.id} e={e} handle={ref?.handle} channelName={ref?.channelName} />
                 );
               })}
             </div>
-            {overview.pointEvents.length > actLimit ? (
+            {pointEvents.length > actLimit ? (
               <button
                 type="button"
                 onClick={() => setActLimit((n) => n + 12)}
