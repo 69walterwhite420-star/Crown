@@ -118,7 +118,7 @@ export default function ChannelSettingsPage() {
 
       <Section title="Тиры и пороги участия">
         <p className="text-small text-fg-muted">
-          Репутация начисляется фиксированно: <span className="mono">1 USDC = 100 очков</span>. Здесь ты
+          Репутация начисляется фиксированно: <span className="mono">1 USDC = 1 очко</span>. Здесь ты
           задаёшь пороги в очках — сколько нужно для тира, перков и участия в мини-играх.
         </p>
         <TierEditor value={draft.tiers} onChange={(t) => set("tiers", t)} />

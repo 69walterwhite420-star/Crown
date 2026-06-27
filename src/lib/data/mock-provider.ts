@@ -751,7 +751,7 @@ export class MockDataProvider implements DataProvider {
     signature?: string;
   }): Promise<DonationResult> {
     const cfg = this.latestConfig(p.channelId);
-    const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 100 очков
+    const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
     const ts = this.now();
     const tierBefore = this.standingFor(p.channelId, p.donor)?.tier?.name;
     const donationId = this.nextId("d");

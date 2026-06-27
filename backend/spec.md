@@ -59,7 +59,7 @@ incident_logs     (id PK, channel_id, address, kind, detail, resolution, ts)
 
 ## 3. Движок репутации (та же чистая функция, что в моке)
 
-> ⚠️ **Заменено ADR 0007:** курс ФИКСИРОВАН `1 USDC = 100 очков`, без кривых/множителей/decay и без
+> ⚠️ **Заменено ADR 0007:** курс ФИКСИРОВАН `1 USDC = 1 очко`, без кривых/множителей/decay и без
 > версионирования/банкинга формулы. Код ниже (curvePoints/bankPoints/decay/config-versioning) —
 > исторический; фактическая реализация: `pointsForAmount(amount)=round(usdc×100)` и
 > `computePoints(events)=Σ points_delta (≥0)`. Стример настраивает только тиры/пороги.

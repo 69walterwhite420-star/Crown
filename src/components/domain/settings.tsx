@@ -6,7 +6,7 @@ import { MAX_TIERS, TIER_DESC_MAX } from "@/lib/data/fixtures";
 import type { Tier } from "@/lib/data/types";
 
 /**
- * Редактор тиров/порогов. Курс репутации фиксирован (1 USDC = 100 очков, ADR 0007) — здесь стример
+ * Редактор тиров/порогов. Курс репутации фиксирован (1 USDC = 1 очко, ADR 0007) — здесь стример
  * задаёт ПОРОГИ в очках: сколько нужно для тира/перков/участия в мини-играх. Имя, порог, цвет.
  */
 export function TierEditor({ value, onChange }: { value: Tier[]; onChange: (t: Tier[]) => void }) {
