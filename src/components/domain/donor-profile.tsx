@@ -357,16 +357,6 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   );
 }
 
-/** Инлайн-стат: крупное число и подпись на одной базовой линии (одна ось Y). */
-function StatTile({ value, label }: { value: React.ReactNode; label: string }) {
-  return (
-    <p className="flex items-baseline gap-1.5">
-      <span className="font-display text-h3 text-fg">{value}</span>
-      <span className="text-small text-fg-muted">{label}</span>
-    </p>
-  );
-}
-
 /** Строка-позиция: канал + тир + локальные очки + задонатил. Кликабельна → страница канала. */
 function PositionRow({ s }: { s: DonorChannelStanding }) {
   const name = s.channelName?.trim() || `@${s.handle}`;
@@ -374,7 +364,7 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
   return (
     <Link
       href={`/c/${s.handle}`}
-      className="group flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-3 transition-colors hover:border-border-strong"
+      className="group flex items-center gap-3 border-b border-border py-3"
     >
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-small"
@@ -405,7 +395,7 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
 function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string; channelName?: string }) {
   const shown = d.message?.state === "SHOWN";
   return (
-    <div className="flex flex-col gap-2 rounded border border-border bg-surface p-3">
+    <div className="flex flex-col gap-2 border-b border-border py-3">
       <div className="flex items-center justify-between gap-2">
         {handle ? (
           <Link href={`/c/${handle}`} className="min-w-0 truncate text-small text-fg hover:text-status">
@@ -488,105 +478,105 @@ function DonorDashboard({
   const name = displayName?.trim() || profileQ.data?.displayName?.trim() || "Профиль донатёра";
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Шапка: личность + график (как два верхних блока polymarket). */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Карточка личности */}
-        <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
-          <div className="flex items-start gap-4">
-            <ProfileAvatar name={name} address={overview.address} />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate font-display text-h3 text-fg">{name}</span>
-              <span className="mono truncate text-small text-fg-faint">{overview.address}</span>
-              <span className="text-small text-fg-muted">
-                донатит с {monthYear(overview.firstDonationAt)} · {overview.donationCount}{" "}
+    <div className="flex flex-col gap-8">
+      {/* Шапка — безрамочная, как на странице канала. */}
+      <header className="flex flex-col gap-4">
+        <div className="flex items-start gap-4">
+          <ProfileAvatar name={name} address={overview.address} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-caption uppercase tracking-wide text-fg-faint">Профиль</span>
+            <h1 className="text-display-l leading-tight text-fg">{name}</h1>
+            <div className="mono truncate text-small text-fg-faint">{overview.address}</div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
+              <span>
+                <span className="font-medium text-fg">{overview.channelsSupported}</span>{" "}
+                {plural(overview.channelsSupported, CHANNELS)}
+              </span>
+              <span className="text-fg-faint">·</span>
+              <span>
+                <span className="font-medium text-fg">{overview.donationCount}</span>{" "}
                 {plural(overview.donationCount, DONATIONS)}
               </span>
-              {overview.ownedChannelHandle ? (
-                <Link
-                  href={`/c/${overview.ownedChannelHandle}`}
-                  className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
-                >
-                  Канал @{overview.ownedChannelHandle} →
-                </Link>
-              ) : null}
+              <span className="text-fg-faint">·</span>
+              <span>донатит с {monthYear(overview.firstDonationAt)}</span>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <CopyIconButton value={overview.address} title="Скопировать адрес" />
-              {editable ? <ProfileEditDialog address={overview.address} /> : null}
-            </div>
+            {overview.ownedChannelHandle ? (
+              <Link
+                href={`/c/${overview.ownedChannelHandle}`}
+                className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
+              >
+                Канал @{overview.ownedChannelHandle} →
+              </Link>
+            ) : null}
           </div>
-
-          {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
-          {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
-
-          <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
-            <StatTile
-              value={overview.channelsSupported}
-              label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
-            />
-            <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
-            <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
+          <div className="flex shrink-0 items-center gap-2">
+            <CopyIconButton value={overview.address} title="Скопировать адрес" />
+            {editable ? <ProfileEditDialog address={overview.address} /> : null}
           </div>
         </div>
 
-        {/* Карточка «всего задонатил» + график */}
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-small text-fg-muted">Всего задонатил</span>
-            <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
-              {(["1M", "1Y", "ALL"] as ChartRange[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRange(r)}
-                  className={cn(
-                    "rounded px-2 py-0.5 text-small transition-colors",
-                    range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
-                  )}
-                >
-                  {RANGE_LABEL[r]}
-                </button>
-              ))}
-            </div>
+        {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
+        {profileQ.data?.links?.length ? (
+          <ChannelLinkButtons links={profileQ.data.links} variant="text" />
+        ) : null}
+      </header>
+
+      {/* «Всего задонатил» + график — безрамочно, во всю ширину. */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-end justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-caption uppercase tracking-wide text-fg-faint">Всего задонатил</span>
+            <Amount micro={overview.totalDonated} variant="money" className="text-display-l leading-none" />
           </div>
-          <Amount micro={overview.totalDonated} variant="money" className="text-display-l" />
-          <DonationsAreaChart donations={overview.donations} range={range} />
-          <span className="text-small text-fg-faint">
-            {range === "ALL" ? "за всё время" : range === "1M" ? "за месяц" : "за год"} · деньги
-            финальны, репутация считается у каждого канала отдельно
-          </span>
+          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
+            {(["1M", "1Y", "ALL"] as ChartRange[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                className={cn(
+                  "rounded px-2 py-0.5 text-small transition-colors",
+                  range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
+                )}
+              >
+                {RANGE_LABEL[r]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+        <DonationsAreaChart donations={overview.donations} range={range} />
+        <span className="text-small text-fg-faint">
+          {range === "ALL" ? "за всё время" : range === "1M" ? "за месяц" : "за год"} · деньги финальны,
+          репутация считается у каждого канала отдельно
+        </span>
+      </section>
 
-      {/* Вкладки */}
-      <div className="flex items-center gap-4 border-b border-border">
-        {(
-          [
-            ["channels", `Каналы · ${overview.channelsSupported}`],
-            ["activity", `Активность · ${overview.donationCount}`],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={cn(
-              "-mb-px border-b-2 pb-2 text-body transition-colors",
-              tab === key
-                ? "border-status text-fg"
-                : "border-transparent text-fg-muted hover:text-fg",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Вкладки — нейтральное подчёркивание, счётчик = заголовок секции. */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-4 border-b border-border">
+          {(
+            [
+              ["channels", `Каналы · ${overview.channelsSupported}`],
+              ["activity", `Активность · ${overview.donationCount}`],
+            ] as [Tab, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={cn(
+                "-mb-px border-b-2 pb-2 text-body transition-colors",
+                tab === key ? "border-fg text-fg" : "border-transparent text-fg-muted hover:text-fg",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      {tab === "channels" ? (
-        <div className="flex flex-col gap-3">
-          {overview.standings.length > 0 ? (
-            <>
+        {tab === "channels" ? (
+          overview.standings.length > 0 ? (
+            <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="min-w-48 flex-1">
                   <Input
@@ -618,49 +608,46 @@ function DonorDashboard({
                 </div>
               </div>
               {positions.length > 0 ? (
-                positions.map((s) => <PositionRow key={s.channelId} s={s} />)
+                <div className="flex flex-col [&>:last-child]:border-b-0">
+                  {positions.map((s) => (
+                    <PositionRow key={s.channelId} s={s} />
+                  ))}
+                </div>
               ) : (
                 <p className="text-small text-fg-faint">Ничего не найдено.</p>
               )}
-            </>
+            </div>
           ) : (
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
               Этот адрес ещё не донатил ни одному каналу.
             </p>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {overview.donations.length > 0 ? (
-            <>
+          )
+        ) : overview.donations.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col [&>:last-child]:border-b-0">
               {overview.donations.slice(0, actLimit).map((d) => {
                 const ref = handleById.get(d.channelId);
                 return (
-                  <ActivityRow
-                    key={d.id}
-                    d={d}
-                    handle={ref?.handle}
-                    channelName={ref?.channelName}
-                  />
+                  <ActivityRow key={d.id} d={d} handle={ref?.handle} channelName={ref?.channelName} />
                 );
               })}
-              {overview.donations.length > actLimit ? (
-                <button
-                  type="button"
-                  onClick={() => setActLimit((n) => n + 12)}
-                  className="mx-auto mt-1 rounded-pill border border-border px-4 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
-                >
-                  Показать больше
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-              Пока нет донатов.
-            </p>
-          )}
-        </div>
-      )}
+            </div>
+            {overview.donations.length > actLimit ? (
+              <button
+                type="button"
+                onClick={() => setActLimit((n) => n + 12)}
+                className="mx-auto rounded-pill border border-border px-4 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+              >
+                Показать больше
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
+            Пока нет донатов.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -673,11 +660,9 @@ export function DonorProfile({ address, editable }: { address: string; editable?
 
   if (overviewQ.isLoading) {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-48 w-full" />
-        </div>
+      <div className="flex flex-col gap-8">
+        <Skeleton className="h-28 w-full" />
+        <Skeleton className="h-40 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
     );
