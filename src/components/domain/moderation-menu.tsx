@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ReportDialog } from "./report-dialog";
 import { MoreIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import {
@@ -27,10 +29,12 @@ export function ModerationMenu({
   channelId,
   donor,
   message,
+  allowToggleState = true,
 }: {
   channelId: string;
   donor?: string;
   message?: MessageRef;
+  allowToggleState?: boolean; // false → не показывать «Показать/Скрыть это сообщение» (есть отдельные кнопки)
 }) {
   const setState = useSetMessageState(channelId);
   const hideAll = useHideDonorMessages(channelId);
@@ -38,8 +42,12 @@ export function ModerationMenu({
   const removeBlock = useRemoveBlock(channelId);
   const blocklist = useChannelBlocklist(channelId);
   const blocked = donor ? (blocklist.data ?? []).some((b) => b.blockedAddress === donor) : false;
+  const [reportOpen, setReportOpen] = useState(false);
+  // Жаловаться можно на показанный текст или на сообщение в очереди (HELD) — как и на сервере.
+  const canReport = !!message && (message.state === "SHOWN" || message.state === "HELD");
 
   return (
+    <>
     <details className="relative">
       <summary
         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg [&::-webkit-details-marker]:hidden"
@@ -49,7 +57,7 @@ export function ModerationMenu({
         <MoreIcon className="h-4 w-4" />
       </summary>
       <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
-        {message ? (
+        {message && allowToggleState ? (
           <button
             type="button"
             className={itemCls}
@@ -66,6 +74,19 @@ export function ModerationMenu({
             }}
           >
             {message.state === "SHOWN" ? "Скрыть это сообщение" : "Показать это сообщение"}
+          </button>
+        ) : null}
+
+        {canReport ? (
+          <button
+            type="button"
+            className={`${itemCls} hover:text-danger`}
+            onClick={(e) => {
+              closeMenu(e.currentTarget);
+              setReportOpen(true);
+            }}
+          >
+            Пожаловаться
           </button>
         ) : null}
 
@@ -122,5 +143,15 @@ export function ModerationMenu({
         ) : null}
       </div>
     </details>
+    {message ? (
+      <ReportDialog
+        messageId={message.id}
+        channelId={channelId}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        trigger={null}
+      />
+    ) : null}
+    </>
   );
 }

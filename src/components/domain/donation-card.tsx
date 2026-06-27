@@ -67,7 +67,7 @@ export function DonationCard({
               <ExternalLinkIcon className="h-4 w-4" />
             </a>
           ) : null}
-          {reportable && shown && donation.message ? (
+          {reportable && shown && donation.message && !manageChannelId ? (
             <ReportDialog messageId={donation.message.id} channelId={donation.channelId} />
           ) : null}
           {manageChannelId ? (

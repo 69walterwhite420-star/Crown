@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,13 +33,22 @@ export function ReportDialog({
   messageId,
   channelId,
   label = "Пожаловаться",
+  open: controlledOpen,
+  onOpenChange,
+  trigger,
 }: {
   messageId: string;
   channelId: string;
   label?: string;
+  open?: boolean; // управляемый режим (напр. открыть из меню «…»)
+  onOpenChange?: (open: boolean) => void;
+  trigger?: ReactNode; // кастомный триггер; null → без триггера (открывают извне)
 }) {
   const report = useReportMessage(channelId);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (o: boolean) => (isControlled ? onOpenChange?.(o) : setUncontrolledOpen(o));
   const [reason, setReason] = useState(REASONS[0]);
   const [comment, setComment] = useState("");
 
@@ -70,16 +79,20 @@ export function ReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          title={label}
-          aria-label={label}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface-raised hover:text-danger"
-        >
-          <FlagIcon className="h-4 w-4" />
-        </button>
-      </DialogTrigger>
+      {trigger === null ? null : (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <button
+              type="button"
+              title={label}
+              aria-label={label}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface-raised hover:text-danger"
+            >
+              <FlagIcon className="h-4 w-4" />
+            </button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Пожаловаться на сообщение</DialogTitle>
