@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate } from "@/lib/data/hooks";
+import { pointsForAmount } from "@/lib/reputation";
 import { cn, plural, toMicro } from "@/lib/utils";
 import type {
   Channel,
@@ -76,6 +77,9 @@ export function DonateWidget({
   const canDonate = connected && amountValid && meetsMin && textOk && !(withText && isBasic);
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
 
+  // Прогноз начисления за введённую сумму (та же формула, что и при реальном начислении) — для предпросмотра.
+  const gain = amountValid ? pointsForAmount(micro) : 0;
+
   function openFlow() {
     setResult(null);
     donate.reset();
@@ -114,8 +118,8 @@ export function DonateWidget({
         </>
       ) : (
         <>
-      {/* Моё standing на этом канале — лаконичный заголовок сверху карточки доната. */}
-      <StandingHeadline standing={standing} fallbackTier={config.tiers[0]} loading={standingLoading} />
+      {/* Моё standing + живой предпросмотр: ввёл сумму → число катится к прогнозу, полоска тянется. */}
+      <StandingHeadline standing={standing} tiers={config.tiers} gain={gain} loading={standingLoading} />
 
       <div className="border-t border-border" />
 

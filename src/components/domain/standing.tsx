@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { resolveTier } from "@/lib/reputation";
 import { cn, formatPoints, plural } from "@/lib/utils";
 
 const POINTS = ["очко", "очка", "очков"] as const;
@@ -95,42 +97,133 @@ export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
   );
 }
 
+/** Серо-зелёный — цвет прогноза «что получишь при донате» (отличается от яркого --money). */
+const PREVIEW_COLOR = "#6e9c86";
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+/**
+ * Плавный «перекат» числа от текущего значения к target (requestAnimationFrame, easeOutCubic). При смене
+ * target анимация продолжается с уже показанного значения. Уважает prefers-reduced-motion.
+ */
+function useCountUp(target: number, duration = 650): number {
+  const [value, setValue] = useState(target);
+  const valueRef = useRef(target);
+
+  useEffect(() => {
+    const from = valueRef.current;
+    const to = target;
+    if (from === to) return;
+
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      valueRef.current = to;
+      setValue(to);
+      return;
+    }
+
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const v = Math.round(from + (to - from) * eased);
+      valueRef.current = v;
+      setValue(v);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+
+  return value;
+}
+
 /**
  * Лаконичный заголовок standing — без «карточки в карточке»: подпись, число очков и бейдж тира прямо на
- * фоне родителя (для встраивания в карточку доната). Снизу — прогресс до следующего тира или подсказка.
+ * фоне родителя. С предпросмотром: ввёл сумму (gain > 0) → число «перекатывается» к прогнозу, а полоска
+ * плавно дотягивается серо-зелёным до «что получишь». Снизу — прогресс до следующего тира или подсказка.
  */
 export function StandingHeadline({
   standing,
-  fallbackTier,
+  tiers,
+  gain = 0,
   loading,
 }: {
   standing?: ViewerStanding | null;
-  fallbackTier?: Tier;
+  tiers: Tier[];
+  gain?: number;
   loading?: boolean;
 }) {
+  const currentPoints = standing?.points ?? 0;
+  const newPoints = currentPoints + gain;
+  const rolled = useCountUp(newPoints); // хук — всегда до early-return
+
   if (loading) return <Skeleton className="h-20 w-full rounded-lg" />;
-  const tier = standing?.tier ?? fallbackTier;
-  if (!tier) return null;
-  const points = standing?.points ?? 0;
+  if (tiers.length === 0) return null;
+
+  const active = gain > 0;
+  const cur = resolveTier(currentPoints, tiers);
+  const proj = resolveTier(newPoints, tiers);
+  const tier = active ? proj.tier : cur.tier; // при вводе показываем тир, в который попадёшь
+  const isNew = !standing;
+
+  const next = cur.nextTier;
+  const floor = cur.tier.threshold;
+  const span = next ? Math.max(1, next.threshold - floor) : 1;
+  const curFrac = next ? clamp01((currentPoints - floor) / span) : 1;
+  const projFrac = next ? clamp01((newPoints - floor) / span) : 1;
+  const remaining = next ? Math.max(0, next.threshold - newPoints) : 0;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-caption text-fg-faint">Мой standing</span>
           <span className="flex items-baseline gap-1.5">
-            <span className="mono text-h1 leading-none text-fg">{formatPoints(points)}</span>
-            <span className="text-small text-fg-muted">{plural(points, POINTS)}</span>
+            <span className="mono text-h1 leading-none text-fg">{formatPoints(rolled)}</span>
+            <span className="text-small text-fg-muted">{plural(rolled, POINTS)}</span>
+            {active ? (
+              <span className="mono text-small font-medium" style={{ color: PREVIEW_COLOR }}>
+                +{formatPoints(gain)}
+              </span>
+            ) : null}
           </span>
         </div>
         <TierBadge tier={tier} className="shrink-0" />
       </div>
-      {standing ? (
-        <ReputationProgress standing={standing} />
-      ) : (
+
+      {next ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="relative h-2 overflow-hidden rounded-pill bg-surface-raised">
+            {/* прогноз — серо-зелёный, плавно дотягивается при вводе суммы */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-pill transition-[width] duration-700 ease-ease"
+              style={{ width: `${projFrac * 100}%`, backgroundColor: PREVIEW_COLOR }}
+            />
+            {/* текущий прогресс — цвет следующего тира */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-pill transition-[width] duration-700 ease-ease"
+              style={{ width: `${curFrac * 100}%`, backgroundColor: next.color }}
+            />
+          </div>
+          {isNew && !active ? (
+            <p className="text-small text-fg-muted">
+              Сделай первый донат, чтобы начать набирать standing.
+            </p>
+          ) : (
+            <div className="flex items-center justify-between text-small text-fg-faint">
+              <span>до «{next.name}»</span>
+              <span className="mono">осталось {formatPoints(remaining)}</span>
+            </div>
+          )}
+        </div>
+      ) : isNew && !active ? (
         <p className="text-small text-fg-muted">
           Сделай первый донат, чтобы начать набирать standing.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
