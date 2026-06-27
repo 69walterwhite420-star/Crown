@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveTier } from "@/lib/reputation";
-import { cn, formatPoints, plural } from "@/lib/utils";
+import { cn, formatPoints, formatPointsCompact, plural } from "@/lib/utils";
 
 const POINTS = ["очко", "очка", "очков"] as const;
 import type { Tier, ViewerStanding } from "@/lib/data/types";
@@ -181,12 +181,14 @@ export function StandingHeadline({
       <div className="flex items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-caption text-fg-faint">Мой standing</span>
-          <span className="flex items-baseline gap-1.5">
-            <span className="mono text-h1 leading-none text-fg">{formatPoints(rolled)}</span>
+          <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            <span className="mono max-w-full break-all text-h1 leading-none text-fg">
+              {formatPointsCompact(rolled)}
+            </span>
             <span className="text-small text-fg-muted">{plural(rolled, POINTS)}</span>
             {active ? (
               <span className="mono text-small font-medium" style={{ color: PREVIEW_COLOR }}>
-                +{formatPoints(gain)}
+                +{formatPointsCompact(gain)}
               </span>
             ) : null}
           </span>
@@ -217,9 +219,9 @@ export function StandingHeadline({
               Сделай первый донат, чтобы начать набирать standing.
             </p>
           ) : (
-            <div className="flex items-center justify-between text-small text-fg-faint">
-              <span>до «{next.name}»</span>
-              <span className="mono">осталось {formatPoints(remaining)}</span>
+            <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
+              <span className="truncate">до «{next.name}»</span>
+              <span className="mono shrink-0">осталось {formatPointsCompact(remaining)}</span>
             </div>
           )}
         </div>

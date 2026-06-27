@@ -46,6 +46,14 @@ export function formatPoints(points: number): string {
   return Math.round(points).toLocaleString("en-US");
 }
 
+/** Очки → полный формат до миллиона, дальше компактно ("1.2M") — чтобы крупные числа не вылезали за рамки. */
+export function formatPointsCompact(points: number): string {
+  const n = Math.round(points);
+  return Math.abs(n) >= 1_000_000
+    ? n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })
+    : n.toLocaleString("en-US");
+}
+
 /**
  * Русская плюрализация по числу. forms = [одна, две-четыре, пять]:
  *   plural(1,  f) → f[0] («1 донат»);  21, 31 → тоже f[0]

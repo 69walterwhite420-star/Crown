@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { cn, plural, toMicro } from "@/lib/utils";
+import { cn, formatPoints, plural, toMicro } from "@/lib/utils";
 import type {
   Channel,
   ChannelConfig,
@@ -32,16 +32,21 @@ const PRESETS = [5, 10, 25, 100];
 const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
 
 const USDC_DECIMALS = 6; // точность USDC: больше знаков после точки не существует в micro-USDC
+// Потолок одного доната. Защищает сразу от трёх «выходов за рамки»: бессмысленно огромные суммы,
+// переполнение вёрстки (число вылезает за карточку) и потеря точности в toMicro (usdc*1e6 за Number.MAX).
+const MAX_DONATION_USDC = 1_000_000;
+const MAX_INT_DIGITS = String(MAX_DONATION_USDC).length; // длина целой части ограничена → нельзя вписать «бесконечность»
 
 /**
- * Санитайзер поля суммы: только цифры и ОДНА точка (запятую → точку для RU-раскладки), дробная часть не
- * длиннее 6 знаков. Иначе лишние знаки округлялись бы в toMicro и давали «странности» (напр. 0.0000001 → 0).
+ * Санитайзер поля суммы: только цифры и ОДНА точка (запятую → точку для RU-раскладки), целая часть не длиннее
+ * MAX_INT_DIGITS, дробная — не длиннее 6 знаков. Иначе лишние знаки округлялись бы в toMicro и давали
+ * «странности» (напр. 0.0000001 → 0), а длинное целое вылезало бы за карточку и теряло точность.
  */
 function sanitizeAmount(raw: string): string {
   const s = raw.replace(",", ".").replace(/[^\d.]/g, "");
   const dot = s.indexOf(".");
-  if (dot === -1) return s;
-  const int = s.slice(0, dot);
+  if (dot === -1) return s.slice(0, MAX_INT_DIGITS);
+  const int = s.slice(0, dot).slice(0, MAX_INT_DIGITS);
   const frac = s.slice(dot + 1).replace(/\./g, ""); // выкинуть повторные точки
   return `${int}.${frac.slice(0, USDC_DECIMALS)}`;
 }
@@ -69,13 +74,20 @@ export function DonateWidget({
   const connected = Boolean(session.address);
   const isBasic = channel.status === "BASIC";
   const amountNum = Number(amount);
-  const amountValid = amount !== "" && Number.isFinite(amountNum) && amountNum > 0;
+  const amountPositive = amount !== "" && Number.isFinite(amountNum) && amountNum > 0;
+  const overMax = amountPositive && amountNum > MAX_DONATION_USDC;
+  const amountValid = amountPositive && !overMax;
   const min = withText ? config.minDonationWithText : config.minDonation;
   const micro = amountValid ? toMicro(amountNum) : 0n;
   const meetsMin = amountValid && micro >= min;
   const textOk = !withText || text.trim().length > 0;
   const canDonate = connected && amountValid && meetsMin && textOk && !(withText && isBasic);
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
+  const amountError = overMax
+    ? `Максимум ${formatPoints(MAX_DONATION_USDC)} USDC за раз`
+    : amountPositive && !meetsMin
+      ? "Ниже минимума канала"
+      : undefined;
 
   // Прогноз начисления за введённую сумму (та же формула, что и при реальном начислении) — для предпросмотра.
   const gain = amountValid ? pointsForAmount(micro) : 0;
@@ -133,7 +145,7 @@ export function DonateWidget({
           placeholder="0.00"
           value={amount}
           onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
-          error={amountValid && !meetsMin ? "Ниже минимума канала" : undefined}
+          error={amountError}
           className="bg-[var(--bg)]"
         />
         <div className="grid grid-cols-4 gap-2">
