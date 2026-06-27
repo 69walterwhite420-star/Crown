@@ -13,7 +13,7 @@ const buttonVariants = cva(
         // основной CTA — интерактивный акцент (info), НЕ money (тот резервируем под финальное)
         primary: "bg-info text-[#0a0c14] hover:brightness-110",
         secondary:
-          "border border-border bg-surface-raised text-fg hover:border-border-strong",
+          "border border-border bg-[var(--bg)] text-fg hover:border-border-strong hover:bg-surface-raised",
         ghost: "text-fg-muted hover:bg-surface-raised hover:text-fg",
         danger: "bg-danger text-[#1a0b0e] hover:brightness-110",
         // только для ПОДТВЕРЖДЁННОГО денежного действия (design-system.md §2)
