@@ -34,7 +34,7 @@ export function StudioSidebar() {
               aria-current={active ? "page" : undefined}
               className={cn(
                 "rounded px-3 py-2 transition-colors duration-fast ease-ease",
-                active ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg",
+                active ? "bg-surface-raised text-fg" : "text-fg-muted hover:bg-surface-raised hover:text-fg",
               )}
             >
               {it.label}

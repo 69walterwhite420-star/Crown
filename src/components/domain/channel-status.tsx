@@ -51,7 +51,7 @@ export function ChannelStatusBanner() {
             type="button"
             aria-label="Скрыть напоминание"
             onClick={() => setDismissed(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface hover:text-fg"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
           >
             <XIcon className="h-4 w-4" />
           </button>

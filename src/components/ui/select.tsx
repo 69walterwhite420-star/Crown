@@ -187,7 +187,7 @@ export function Select({
                     onMouseEnter={() => setActiveIdx(i)}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-small transition-colors",
-                      i === activeIdx ? "bg-surface text-fg" : "text-fg-muted",
+                      i === activeIdx ? "bg-surface-raised text-fg" : "text-fg-muted",
                       isSel && "text-fg",
                       o.disabled && "cursor-not-allowed opacity-50",
                     )}

@@ -98,7 +98,7 @@ export function LinkEditor({
                 onClick={() => removeRow(i)}
                 title="Удалить ссылку"
                 aria-label="Удалить ссылку"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface hover:text-fg"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
               >
                 <XIcon className="h-4 w-4" />
               </button>

@@ -9,7 +9,7 @@ import { useProfile, useSession } from "@/lib/data/hooks";
 import { channelHue, shortAddress } from "@/lib/utils";
 
 const itemCls =
-  "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface hover:text-fg";
+  "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg";
 
 /**
  * Залогиненное состояние в шапке: аватар-монограмма аккаунта. По наведению (или фокусу — для тача/клавиатуры)
@@ -57,7 +57,7 @@ export function AccountMenu() {
                 toast({ variant: "error", title: "Не удалось скопировать" });
               }
             }}
-            className="flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-left text-fg-faint transition-colors hover:bg-surface hover:text-fg"
+            className="flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-left text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
           >
             <span className="mono truncate text-small">{shortAddress(address)}</span>
             {copied ? (

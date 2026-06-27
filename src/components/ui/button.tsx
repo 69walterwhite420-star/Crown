@@ -14,7 +14,7 @@ const buttonVariants = cva(
         primary: "bg-info text-[#0a0c14] hover:brightness-110",
         secondary:
           "border border-border bg-surface-raised text-fg hover:border-border-strong",
-        ghost: "text-fg-muted hover:bg-surface hover:text-fg",
+        ghost: "text-fg-muted hover:bg-surface-raised hover:text-fg",
         danger: "bg-danger text-[#1a0b0e] hover:brightness-110",
         // только для ПОДТВЕРЖДЁННОГО денежного действия (design-system.md §2)
         money: "bg-money text-[#06140d] hover:brightness-110",

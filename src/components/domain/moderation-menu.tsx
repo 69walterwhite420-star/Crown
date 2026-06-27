@@ -13,7 +13,7 @@ import type { MessageRef } from "@/lib/data/types";
 import { shortAddress } from "@/lib/utils";
 
 const itemCls =
-  "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface hover:text-fg";
+  "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg";
 
 const closeMenu = (el: HTMLElement) => el.closest("details")?.removeAttribute("open");
 const errToast = (e: unknown) => toast({ variant: "error", title: "Ошибка", description: String(e) });
