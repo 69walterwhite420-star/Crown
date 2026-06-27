@@ -518,7 +518,9 @@ function DonorDashboard({
           </div>
 
           {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
-          {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
+          {profileQ.data?.links?.length ? (
+            <ChannelLinkButtons links={profileQ.data.links} variant="text" />
+          ) : null}
 
           <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
             <StatTile
