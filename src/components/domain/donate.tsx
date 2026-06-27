@@ -93,7 +93,7 @@ export function DonateWidget({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
       <h3 className="text-h3 text-fg">Задонатить</h3>
 
       <div className="flex flex-col gap-2">
