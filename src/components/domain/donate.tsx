@@ -105,10 +105,17 @@ export function DonateWidget({
           value={amount}
           onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
           error={amountValid && !meetsMin ? "Ниже минимума канала" : undefined}
+          className="bg-[var(--bg)]"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {PRESETS.map((p) => (
-            <Button key={p} variant="secondary" size="sm" onClick={() => setAmount(String(p))}>
+            <Button
+              key={p}
+              variant="secondary"
+              size="sm"
+              className="w-full bg-[var(--bg)]"
+              onClick={() => setAmount(String(p))}
+            >
               ${p}
             </Button>
           ))}
@@ -143,7 +150,7 @@ export function DonateWidget({
                   ? "В тексте есть слово, которое может попасть под фильтр стримера (не блокирует)."
                   : "Текст приватен до показа — стример решит, публиковать ли его."
               }
-              className={cn(softWarn && "border-warn")}
+              className={cn("bg-[var(--bg)]", softWarn && "border-warn")}
             />
           ) : null}
         </>
@@ -152,7 +159,12 @@ export function DonateWidget({
       {amountValid ? <FeeSplit amount={micro} /> : null}
 
       {connected ? (
-        <Button disabled={!canDonate} onClick={openFlow}>
+        <Button
+          variant="secondary"
+          disabled={!canDonate}
+          onClick={openFlow}
+          className="border-border-strong bg-[var(--bg)]"
+        >
           Задонатить
         </Button>
       ) : (
