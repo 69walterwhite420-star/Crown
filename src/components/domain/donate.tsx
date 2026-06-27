@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
 import { StandingHeadline, TierBadge } from "./standing";
@@ -70,6 +71,14 @@ export function DonateWidget({
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<DonationResult | null>(null);
   const donate = useDonate(channel.id);
+  // Баланс USDC кошелька кладёт в кэш HeaderBalance (chain-режим). Здесь только ПОДПИСЫВАЕМСЯ на тот же ключ
+  // (enabled:false — свой запрос не шлём). В mock/api ключа нет → balance остаётся undefined и проверка не
+  // применяется. Не тянем wallet-adapter в общий бандл.
+  const balanceQ = useQuery<number>({
+    queryKey: ["usdcBalance", session.address ?? ""],
+    queryFn: () => new Promise<number>(() => {}), // не вызывается (enabled:false)
+    enabled: false,
+  });
 
   const connected = Boolean(session.address);
   const isBasic = channel.status === "BASIC";
@@ -81,13 +90,19 @@ export function DonateWidget({
   const micro = amountValid ? toMicro(amountNum) : 0n;
   const meetsMin = amountValid && micro >= min;
   const textOk = !withText || text.trim().length > 0;
-  const canDonate = connected && amountValid && meetsMin && textOk && !(withText && isBasic);
+  // Хватает ли USDC на кошельке (только chain — где balance известен). amountNum и balance оба в USDC.
+  const balance = session.address ? balanceQ.data : undefined;
+  const insufficient = balance != null && amountValid && amountNum > balance;
+  const canDonate =
+    connected && amountValid && meetsMin && textOk && !(withText && isBasic) && !insufficient;
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
   const amountError = overMax
     ? `Максимум ${formatPoints(MAX_DONATION_USDC)} USDC за раз`
     : amountPositive && !meetsMin
       ? "Ниже минимума канала"
-      : undefined;
+      : insufficient
+        ? "Недостаточно USDC на кошельке"
+        : undefined;
 
   // Прогноз начисления за введённую сумму (та же формула, что и при реальном начислении) — для предпросмотра.
   const gain = amountValid ? pointsForAmount(micro) : 0;
