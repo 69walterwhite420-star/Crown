@@ -357,6 +357,16 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   );
 }
 
+/** Инлайн-стат: крупное число и подпись на одной базовой линии. */
+function StatTile({ value, label }: { value: React.ReactNode; label: string }) {
+  return (
+    <p className="flex items-baseline gap-1.5">
+      <span className="font-display text-h3 text-fg">{value}</span>
+      <span className="text-small text-fg-muted">{label}</span>
+    </p>
+  );
+}
+
 /** Строка-позиция: канал + тир + локальные очки + задонатил. Кликабельна → страница канала. */
 function PositionRow({ s }: { s: DonorChannelStanding }) {
   const name = s.channelName?.trim() || `@${s.handle}`;
@@ -479,77 +489,75 @@ function DonorDashboard({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Шапка — безрамочная, как на странице канала. */}
-      <header className="flex flex-col gap-4">
-        <div className="flex items-start gap-4">
-          <ProfileAvatar name={name} address={overview.address} />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">Профиль</span>
-            <h1 className="text-display-l leading-tight text-fg">{name}</h1>
-            <div className="mono truncate text-small text-fg-faint">{overview.address}</div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
-              <span>
-                <span className="font-medium text-fg">{overview.channelsSupported}</span>{" "}
-                {plural(overview.channelsSupported, CHANNELS)}
-              </span>
-              <span className="text-fg-faint">·</span>
-              <span>
-                <span className="font-medium text-fg">{overview.donationCount}</span>{" "}
+      {/* Личность + график — две карточки в ряд, в тёмном тоне всего остального (bg --bg). */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {/* Карточка личности */}
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
+          <div className="flex items-start gap-4">
+            <ProfileAvatar name={name} address={overview.address} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="truncate font-display text-h3 text-fg">{name}</span>
+              <span className="mono truncate text-small text-fg-faint">{overview.address}</span>
+              <span className="text-small text-fg-muted">
+                донатит с {monthYear(overview.firstDonationAt)} · {overview.donationCount}{" "}
                 {plural(overview.donationCount, DONATIONS)}
               </span>
-              <span className="text-fg-faint">·</span>
-              <span>донатит с {monthYear(overview.firstDonationAt)}</span>
+              {overview.ownedChannelHandle ? (
+                <Link
+                  href={`/c/${overview.ownedChannelHandle}`}
+                  className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
+                >
+                  Канал @{overview.ownedChannelHandle} →
+                </Link>
+              ) : null}
             </div>
-            {overview.ownedChannelHandle ? (
-              <Link
-                href={`/c/${overview.ownedChannelHandle}`}
-                className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
-              >
-                Канал @{overview.ownedChannelHandle} →
-              </Link>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-2">
+              <CopyIconButton value={overview.address} title="Скопировать адрес" />
+              {editable ? <ProfileEditDialog address={overview.address} /> : null}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <CopyIconButton value={overview.address} title="Скопировать адрес" />
-            {editable ? <ProfileEditDialog address={overview.address} /> : null}
+
+          {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
+          {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
+
+          <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
+            <StatTile
+              value={overview.channelsSupported}
+              label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
+            />
+            <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
+            <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
           </div>
         </div>
 
-        {profileQ.data?.bio ? <ProfileBio bio={profileQ.data.bio} /> : null}
-        {profileQ.data?.links?.length ? (
-          <ChannelLinkButtons links={profileQ.data.links} variant="text" />
-        ) : null}
-      </header>
-
-      {/* «Всего задонатил» + график — безрамочно, во всю ширину. */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-end justify-between gap-2">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">Всего задонатил</span>
-            <Amount micro={overview.totalDonated} variant="money" className="text-display-l leading-none" />
+        {/* Карточка «всего задонатил» + график */}
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-small text-fg-muted">Всего задонатил</span>
+            <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
+              {(["1M", "1Y", "ALL"] as ChartRange[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-small transition-colors",
+                    range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
+                  )}
+                >
+                  {RANGE_LABEL[r]}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
-            {(["1M", "1Y", "ALL"] as ChartRange[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                className={cn(
-                  "rounded px-2 py-0.5 text-small transition-colors",
-                  range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
-                )}
-              >
-                {RANGE_LABEL[r]}
-              </button>
-            ))}
-          </div>
+          <Amount micro={overview.totalDonated} variant="money" className="text-display-l" />
+          <DonationsAreaChart donations={overview.donations} range={range} />
+          <span className="text-small text-fg-faint">
+            {range === "ALL" ? "за всё время" : range === "1M" ? "за месяц" : "за год"} · деньги финальны,
+            репутация считается у каждого канала отдельно
+          </span>
         </div>
-        <DonationsAreaChart donations={overview.donations} range={range} />
-        <span className="text-small text-fg-faint">
-          {range === "ALL" ? "за всё время" : range === "1M" ? "за месяц" : "за год"} · деньги финальны,
-          репутация считается у каждого канала отдельно
-        </span>
-      </section>
+      </div>
 
       {/* Вкладки — нейтральное подчёркивание, счётчик = заголовок секции. */}
       <div className="flex flex-col gap-4">
