@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
-import { StandingPreview, type PreviewVariant } from "./standing-preview";
+import { StandingPreview } from "./standing-preview";
 import { TierBadge } from "./standing";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,6 @@ export function DonateWidget({
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<DonationResult | null>(null);
-  const [previewVariant, setPreviewVariant] = useState<PreviewVariant>(1);
   const donate = useDonate(channel.id);
 
   const connected = Boolean(session.address);
@@ -146,33 +145,8 @@ export function DonateWidget({
         </div>
       </div>
 
-      {/* Живой предпросмотр standing + ВРЕМЕННЫЙ переключатель вариантов (1/2/3) — выберем один. */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
-          <span>Предпросмотр</span>
-          <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-            {([1, 2, 3] as PreviewVariant[]).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setPreviewVariant(v)}
-                className={cn(
-                  "rounded px-2 py-0.5 text-small transition-colors",
-                  previewVariant === v ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
-                )}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-        </div>
-        <StandingPreview
-          variant={previewVariant}
-          currentPoints={currentPoints}
-          gain={gain}
-          tiers={config.tiers}
-        />
-      </div>
+      {/* Живой предпросмотр standing: полоска к следующему тиру + прогноз начисления за введённую сумму. */}
+      <StandingPreview currentPoints={currentPoints} gain={gain} tiers={config.tiers} />
 
       {isBasic ? (
         <p className="rounded border border-border bg-surface-raised p-3 text-small text-fg-muted">
