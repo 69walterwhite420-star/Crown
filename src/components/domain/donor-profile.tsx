@@ -27,6 +27,7 @@ import {
   SearchIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
@@ -475,9 +476,10 @@ function DonorDashboard({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<PosSort>("donated");
   const [actLimit, setActLimit] = useState(12);
+  const [actChannel, setActChannel] = useState("all"); // фильтр ленты активности по каналу
   const profileQ = useProfile(overview.address || null);
   // Защита от старого ответа без журнала очков (напр. устаревший серверный стор) — не падаем.
-  const pointEvents = overview.pointEvents ?? [];
+  const pointEvents = useMemo(() => overview.pointEvents ?? [], [overview.pointEvents]);
 
   // Канал по id → handle/имя (для подписей в активности).
   const handleById = useMemo(() => {
@@ -485,6 +487,17 @@ function DonorDashboard({
     for (const s of overview.standings) m.set(s.channelId, { handle: s.handle, channelName: s.channelName });
     return m;
   }, [overview.standings]);
+
+  // Каналы, по которым есть активность (для фильтра) + отфильтрованная лента.
+  const actChannels = useMemo(() => {
+    const ids = [...new Set(pointEvents.map((e) => e.channelId))];
+    return ids.map((id) => {
+      const ref = handleById.get(id);
+      return { id, label: ref?.channelName?.trim() || (ref ? `@${ref.handle}` : id) };
+    });
+  }, [pointEvents, handleById]);
+  const filteredEvents =
+    actChannel === "all" ? pointEvents : pointEvents.filter((e) => e.channelId === actChannel);
 
   const positions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -656,23 +669,52 @@ function DonorDashboard({
           )
         ) : pointEvents.length > 0 ? (
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col [&>:last-child]:border-b-0">
-              {pointEvents.slice(0, actLimit).map((e) => {
-                const ref = handleById.get(e.channelId);
-                return (
-                  <ActivityRow key={e.id} e={e} handle={ref?.handle} channelName={ref?.channelName} />
-                );
-              })}
-            </div>
-            {pointEvents.length > actLimit ? (
-              <button
-                type="button"
-                onClick={() => setActLimit((n) => n + 12)}
-                className="mx-auto rounded-pill border border-border px-4 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+            {actChannels.length > 1 ? (
+              <Select
+                value={actChannel}
+                onChange={(e) => {
+                  setActChannel(e.target.value);
+                  setActLimit(12);
+                }}
+                aria-label="Фильтр активности по каналу"
+                className="w-full sm:w-64"
               >
-                Показать больше
-              </button>
+                <option value="all">Все каналы</option>
+                {actChannels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
             ) : null}
+            {filteredEvents.length > 0 ? (
+              <>
+                <div className="flex flex-col [&>:last-child]:border-b-0">
+                  {filteredEvents.slice(0, actLimit).map((e) => {
+                    const ref = handleById.get(e.channelId);
+                    return (
+                      <ActivityRow
+                        key={e.id}
+                        e={e}
+                        handle={ref?.handle}
+                        channelName={ref?.channelName}
+                      />
+                    );
+                  })}
+                </div>
+                {filteredEvents.length > actLimit ? (
+                  <button
+                    type="button"
+                    onClick={() => setActLimit((n) => n + 12)}
+                    className="mx-auto rounded-pill border border-border px-4 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+                  >
+                    Показать больше
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-small text-fg-faint">На этом канале активности по очкам нет.</p>
+            )}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
