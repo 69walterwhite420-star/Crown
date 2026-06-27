@@ -4,9 +4,8 @@ import { useParams } from "next/navigation";
 import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
-import { ReputationProgress, StandingSeal, TierLadder } from "@/components/domain/standing";
+import { TierLadder } from "@/components/domain/standing";
 import { AppHeader } from "@/components/layout/app-header";
-import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -118,33 +117,14 @@ export default function ChannelPage() {
                   двигается ВООБЩЕ при скролле, даже у футтера. Грид резервирует 360px-трек, поэтому левая
                   колонка не плывёт. На мобиле (<lg) — обычным блоком в потоке. */}
               <aside className="flex flex-col gap-6 rail-pinned-right">
-                <section className="flex flex-col gap-3">
-                  {!address ? (
-                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-[var(--bg)] p-4">
-                      <p className="text-small text-fg-muted">
-                        Подключи кошелёк, чтобы видеть и набирать standing на этом канале.
-                      </p>
-                      <ConnectWalletButton />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      <StandingSeal
-                        standing={standingQ.data}
-                        fallbackTier={configQ.data?.tiers[0]}
-                        loading={standingQ.isLoading || configQ.isLoading}
-                      />
-                      {standingQ.data ? <ReputationProgress standing={standingQ.data} /> : null}
-                      {!standingQ.isLoading && !standingQ.data ? (
-                        <p className="text-small text-fg-muted">
-                          Сделай первый донат, чтобы начать набирать standing.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                </section>
-
                 {configQ.data && sessionQ.data ? (
-                  <DonateWidget channel={channel} config={configQ.data} session={sessionQ.data} />
+                  <DonateWidget
+                    channel={channel}
+                    config={configQ.data}
+                    session={sessionQ.data}
+                    standing={standingQ.data}
+                    standingLoading={standingQ.isLoading}
+                  />
                 ) : (
                   <Skeleton className="h-72 w-full rounded-lg" />
                 )}

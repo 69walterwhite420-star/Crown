@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
-import { TierBadge } from "./standing";
+import { ReputationProgress, StandingSeal, TierBadge } from "./standing";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate } from "@/lib/data/hooks";
 import { cn, plural, toMicro } from "@/lib/utils";
-import type { Channel, ChannelConfig, DonationResult, Session } from "@/lib/data/types";
+import type {
+  Channel,
+  ChannelConfig,
+  DonationResult,
+  Session,
+  ViewerStanding,
+} from "@/lib/data/types";
 
 const PRESETS = [5, 10, 25, 100];
 const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
@@ -43,10 +49,14 @@ export function DonateWidget({
   channel,
   config,
   session,
+  standing,
+  standingLoading,
 }: {
   channel: Channel;
   config: ChannelConfig;
   session: Session;
+  standing?: ViewerStanding | null;
+  standingLoading?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [withText, setWithText] = useState(false);
@@ -94,10 +104,9 @@ export function DonateWidget({
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
-      <h3 className="text-h3 text-fg">Задонатить</h3>
-
       {!connected ? (
         <>
+          <h3 className="text-h3 text-fg">Задонатить</h3>
           <p className="text-small text-fg-muted">
             Подключи кошелёк, чтобы поддержать канал и набирать standing.
           </p>
@@ -105,6 +114,21 @@ export function DonateWidget({
         </>
       ) : (
         <>
+      {/* Моё standing на этом канале — печать статуса сверху карточки доната. */}
+      <div className="flex flex-col gap-3">
+        <StandingSeal standing={standing} fallbackTier={config.tiers[0]} loading={standingLoading} />
+        {standing ? <ReputationProgress standing={standing} /> : null}
+        {!standingLoading && !standing ? (
+          <p className="text-small text-fg-muted">
+            Сделай первый донат, чтобы начать набирать standing.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="border-t border-border" />
+
+      <h3 className="text-h3 text-fg">Задонатить</h3>
+
       <div className="flex flex-col gap-2">
         <Input
           label="Сумма, USDC"
