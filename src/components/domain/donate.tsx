@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
-import { ReputationProgress, StandingSeal, TierBadge } from "./standing";
+import { StandingHeadline, TierBadge } from "./standing";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -114,16 +114,8 @@ export function DonateWidget({
         </>
       ) : (
         <>
-      {/* Моё standing на этом канале — печать статуса сверху карточки доната. */}
-      <div className="flex flex-col gap-3">
-        <StandingSeal standing={standing} fallbackTier={config.tiers[0]} loading={standingLoading} />
-        {standing ? <ReputationProgress standing={standing} /> : null}
-        {!standingLoading && !standing ? (
-          <p className="text-small text-fg-muted">
-            Сделай первый донат, чтобы начать набирать standing.
-          </p>
-        ) : null}
-      </div>
+      {/* Моё standing на этом канале — лаконичный заголовок сверху карточки доната. */}
+      <StandingHeadline standing={standing} fallbackTier={config.tiers[0]} loading={standingLoading} />
 
       <div className="border-t border-border" />
 

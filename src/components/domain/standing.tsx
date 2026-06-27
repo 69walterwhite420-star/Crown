@@ -95,6 +95,46 @@ export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
   );
 }
 
+/**
+ * Лаконичный заголовок standing — без «карточки в карточке»: подпись, число очков и бейдж тира прямо на
+ * фоне родителя (для встраивания в карточку доната). Снизу — прогресс до следующего тира или подсказка.
+ */
+export function StandingHeadline({
+  standing,
+  fallbackTier,
+  loading,
+}: {
+  standing?: ViewerStanding | null;
+  fallbackTier?: Tier;
+  loading?: boolean;
+}) {
+  if (loading) return <Skeleton className="h-20 w-full rounded-lg" />;
+  const tier = standing?.tier ?? fallbackTier;
+  if (!tier) return null;
+  const points = standing?.points ?? 0;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-caption text-fg-faint">Мой standing</span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="mono text-h1 leading-none text-fg">{formatPoints(points)}</span>
+            <span className="text-small text-fg-muted">{plural(points, POINTS)}</span>
+          </span>
+        </div>
+        <TierBadge tier={tier} className="shrink-0" />
+      </div>
+      {standing ? (
+        <ReputationProgress standing={standing} />
+      ) : (
+        <p className="text-small text-fg-muted">
+          Сделай первый донат, чтобы начать набирать standing.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Лестница тиров канала с порогами и перками. */
 export function TierLadder({ tiers, currentTierName }: { tiers: Tier[]; currentTierName?: string }) {
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
