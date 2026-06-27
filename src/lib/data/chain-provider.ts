@@ -59,10 +59,10 @@ export class ChainDataProvider implements DataProvider {
   private authing: Promise<boolean> | null = null;
 
   constructor() {
-    // Сессия живёт по СОХРАНЁННОМУ токену, а не по живому подключению кошелька. На старте применяем валидный
-    // токен из localStorage сразу → сессия переживает refresh, даже если кошелёк не переподключился
-    // автоматически (напр. Brave не делает autoConnect). Живой кошелёк нужен лишь для ПОДПИСИ транзакций.
-    this.restoreStoredToken();
+    // Сессия привязана к ПОДКЛЮЧЁННОМУ кошельку: на старте токен из localStorage НЕ применяем «вслепую» —
+    // иначе UI «полу-залогинен» (форма доната/standing активны), хотя кошелёк не подключён и подписать нечем.
+    // Когда кошелёк подключится (autoConnect или «Войти»), bridge вызовет ensureAuth → тот переиспользует
+    // сохранённый токен БЕЗ повторной подписи. Так шапка, standing и донат всегда отражают одно состояние.
   }
 
   setWallet(wallet: WalletContextState | null) {
@@ -115,24 +115,6 @@ export class ChainDataProvider implements DataProvider {
       /* ignore */
     }
   }
-  /** Применить валидный токен из localStorage без знания адреса (старт) — сессия по токену переживает refresh. */
-  private restoreStoredToken() {
-    if (typeof localStorage === "undefined") return;
-    try {
-      const o = JSON.parse(localStorage.getItem(SIWS_STORAGE_KEY) ?? "null") as {
-        address: string;
-        token: string;
-        exp: number;
-      } | null;
-      if (o?.token && o.address && o.exp > Date.now()) {
-        this.api.__setToken(o.token);
-        this.authedAddress = o.address;
-      }
-    } catch {
-      /* битый/пустой стор */
-    }
-  }
-
   /**
    * Гарантирует проверенную личность для подключённого кошелька. Идемпотентно: при уже валидном токене
    * (в памяти или localStorage) НЕ просит подпись повторно. Возвращает true, если состояние изменилось
