@@ -263,8 +263,8 @@
   background: transparent;
 }
 
-/* Чекбоксы/радио — в фирменный акцент (как основная кнопка bg-info), а не браузерный голубой. */
+/* Чекбоксы/радио — нейтральный тон (серый fg-muted), а не браузерный голубой. */
 input[type="checkbox"],
 input[type="radio"] {
-  accent-color: var(--info);
+  accent-color: var(--fg-muted);
 }

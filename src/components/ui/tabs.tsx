@@ -26,7 +26,7 @@ export const TabsTrigger = forwardRef<
     ref={ref}
     className={cn(
       "-mb-px border-b-2 border-transparent px-3 py-2 text-small text-fg-muted transition-colors duration-fast ease-ease",
-      "hover:text-fg data-[state=active]:border-info data-[state=active]:text-fg",
+      "hover:text-fg data-[state=active]:border-fg data-[state=active]:text-fg",
       "focus-visible:outline focus-visible:outline-2 focus-visible:outline-info",
       className,
     )}
