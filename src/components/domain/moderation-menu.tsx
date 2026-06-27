@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldIcon } from "@/components/ui/icons";
+import { MoreIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import {
   useAddBlock,
@@ -43,10 +43,10 @@ export function ModerationMenu({
     <details className="relative">
       <summary
         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg [&::-webkit-details-marker]:hidden"
-        title="Модерация"
+        title="Ещё действия"
         aria-label="Действия модерации"
       >
-        <ShieldIcon className="h-4 w-4" />
+        <MoreIcon className="h-4 w-4" />
       </summary>
       <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
         {message ? (

@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { Amount } from "./amount";
 import { ModerationMenu } from "./moderation-menu";
+import { TierBadge } from "./standing";
 import { Button } from "@/components/ui/button";
-import { channelHue, cn, collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
+import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
+import { useStanding } from "@/lib/data/hooks";
+import { cn, collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/data/types";
 
 // Бейдж только для того, что требует внимания (FLAG/HARD_BLOCK); CLEAR — без метки, чтобы не зашумлять.
@@ -13,20 +16,11 @@ const VERDICT: Partial<Record<ModerationVerdict, { label: string; cls: string }>
   HARD_BLOCK: { label: "Запрещённое", cls: "border-danger text-danger" },
 };
 
-/** Аватар-монограмма донора со стабильным цветом (как на профиле/в карточках каналов). */
-function DonorAvatar({ seed }: { seed: string }) {
-  const hue = channelHue(seed);
-  return (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-small"
-      style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
-    >
-      {seed.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
-    </div>
-  );
-}
-
-/** Карточка очереди: донор (аватар + ник → профиль) и сумма сверху, текст в блоке-цитате, действия снизу. */
+/**
+ * Строка очереди модерации (без рамки, с нижним разделителем): ник → профиль + бейдж тира донора + (если есть)
+ * авто-вердикт, сумма справа, текст, снизу время и действия «Показать»/«Скрыть» + меню «…». HARD_BLOCK —
+ * показать нельзя (карантин). Тир донора подтягивается по standing на этом канале.
+ */
 export function ModerationItem({
   message,
   donor,
@@ -44,67 +38,56 @@ export function ModerationItem({
   onHide: () => void;
   pending?: boolean;
 }) {
+  const standing = useStanding(message.channelId, donor ?? null);
+  const tier = standing.data?.tier;
   const hardBlock = message.autoVerdict === "HARD_BLOCK";
   const verdict = message.autoVerdict ? VERDICT[message.autoVerdict] : undefined;
-  const named = Boolean(donorName?.trim());
   const name = donorName?.trim() || (donor ? shortAddress(donor) : "Аноним");
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-lg border bg-surface p-4",
-        hardBlock ? "border-danger" : message.autoVerdict === "FLAG" ? "border-warn" : "border-border",
-      )}
-    >
-      {/* Донор + сумма */}
-      <div className="flex items-center gap-3">
-        {donor ? <DonorAvatar seed={named ? name : donor} /> : null}
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+    <div className="flex flex-col gap-2 border-b border-border py-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {donor ? (
-            <Link href={`/u/${donor}`} className="w-fit truncate font-display text-fg hover:text-status">
+            <Link href={`/u/${donor}`} className="truncate font-display text-fg hover:text-status">
               {name}
             </Link>
           ) : (
             <span className="font-display text-fg">{name}</span>
           )}
-          {donor && named ? (
-            <span className="mono truncate text-small text-fg-faint">{shortAddress(donor)}</span>
+          {tier ? <TierBadge tier={tier} /> : null}
+          {verdict ? (
+            <span className={cn("rounded-pill border px-2 py-0.5 text-small", verdict.cls)}>
+              {verdict.label}
+            </span>
           ) : null}
         </div>
-        {amount !== undefined ? <Amount micro={amount} variant="money" className="shrink-0 text-h3" /> : null}
+        {amount !== undefined ? <Amount micro={amount} variant="money" className="shrink-0" /> : null}
       </div>
 
-      {/* Текст — главный фокус */}
-      <p className="break-words rounded-md bg-surface-raised p-3 text-body text-fg">
-        {collapseWhitespace(message.text)}
-      </p>
+      <p className="break-words text-body text-fg">{collapseWhitespace(message.text)}</p>
 
-      {/* Метки слева, действия справа */}
       <div className="flex flex-wrap items-center gap-2">
-        {verdict ? (
-          <span className={cn("rounded-pill border px-2 py-0.5 text-small", verdict.cls)}>
-            {verdict.label}
-          </span>
-        ) : null}
-        {message.lang ? <span className="mono text-small text-fg-faint">{message.lang}</span> : null}
         <span className="text-small text-fg-faint" title={message.createdAt}>
           {timeAgo(message.createdAt)}
         </span>
+        {message.lang ? <span className="mono text-small text-fg-faint">{message.lang}</span> : null}
 
         <div className="ml-auto flex items-center gap-2">
           {hardBlock ? (
             <span className="text-small text-danger">Авто-карантин — показать нельзя</span>
           ) : (
             <>
-              <Button variant="money" size="sm" onClick={onShow} loading={pending}>
+              <Button variant="secondary" size="sm" onClick={onShow} loading={pending}>
+                <EyeIcon className="h-4 w-4" />
                 Показать
               </Button>
               <Button variant="secondary" size="sm" onClick={onHide} disabled={pending}>
+                <EyeOffIcon className="h-4 w-4" />
                 Скрыть
               </Button>
             </>
           )}
-          {/* message НЕ передаём: «показать/скрыть это сообщение» уже есть кнопками выше — без дубля в меню */}
           {donor ? <ModerationMenu channelId={message.channelId} donor={donor} /> : null}
         </div>
       </div>

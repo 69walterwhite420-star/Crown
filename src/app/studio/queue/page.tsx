@@ -39,6 +39,9 @@ export default function ModerationQueuePage() {
     );
   }
 
+  const heldCount = (queueQ.data ?? []).length;
+  const currentChannel = channels.find((c) => c.id === channelId);
+
   function act(messageId: string, state: "SHOWN" | "HIDDEN") {
     setState.mutate(
       { messageId, state },
@@ -51,27 +54,38 @@ export default function ModerationQueuePage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-display-l text-fg">Очередь модерации</h1>
-        <p className="text-fg-muted">
-          Текст приватен до показа. Реши судьбу текста — деньги и standing донора уже зачтены.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-display-l text-fg">Очередь модерации</h1>
+            {heldCount > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-pill bg-money-bg px-2.5 py-0.5 text-small text-money">
+                <span className="h-1.5 w-1.5 rounded-pill bg-money" />
+                {heldCount} на модерации
+              </span>
+            ) : null}
+          </div>
+          <p className="text-fg-muted">
+            Текст приватен до показа. Деньги и standing донора уже зачтены — решаешь только судьбу текста.
+          </p>
+        </div>
+        {channels.length > 1 ? (
+          <Select
+            value={channelId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            aria-label="Канал"
+            className="sm:w-56"
+          >
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                @{c.handle}
+              </option>
+            ))}
+          </Select>
+        ) : currentChannel ? (
+          <span className="mono shrink-0 text-small text-fg-faint">@{currentChannel.handle}</span>
+        ) : null}
       </div>
-
-      {channels.length > 1 ? (
-        <Select
-          label="Канал"
-          value={channelId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className="sm:w-64"
-        >
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>
-              @{c.handle}
-            </option>
-          ))}
-        </Select>
-      ) : null}
 
       {queueQ.isLoading ? (
         <Skeleton className="h-40 w-full" />
@@ -80,30 +94,34 @@ export default function ModerationQueuePage() {
       ) : (queueQ.data ?? []).length === 0 ? (
         <EmptyState title="Очередь чиста" description="Новые сообщения на модерации появятся здесь." />
       ) : (
-        <div className="flex flex-col gap-3">
-          {pg.pageItems.map((m) => {
-            const d = byDonation.get(m.donationId);
-            return (
-              <ModerationItem
-                key={m.id}
-                message={m}
-                donor={d?.donor}
-                donorName={d?.donorName}
-                amount={d?.amount}
-                pending={setState.isPending && setState.variables?.messageId === m.id}
-                onShow={() => act(m.id, "SHOWN")}
-                onHide={() => act(m.id, "HIDDEN")}
-              />
-            );
-          })}
-          <Pager
-            page={pg.page}
-            pageCount={pg.pageCount}
-            total={pg.total}
-            pageSize={pg.pageSize}
-            setPage={pg.setPage}
-            setPageSize={pg.setPageSize}
-          />
+        <div className="flex flex-col">
+          <div className="flex flex-col [&>:last-child]:border-b-0">
+            {pg.pageItems.map((m) => {
+              const d = byDonation.get(m.donationId);
+              return (
+                <ModerationItem
+                  key={m.id}
+                  message={m}
+                  donor={d?.donor}
+                  donorName={d?.donorName}
+                  amount={d?.amount}
+                  pending={setState.isPending && setState.variables?.messageId === m.id}
+                  onShow={() => act(m.id, "SHOWN")}
+                  onHide={() => act(m.id, "HIDDEN")}
+                />
+              );
+            })}
+          </div>
+          <div className="pt-4">
+            <Pager
+              page={pg.page}
+              pageCount={pg.pageCount}
+              total={pg.total}
+              pageSize={pg.pageSize}
+              setPage={pg.setPage}
+              setPageSize={pg.setPageSize}
+            />
+          </div>
         </div>
       )}
     </div>
