@@ -6,7 +6,7 @@ import { WalletConnectButton } from "./wallet-connect";
 /** Публичная шапка (frontend/spec.md §2). Липкая. Слева — логотип + поиск каналов + nav; справа — кошелёк. */
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-surface">
+    <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-[var(--bg)]">
       <div className="mx-auto flex h-full max-w-content items-center gap-4 px-4">
         {/* Логотип = переход на каналы (дискавери). Отдельной ссылки «Каналы» нет. Профиль/Студия — в аватаре. */}
         <Link href="/" className="font-display text-h3 text-fg hover:text-status">
