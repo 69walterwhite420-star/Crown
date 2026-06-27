@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/feedback";
+import { CrownIcon, LockIcon } from "@/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatPoints, plural } from "@/lib/utils";
 
@@ -60,7 +61,16 @@ export function StandingSeal({
           <span className="mono text-display-l leading-none" style={{ color: tier.color }}>
             {formatPoints(points)}
           </span>
-          <span className="text-small text-fg-muted">{plural(points, POINTS)} standing</span>
+          <span className="text-small" style={{ color: tier.color, opacity: 0.85 }}>
+            {plural(points, POINTS)} standing
+          </span>
+          <span
+            className="mt-1 flex items-center gap-1.5 text-small"
+            style={{ color: tier.color, opacity: 0.7 }}
+          >
+            <LockIcon className="h-3.5 w-3.5 shrink-0" />
+            непередаваемо · считается из твоих донатов
+          </span>
         </div>
       </TooltipTrigger>
       <TooltipContent>
@@ -73,7 +83,12 @@ export function StandingSeal({
 /** Прогресс до следующего тира (0..1) + «осталось N очков». */
 export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
   if (!standing.nextTier) {
-    return <p className="text-small text-fg-muted">Максимальный тир достигнут.</p>;
+    return (
+      <p className="flex items-center gap-1.5 text-small text-status">
+        <CrownIcon className="h-4 w-4 shrink-0" />
+        высший тир достигнут
+      </p>
+    );
   }
   const remaining = Math.max(0, standing.nextTier.threshold - standing.points);
   return (

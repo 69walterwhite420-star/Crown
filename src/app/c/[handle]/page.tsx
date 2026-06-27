@@ -119,7 +119,6 @@ export default function ChannelPage() {
                   колонка не плывёт. На мобиле (<lg) — обычным блоком в потоке. */}
               <aside className="flex flex-col gap-6 rail-pinned-right">
                 <section className="flex flex-col gap-3">
-                  <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (
                     <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
                       <p className="text-small text-fg-muted">

@@ -141,6 +141,25 @@ export function EyeOffIcon({ className }: IconProps) {
   );
 }
 
+/** Замок — «непередаваемо». */
+export function LockIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
+/** Корона — высший тир. */
+export function CrownIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M3 7 7 11 12 5 17 11 21 7 19.5 19 4.5 19Z" />
+    </svg>
+  );
+}
+
 /** Три точки — меню «ещё». */
 export function MoreIcon({ className }: IconProps) {
   return (
