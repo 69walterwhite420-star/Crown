@@ -17,7 +17,7 @@ export default function DbViewerPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
-    fetch("/api/dev/db")
+    fetch("/api/dev/db/data")
       .then((r) => r.json())
       .then((d: TableData) => {
         if ((d as { error?: string }).error) {
