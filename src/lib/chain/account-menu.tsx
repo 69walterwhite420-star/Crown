@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
+import { NotificationDot } from "@/components/ui/notification-dot";
 import { toast } from "@/components/ui/toast";
 import { useData } from "@/lib/data/context";
-import { useProfile, useSession } from "@/lib/data/hooks";
-import { channelHue, shortAddress } from "@/lib/utils";
+import { useModerationAttention, useProfile, useSession } from "@/lib/data/hooks";
+import { channelHue, cn, shortAddress } from "@/lib/utils";
 
 const itemCls =
   "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg";
@@ -21,6 +22,7 @@ export function AccountMenu() {
   const session = useSession();
   const address = session.data?.address ?? null;
   const profile = useProfile(address);
+  const { hasPending } = useModerationAttention();
   const [copied, setCopied] = useState(false);
 
   if (!address) return null;
@@ -33,11 +35,17 @@ export function AccountMenu() {
     <div className="group relative">
       <button
         type="button"
-        aria-label="Аккаунт"
-        className="flex h-9 w-9 items-center justify-center rounded-full font-display text-small outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
+        aria-label={hasPending ? "Аккаунт — есть что проверить" : "Аккаунт"}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full font-display text-small outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
         style={{ backgroundColor: `hsl(${hue} 45% 22%)`, color: `hsl(${hue} 70% 74%)` }}
       >
         {initial}
+        {hasPending ? (
+          <NotificationDot
+            title="Есть что проверить в студии"
+            className="absolute -right-0.5 -top-0.5 ring-2 ring-[var(--bg)]"
+          />
+        ) : null}
       </button>
 
       {/* Меню по наведению/фокусу. pt-2 — невидимый «мостик», чтобы курсор не терял ховер по пути к меню. */}
@@ -70,8 +78,9 @@ export function AccountMenu() {
           <Link href="/me" className={itemCls}>
             Профиль
           </Link>
-          <Link href="/studio" className={itemCls}>
+          <Link href="/studio" className={cn(itemCls, "justify-between")}>
             Студия
+            {hasPending ? <NotificationDot title="Есть что проверить в очереди" /> : null}
           </Link>
           <button
             type="button"

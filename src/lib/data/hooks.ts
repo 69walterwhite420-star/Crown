@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "./context";
 import type {
   Address,
@@ -115,6 +115,24 @@ export function useChannelBlocklist(channelId: string | undefined) {
 export function useOperatorQueue() {
   const data = useData();
   return useQuery({ queryKey: qk.operatorQueue(), queryFn: () => data.getOperatorQueue() });
+}
+
+/**
+ * «Требует внимания»: сколько сообщений ждёт решения (HELD) во ВСЕХ каналах, которыми управляешь (владелец/
+ * модератор). Делит тот же кэш, что и useModerationQueue. Для синей точки-уведомления в навигации.
+ */
+export function useModerationAttention() {
+  const data = useData();
+  const managed = useManagedChannels();
+  const channels = managed.data ?? [];
+  const results = useQueries({
+    queries: channels.map((c) => ({
+      queryKey: qk.moderationQueue(c.id),
+      queryFn: () => data.getModerationQueue(c.id),
+    })),
+  });
+  const pending = results.reduce((n, r) => n + (r.data?.length ?? 0), 0);
+  return { pending, hasPending: pending > 0 };
 }
 export function useProfile(address: Address | null | undefined) {
   const data = useData();
