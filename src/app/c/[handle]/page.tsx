@@ -47,7 +47,10 @@ export default function ChannelPage() {
         {channelQ.isLoading ? (
           <Skeleton className="h-64 w-full rounded-lg" />
         ) : channelQ.error ? (
-          <ErrorState description="Не удалось загрузить канал." onRetry={() => channelQ.refetch()} />
+          <ErrorState
+            description="Не удалось загрузить канал."
+            onRetry={() => channelQ.refetch()}
+          />
         ) : !channel ? (
           <EmptyState title="Канал не найден" description={`Канала @${handle} не существует.`} />
         ) : channel.status === "SUSPENDED" || channel.status === "BANNED" ? (
@@ -56,18 +59,40 @@ export default function ChannelPage() {
             description="Этот канал приостановлен. Если это ошибка — обратись в поддержку."
           />
         ) : (
-          <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
-            {/* Левая колонка — шапка канала + контент (как на polymarket: вся инфа слева, не на весь экран).
-                min-w-0: иначе широкий контент (длинные ники/mono-адреса) раздувает 1fr-трек → страница шире
-                вьюпорта и правый блок хедера («Войти») уезжает за край. */}
-            <div className="flex min-w-0 flex-col gap-8">
+          // На мобиле — поток: шапка → донат → лента (главное действие сразу под шапкой, не внизу страницы).
+          // На lg — грид [1fr_360px]: шапка/лента в левой колонке (строки 1 и 2), донат закреплён справа
+          // (row-span-2, rail-pinned). gap-x-6 = прежний зазор между колонками; gap-y-8 = прежний зазор шапка↔лента.
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-x-6 lg:gap-y-8">
+            {/* Шапка канала. min-w-0: длинные ники/mono-адреса не должны раздувать 1fr-трек шире вьюпорта,
+                иначе страница становится шире экрана и правый блок хедера («Войти») уезжает за край. */}
+            <div className="min-w-0 lg:col-start-1 lg:row-start-1">
               <ChannelHeader
                 channel={channel}
                 config={configQ.data}
                 donorsCount={stats?.donors}
                 totalDonated={stats?.total}
               />
-              {/* Контент канала — табами (мини-хедер), а не простынёй. Новые фичи = новая вкладка. */}
+            </div>
+
+            {/* Донат + моё standing. На мобиле — СРАЗУ под шапкой (в потоке вторым). На lg — правая колонка,
+                ФИКСИРОВАНА при скролле (rail-pinned-right), занимает обе строки правого трека (row-span-2). */}
+            <aside className="rail-pinned-right flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+              {configQ.data && sessionQ.data ? (
+                <DonateWidget
+                  channel={channel}
+                  config={configQ.data}
+                  session={sessionQ.data}
+                  standing={standingQ.data}
+                  standingLoading={standingQ.isLoading}
+                />
+              ) : (
+                <Skeleton className="h-72 w-full rounded-lg" />
+              )}
+            </aside>
+
+            {/* Контент канала — табами (мини-хедер), а не простынёй. Новые фичи = новая вкладка.
+                На мобиле идёт после доната; на lg — левая колонка под шапкой (строка 2). */}
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
               <Tabs defaultValue="feed" className="flex flex-col gap-1">
                 <TabsList className="w-full">
                   <TabsTrigger value="feed">Лента</TabsTrigger>
@@ -112,24 +137,7 @@ export default function ChannelPage() {
                 </TabsContent>
               </Tabs>
             </div>
-
-              {/* Правая колонка — моё standing + донат. ФИКСИРОВАНА на экране (rail-pinned-right): не
-                  двигается ВООБЩЕ при скролле, даже у футтера. Грид резервирует 360px-трек, поэтому левая
-                  колонка не плывёт. На мобиле (<lg) — обычным блоком в потоке. */}
-              <aside className="flex flex-col gap-6 rail-pinned-right">
-                {configQ.data && sessionQ.data ? (
-                  <DonateWidget
-                    channel={channel}
-                    config={configQ.data}
-                    session={sessionQ.data}
-                    standing={standingQ.data}
-                    standingLoading={standingQ.isLoading}
-                  />
-                ) : (
-                  <Skeleton className="h-72 w-full rounded-lg" />
-                )}
-              </aside>
-            </div>
+          </div>
         )}
       </main>
     </>
