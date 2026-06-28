@@ -540,7 +540,9 @@ export class MockDataProvider implements DataProvider {
       entries.push({
         rank: 0,
         donor,
-        displayName: this.profiles.get(donor)?.displayName,
+        // addresses_only → имя не отдаём, UI покажет короткий адрес.
+        displayName:
+          cfg.nameMode === "allow_display_names" ? this.profiles.get(donor)?.displayName : undefined,
         points,
         tier: resolveTier(points, cfg.tiers).tier,
         totalDonated,
@@ -825,12 +827,16 @@ export class MockDataProvider implements DataProvider {
   async listDonations(channelId: string, _opts?: ListOpts): Result<Page<Donation>> {
     await this.gate("listDonations");
     const isManager = this.isChannelManager(channelId);
+    // Режим имён канала: addresses_only → НЕ показываем ники (даже из профиля), только адреса.
+    const showNames =
+      this.configsByChannel.has(channelId) &&
+      this.latestConfig(channelId).nameMode === "allow_display_names";
     const items = this.donations
       .filter((d) => d.channelId === channelId)
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
       .map((d) => {
         const r = this.redactDonation(d, isManager);
-        const donorName = this.profiles.get(d.donor)?.displayName; // ник из профиля (как в лидерборде)
+        const donorName = showNames ? this.profiles.get(d.donor)?.displayName : undefined;
         return donorName ? { ...r, donorName } : r;
       });
     return { items };
