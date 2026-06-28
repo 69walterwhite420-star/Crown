@@ -521,9 +521,16 @@ export class MockDataProvider implements DataProvider {
     await this.gate("getLeaderboard");
     return this.computeLeaderboard(channelId, period);
   }
+  /** Адреса, заблокированные на канале — для анти-публикации текста и анонимизации ника. */
+  private blockedSet(channelId: string): Set<Address> {
+    return new Set(
+      this.blocks.filter((b) => b.channelId === channelId).map((b) => b.blockedAddress),
+    );
+  }
   private computeLeaderboard(channelId: string, period: LeaderboardPeriod): LeaderboardEntry[] {
     if (!this.configsByChannel.has(channelId)) return [];
     const cfg = this.latestConfig(channelId);
+    const blocked = this.blockedSet(channelId);
     const monthAgo = Date.parse(this.now()) - 30 * 86_400_000;
     const inPeriod = (ts: string) => period === "all_time" || Date.parse(ts) >= monthAgo;
     const donors = new Set(
@@ -540,9 +547,11 @@ export class MockDataProvider implements DataProvider {
       entries.push({
         rank: 0,
         donor,
-        // addresses_only → имя не отдаём, UI покажет короткий адрес.
+        // addresses_only ИЛИ заблокирован → имя не отдаём, UI покажет короткий адрес.
         displayName:
-          cfg.nameMode === "allow_display_names" ? this.profiles.get(donor)?.displayName : undefined,
+          cfg.nameMode === "allow_display_names" && !blocked.has(donor)
+            ? this.profiles.get(donor)?.displayName
+            : undefined,
         points,
         tier: resolveTier(points, cfg.tiers).tier,
         totalDonated,
@@ -852,12 +861,15 @@ export class MockDataProvider implements DataProvider {
     const showNames =
       this.configsByChannel.has(channelId) &&
       this.latestConfig(channelId).nameMode === "allow_display_names";
+    // Заблокированные на канале — всегда только адресом, ник не показываем (даже при allow_display_names).
+    const blocked = this.blockedSet(channelId);
     const items = this.donations
       .filter((d) => d.channelId === channelId)
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
       .map((d) => {
         const r = this.redactDonation(d, isManager);
-        const donorName = showNames ? this.profiles.get(d.donor)?.displayName : undefined;
+        const donorName =
+          showNames && !blocked.has(d.donor) ? this.profiles.get(d.donor)?.displayName : undefined;
         return donorName ? { ...r, donorName } : r;
       });
     return { items };
