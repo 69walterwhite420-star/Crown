@@ -153,6 +153,20 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
+
+  /* Мобильная адаптация шкалы: на узких экранах (≤640px) крупные display-роли ужимаем — иначе заголовки
+     страниц и большие числа (оборот, standing) вылезают за край телефона. Одно место → действует везде. */
+  @media (max-width: 640px) {
+    .text-display-xl {
+      font-size: 2.25rem;
+    }
+    .text-display-l {
+      font-size: 1.85rem;
+    }
+    .text-h1 {
+      font-size: 1.55rem;
+    }
+  }
 }
 
 /* Оркестрованные моменты (design-system.md §5): финальность доната и тир-ап. */
