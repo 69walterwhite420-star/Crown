@@ -7,7 +7,7 @@ import { NotificationDot } from "@/components/ui/notification-dot";
 import { toast } from "@/components/ui/toast";
 import { useData } from "@/lib/data/context";
 import { useModerationAttention, useProfile, useSession } from "@/lib/data/hooks";
-import { channelHue, cn, shortAddress } from "@/lib/utils";
+import { channelHue, shortAddress } from "@/lib/utils";
 
 const itemCls =
   "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg";
@@ -78,9 +78,11 @@ export function AccountMenu() {
           <Link href="/me" className={itemCls}>
             Профиль
           </Link>
-          <Link href="/studio" className={cn(itemCls, "justify-between")}>
+          <Link href="/studio" className={itemCls}>
             Студия
-            {hasPending ? <NotificationDot title="Есть что проверить в очереди" /> : null}
+            {hasPending ? (
+              <NotificationDot className="ml-2" title="Есть что проверить в очереди" />
+            ) : null}
           </Link>
           <button
             type="button"
