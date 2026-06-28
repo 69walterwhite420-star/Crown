@@ -214,6 +214,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+// Человекочитаемые подписи прав модератора (значения "queue"/"queue_and_block" — это данные, их не трогаем).
+const SCOPE_LABEL: Record<ModeratorRef["scope"], string> = {
+  queue: "Модерация очереди",
+  queue_and_block: "Очередь и блокировки",
+};
+
 function ModeratorEditor({
   value,
   onChange,
@@ -235,7 +241,7 @@ function ModeratorEditor({
               className="flex items-center justify-between gap-2 rounded border border-border bg-surface px-3 py-2"
             >
               <span className="mono text-small text-fg">{m.address.slice(0, 10)}…</span>
-              <span className="text-small text-fg-muted">{m.scope}</span>
+              <span className="text-small text-fg-muted">{SCOPE_LABEL[m.scope]}</span>
               <Button variant="ghost" size="sm" onClick={() => onChange(value.filter((_, idx) => idx !== i))}>
                 ✕
               </Button>
@@ -247,9 +253,9 @@ function ModeratorEditor({
         <div className="flex-1">
           <Input label="Адрес модератора" mono value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
-        <Select label="Скоуп" value={scope} onChange={(e) => setScope(e.target.value as ModeratorRef["scope"])}>
-          <option value="queue">queue</option>
-          <option value="queue_and_block">queue_and_block</option>
+        <Select label="Права" value={scope} onChange={(e) => setScope(e.target.value as ModeratorRef["scope"])}>
+          <option value="queue">{SCOPE_LABEL.queue}</option>
+          <option value="queue_and_block">{SCOPE_LABEL.queue_and_block}</option>
         </Select>
         <Button
           variant="secondary"
