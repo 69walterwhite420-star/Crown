@@ -100,7 +100,7 @@ export function CumulativeAreaChart({
   const visible = series.filter((p) => p.t > windowStart);
   const pts =
     range === "ALL"
-      ? [...series, { t: now, y: total }]
+      ? [{ t: firstT, y: 0 }, ...series, { t: now, y: total }] // старт от нуля → первый донат тоже скачок
       : [{ t: windowStart, y: baseY }, ...visible, { t: now, y: total }];
 
   const W = 100;
@@ -157,8 +157,8 @@ export function CumulativeAreaChart({
           fill="none"
           stroke={color}
           strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
+          strokeLinejoin="miter"
+          strokeLinecap="butt"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
