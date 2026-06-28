@@ -392,6 +392,21 @@ export async function loadSeq(db: PGlite): Promise<number> {
   return r.rows[0] ? Number(r.rows[0].value) : 0;
 }
 
+// Произвольный ключ в meta (служебное состояние, напр. курсор индексера). Переживает рестарт.
+export async function getMeta(key: string): Promise<string | null> {
+  const db = await getDb();
+  const r = await db.query<{ value: string }>("SELECT value FROM meta WHERE key = $1", [key]);
+  return r.rows[0]?.value ?? null;
+}
+
+export async function setMeta(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.query("INSERT INTO meta (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", [
+    key,
+    value,
+  ]);
+}
+
 // ───────────────────────── сборка целого снимка ↔ Postgres ─────────────────────────
 /**
  * Прочитать всё состояние из Postgres в форму StoreSnapshot. Возвращает null, если БД ещё не инициализирована

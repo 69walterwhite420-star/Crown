@@ -1,4 +1,5 @@
 import { MockDataProvider, type StoreSnapshot } from "@/lib/data/mock-provider";
+import { startIndexer } from "@/server/indexer-service";
 import { readSnapshot } from "@/server/persist";
 import { currentIdentity } from "@/server/request-context";
 import { loadStore, saveStore } from "@/server/store-db";
@@ -41,6 +42,7 @@ async function init(): Promise<MockDataProvider> {
   }
 
   g.__standingSave = makeSaver(store);
+  startIndexer(store, persistStore); // фоновый приём ончейн-донатов (только chain-режим)
   return store;
 }
 
