@@ -1,8 +1,10 @@
 -- Standing — целевая схема Postgres (Фаза 2, по docs/data-model.md и backend/spec.md §2).
 --
--- ПРИМЕЧАНИЕ: в текущем окружении нет Postgres, поэтому persistence реализована как in-memory
--- (src/server/store.ts) — стенд-ин под эту схему. Перевод на Postgres = реализовать репозиторий
--- по этим таблицам за тем же API, не трогая экраны. Деньги — micro-USDC в numeric(20,0); очки — bigint.
+-- ПРИМЕЧАНИЕ: эта схема ЖИВАЯ — реализована через PGlite (встроенный Postgres-WASM, без установки/sudo;
+-- src/server/db.ts создаёт эти таблицы, store-db.ts отображает домен ↔ строки; ADR 0014). Стор работает
+-- на быстрой in-memory копии и пишет в эти таблицы; прямые SQL-чтения без копии — оптимизация на потом.
+-- Переход на managed-Postgres в проде = смена подключения, экраны/API не трогаем. Деньги — micro-USDC в
+-- numeric(20,0); очки — bigint.
 -- Источник истины по репутации — ledger_events (append-only); число всегда пересчитывается движком.
 
 CREATE TABLE identities (

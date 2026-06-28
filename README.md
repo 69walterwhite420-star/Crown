@@ -41,7 +41,10 @@
 ## Статус
 
 Версия ядра **0.1**. Все числовые значения в спеках — стартовые дефолты для калибровки на тестнете,
-не финальные константы. Текущая фаза постройки — **Фаза 0** (скелет + дизайн-система), см. `ROADMAP.md`.
+не финальные константы. Построены **Фазы 0–3** (UI на моке → RPC-бэкенд → ончейн-донаты на devnet) плюс
+**Фаза 4** (постоянство в Postgres/PGlite, фоновый индексер, адаптивная вёрстка) и проходы по
+безопасности/надёжности (ADR 0006–0014). Дальше — мини-игры (отдельный документ; журнал репутации уже
+резервирует под них события). Статусы и критерии выхода по фазам — `ROADMAP.md`.
 
 ## Разработка
 
@@ -61,42 +64,48 @@ npm run format     # Prettier
 
 ## Запуск на devnet с реальным кошельком (Фаза 3)
 
-> Persistence пока in-memory: каналы/репутация **сбрасываются при перезапуске сервера** (до Postgres).
+> Данные живут в локальном Postgres (PGlite, каталог `.data/pg/`) — каналы/репутация/донаты **переживают
+> перезапуск**. Отдельно поднимать Postgres не нужно (встроенный WASM-движок). Полный сброс — удалить `.data/`.
 
 1. **Кошелёк.** Установи Phantom (или Solflare), переключи на **Devnet**. Пополни:
    - SOL на газ — [faucet.solana.com](https://faucet.solana.com);
    - devnet USDC — [faucet.circle.com](https://faucet.circle.com) (сеть **Solana Devnet**).
 2. **Сервер.** `NEXT_PUBLIC_DATA_SOURCE=chain npm run dev` → открой http://localhost:3000.
-3. **Индексер** (в отдельном терминале) — ловит донаты в трежери и зачисляет репутацию:
-   `npx tsx scripts/indexer.ts`. (Клиент после доната также сам триггерит приём, так что для базовой
-   проверки индексер необязателен.)
-4. **Поток:** подключи кошелёк (кнопка в шапке / `/connect`) → `/studio/create` создай канал →
-   `/studio/activation` активируй → открой `/c/<handle>` → **задонать** (подпишешь реальную USDC-tx 97/3 +
-   memo на devnet) → репутация и лента обновятся; tx видна в Solana Explorer (devnet).
+3. **Приём донатов.** В chain-режиме фоновый индексер стартует сам вместе с сервером — следит за трежери и
+   зачисляет репутацию даже без открытого браузера донатера. (Ручной прогон при необходимости:
+   `npx tsx scripts/indexer.ts`.)
+4. **Поток:** подключи кошелёк (кнопка в шапке) → на `/studio` создай канал (форма прямо в обзоре) →
+   активируй (баннер активации в студии) → открой `/c/<handle>` → **задонать** (подпишешь реальную
+   USDC-tx 97/3 + memo на devnet) → репутация и лента обновятся; tx видна в Solana Explorer (devnet).
 
-**ENV (опц., `.env.local`):** `NEXT_PUBLIC_OPERATOR_ADDRESS=<твой адрес>` — доступ к `/ops` (по умолчанию
-оператор = трежери). `NEXT_PUBLIC_DEVNET_USDC_MINT` / `NEXT_PUBLIC_TREASURY_OWNER` — переопределить mint/трежери.
+**ENV (опц., `.env.local`):** `NEXT_PUBLIC_OPERATOR_ADDRESS=<твой адрес>` — доступ к `/ops` и `/dev/db`
+(по умолчанию оператор = трежери). `NEXT_PUBLIC_DEVNET_USDC_MINT` / `NEXT_PUBLIC_TREASURY_OWNER` —
+переопределить mint/трежери. `NEXT_PUBLIC_DEVNET_RPC` — свой RPC-эндпоинт (по умолчанию бесплатный публичный).
 
-**Без кошелька** (разработка UI): `NEXT_PUBLIC_DATA_SOURCE=api npm run dev` — на `/connect` или в
-`/dev/kitchen-sink` (Dev-тулбар) войди по произвольному devnet-адресу; донаты симулируются оффчейн.
+**Без кошелька** (разработка UI): `NEXT_PUBLIC_DATA_SOURCE=api npm run dev` — войди по произвольному
+devnet-адресу через Dev-тулбар (`/dev/kitchen-sink`); донаты симулируются оффчейн.
 
 **Headless-проверки крипты:** `npx tsx scripts/chain-verify.ts` (сборщик tx против devnet + индексер на
 синтетике, без SOL); `npx tsx scripts/devnet-smoke.ts` (полная реальная отправка — нужен devnet SOL).
 
-**Что посмотреть в Фазе 0:**
+**Dev-инструменты:**
 
-- `/` и остальные маршруты — экраны-заглушки под все экраны `frontend/screens.md` (тема видна, роутинг есть).
 - `/dev/kitchen-sink` — все дизайн-токены и примитивы (Button/Input/Textarea/Dialog/Tabs/Tooltip/Toast,
-  empty/loading/error) + смоук-проверка `useData()` на пустом `MockDataProvider`.
+  empty/loading/error) + Dev-тулбар (вход по адресу в api-режиме).
+- `/dev/db` — просмотр таблиц Postgres (выбор таблицы, сортировка). Доступ только кошельку-оператору.
 
 **Структура кода** (отдельно от спек):
 
 ```
 src/
-├── app/                  маршруты (App Router) + layout, globals.css, providers
+├── app/                  маршруты (App Router) + layout, globals.css, providers; /dev/* — dev-инструменты
 ├── components/ui/        примитивы поверх Radix + feedback (Skeleton/EmptyState/ErrorState)
+├── components/domain/    доменные блоки (донат, лента, профиль, графики, модерация, standing)
 ├── components/layout/    шапка, сайдбар студии, обёртки страниц
+├── server/               серверная сторона: стор, Postgres (db/store-db), индексер, auth, RPC-рантайм
 └── lib/
+    ├── chain/            Solana: адреса/конфиг, сборка донат-tx, индексер
+    ├── reputation.ts     чистый движок репутации (свёртка журнала → очки, тиры)
     ├── utils.ts          cn + деньги (toMicro/fromMicro/formatUSDC) + адреса
-    └── data/             DataProvider (интерфейс, mock, контекст useData, хуки), типы (data-model)
+    └── data/             DataProvider: интерфейс + mock/api/chain, контекст useData, хуки, типы
 ```
