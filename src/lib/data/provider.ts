@@ -77,6 +77,8 @@ export interface DataProvider {
   getChannelBlocklist(channelId: string): Result<ChannelBlock[]>;
   addChannelBlock(channelId: string, address: Address, reason?: string): Result<ChannelBlock>;
   removeChannelBlock(channelId: string, address: Address): Result<void>;
+  // Донор: заблокирован ли Я на этом канале (+причина) — для плашки в карточке доната.
+  getMyChannelBlock(channelId: string): Result<ChannelBlock | null>;
 
   // — Оператор / T&S (платформенный уровень) —
   getOperatorQueue(): Result<IncidentLog[]>;

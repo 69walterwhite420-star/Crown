@@ -184,6 +184,9 @@ export class ApiDataProvider implements DataProvider {
   removeChannelBlock(channelId: string, address: Address): Result<void> {
     return this.rpc("removeChannelBlock", [channelId, address]);
   }
+  getMyChannelBlock(channelId: string): Result<ChannelBlock | null> {
+    return this.rpc("getMyChannelBlock", [channelId]);
+  }
 
   // — Оператор / T&S —
   getOperatorQueue(): Result<IncidentLog[]> {

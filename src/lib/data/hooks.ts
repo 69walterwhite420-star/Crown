@@ -112,6 +112,15 @@ export function useChannelBlocklist(channelId: string | undefined) {
     enabled: Boolean(channelId),
   });
 }
+/** Донор: мой блок на этом канале (+причина) — для плашки в карточке доната. Ключ скоупим адресом. */
+export function useMyBlock(channelId: string | undefined, address: Address | null | undefined) {
+  const data = useData();
+  return useQuery({
+    queryKey: ["myBlock", channelId ?? "", address ?? ""],
+    queryFn: () => data.getMyChannelBlock(channelId!),
+    enabled: Boolean(channelId && address),
+  });
+}
 export function useOperatorQueue() {
   const data = useData();
   return useQuery({ queryKey: qk.operatorQueue(), queryFn: () => data.getOperatorQueue() });

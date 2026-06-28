@@ -60,6 +60,7 @@ const ALLOWED = new Set<string>([
   "setMessageState",
   "reportMessage",
   "getChannelBlocklist",
+  "getMyChannelBlock",
   "addChannelBlock",
   "removeChannelBlock",
   "getOperatorQueue",

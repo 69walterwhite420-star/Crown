@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { useDonate } from "@/lib/data/hooks";
+import { useDonate, useMyBlock } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { cn, formatPoints, plural, toMicro } from "@/lib/utils";
 import type {
@@ -70,7 +70,10 @@ export function DonateWidget({
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<DonationResult | null>(null);
+  const [blockDismissed, setBlockDismissed] = useState(false);
   const donate = useDonate(channel.id);
+  // Заблокирован ли донор на этом канале (для плашки): свой блок + причина.
+  const myBlock = useMyBlock(channel.id, session.address).data;
   // Баланс USDC кошелька кладёт в кэш HeaderBalance (chain-режим). Здесь только ПОДПИСЫВАЕМСЯ на тот же ключ
   // (enabled:false — свой запрос не шлём). В mock/api ключа нет → balance остаётся undefined и проверка не
   // применяется. Не тянем wallet-adapter в общий бандл.
@@ -145,6 +148,29 @@ export function DonateWidget({
         </>
       ) : (
         <>
+      {/* Плашка для заблокированного донора: за что и что заблокирован; крестик скрывает её. */}
+      {myBlock && !blockDismissed ? (
+        <div className="flex items-start gap-2 rounded-lg border border-danger bg-danger-bg p-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-small font-medium text-danger">
+              Ты заблокирован на этом канале
+            </span>
+            <span className="text-small text-fg-muted">
+              Донаты с сообщением сюда не проходят
+              {myBlock.reason ? <> · причина: {myBlock.reason}</> : null}. Задонатить без текста можно.
+            </span>
+          </div>
+          <button
+            type="button"
+            aria-label="Скрыть"
+            onClick={() => setBlockDismissed(true)}
+            className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
+
       {/* Моё standing + живой предпросмотр: ввёл сумму → число катится к прогнозу, полоска тянется. */}
       <StandingHeadline standing={standing} tiers={config.tiers} gain={gain} loading={standingLoading} />
 

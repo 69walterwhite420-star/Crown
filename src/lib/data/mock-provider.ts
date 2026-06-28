@@ -981,6 +981,13 @@ export class MockDataProvider implements DataProvider {
     this.requireChannelManager(channelId);
     return this.blocks.filter((b) => b.channelId === channelId);
   }
+  /** Донор: МОЙ блок на этом канале (+причина) — для плашки в карточке доната. Видит только свой блок. */
+  async getMyChannelBlock(channelId: string): Result<ChannelBlock | null> {
+    await this.gate("getMyChannelBlock");
+    const donor = this.session().address;
+    if (!donor) return null;
+    return this.blocks.find((b) => b.channelId === channelId && b.blockedAddress === donor) ?? null;
+  }
   async addChannelBlock(
     channelId: string,
     address: Address,

@@ -419,6 +419,9 @@ export class ChainDataProvider implements DataProvider {
   removeChannelBlock(id: string, a: Address): Result<void> {
     return this.api.removeChannelBlock(id, a);
   }
+  getMyChannelBlock(id: string): Result<ChannelBlock | null> {
+    return this.api.getMyChannelBlock(id);
+  }
   getOperatorQueue(): Result<IncidentLog[]> {
     return this.api.getOperatorQueue();
   }
