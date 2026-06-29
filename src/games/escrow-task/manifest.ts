@@ -10,6 +10,6 @@ export const escrowTask: GameModule = {
   title: "Задания за донат",
   tagline:
     "Донат с заданием в эскроу: стример выполняет, комьюнити проверяет, иначе — возврат донору.",
-  status: "building",
+  status: "available",
   specDoc: "docs/games/escrow-task-spec.md",
 };

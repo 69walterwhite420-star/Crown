@@ -5,6 +5,7 @@ import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { TierLadder } from "@/components/domain/standing";
+import { ChannelGames } from "@/games/ChannelGames";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -98,6 +99,9 @@ export default function ChannelPage() {
                   <TabsTrigger value="feed">Лента</TabsTrigger>
                   <TabsTrigger value="donations">Донаты</TabsTrigger>
                   <TabsTrigger value="tiers">Тиры</TabsTrigger>
+                  {(configQ.data?.enabledGames?.length ?? 0) > 0 ? (
+                    <TabsTrigger value="games">Игры</TabsTrigger>
+                  ) : null}
                 </TabsList>
 
                 <TabsContent value="feed">
@@ -135,6 +139,16 @@ export default function ChannelPage() {
                     <Skeleton className="h-40 w-full" />
                   )}
                 </TabsContent>
+
+                {(configQ.data?.enabledGames?.length ?? 0) > 0 ? (
+                  <TabsContent value="games">
+                    <ChannelGames
+                      channelId={channel.id}
+                      ownerAddress={channel.ownerAddress}
+                      enabledGames={configQ.data!.enabledGames}
+                    />
+                  </TabsContent>
+                ) : null}
               </Tabs>
             </div>
           </div>
