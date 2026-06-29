@@ -18,3 +18,7 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 [dependencies]
 anchor-lang = "0.31.1"
 anchor-spl = "0.31.1"
+# ВРЕМЕННЫЙ пин: platform-tools (Solana SBF) на Rust 1.79 не умеет edition2024, а cpufeatures ≥0.3.0
+# его требует. Держим транзитивную зависимость на ветке 0.2.x. Убрать, когда platform-tools обновится
+# до Rust ≥1.85 (тогда пин может, наоборот, мешать). См. переписку по сборке G3a.
+cpufeatures = ">=0.2, <0.3"
