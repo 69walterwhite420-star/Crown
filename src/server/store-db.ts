@@ -405,6 +405,22 @@ export async function loadReports(db: PGlite): Promise<ReportRecord[]> {
   }));
 }
 
+// ───────────────────────── game_state (мини-игры, ADR 0016) ─────────────────────────
+export async function saveGameState(db: PGlite, gameState: [string, unknown][]): Promise<void> {
+  for (const [gameId, state] of gameState) {
+    await db.query(
+      `INSERT INTO game_state (game_id, state) VALUES ($1,$2)
+       ON CONFLICT (game_id) DO UPDATE SET state=$2`,
+      [gameId, JSON.stringify(state)],
+    );
+  }
+}
+
+export async function loadGameState(db: PGlite): Promise<[string, unknown][]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM game_state");
+  return r.rows.map((row) => [row.game_id as string, asJson(row.state, {})]);
+}
+
 export async function saveSeq(db: PGlite, seq: number): Promise<void> {
   await db.query(
     `INSERT INTO meta (key, value) VALUES ('seq', $1) ON CONFLICT (key) DO UPDATE SET value=$1`,
@@ -453,6 +469,7 @@ export async function loadStore(): Promise<StoreSnapshot | null> {
   const incidents = await loadIncidents(db);
   const operatorActions = await loadOperatorActions(db);
   const reports = await loadReports(db);
+  const gameState = await loadGameState(db);
   const seq = await loadSeq(db);
 
   const byDonation = new Map<string, MessageRef>();
@@ -475,6 +492,7 @@ export async function loadStore(): Promise<StoreSnapshot | null> {
     operatorActions,
     modCache: [],
     reports,
+    gameState,
     seq,
   };
 }
@@ -499,6 +517,7 @@ export async function saveStore(snap: StoreSnapshot): Promise<void> {
   await saveOperatorActions(db, snap.operatorActions);
   await saveIncidents(db, snap.incidents);
   await saveReports(db, snap.reports);
+  await saveGameState(db, snap.gameState);
   await saveSeq(db, snap.seq);
   await db.query(
     "INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING",

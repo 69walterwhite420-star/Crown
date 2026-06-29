@@ -169,5 +169,11 @@ async function ensureSchema(db: PGlite): Promise<void> {
       key   text PRIMARY KEY,
       value text NOT NULL
     );
+
+    -- Состояние мини-игр: gameId → непрозрачный слайс (форму владеет сама игра; ADR 0016).
+    CREATE TABLE IF NOT EXISTS game_state (
+      game_id text PRIMARY KEY,
+      state   jsonb NOT NULL
+    );
   `);
 }

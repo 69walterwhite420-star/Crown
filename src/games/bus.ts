@@ -14,17 +14,37 @@ export interface GameStateSlice {
 }
 
 /**
- * Контекст, который шина даёт обработчику. Намеренно узкий; расширяется по мере нужд игр (ядровые чтения и
- * запись в журнал репутации — на G1.3, когда у escrow-task появятся реальные операции; ADR 0015).
+ * Запись в журнал репутации от игры (ADR 0015). Провайдер банкует её как `LedgerEvent` на канале `channelId`
+ * контекста. `address` — чьей репутации касается (донор/инициатор спора). Деньги-провенанс — строкой micro.
+ */
+export interface GameLedgerEntry {
+  address: string;
+  type: "DONATION" | "GAME" | "DISPUTE_WON" | "DISPUTE_LOST" | "REFUND";
+  pointsDelta: number;
+  amount?: string;
+}
+
+/**
+ * Контекст, который шина даёт обработчику: личность, канал, время, генератор id, свой слайс состояния и
+ * УЗКИЕ мостики в ядро (репутация на момент + запись в журнал; ADR 0015). Провайдер реализует мостики —
+ * обработчик игры остаётся над ядром и не лезет в стор напрямую.
  */
 export interface GameContext {
   /** Проверенный адрес вызывающего (или null, если не вошёл). */
   identity: string | null;
   channelId: string;
+  /** Владелец канала (стример) — для авторизации действий вроде «Принять»/«Готово». */
+  channelOwner: string | null;
   /** ISO-таймстамп «сейчас» от стора (детерминируемо в тестах через подмену). */
   now: () => string;
+  /** Новый уникальный id (для создаваемых сущностей игры). */
+  newId: () => string;
   /** Состояние этой игры (непрозрачный для ядра слайс). */
   state: GameStateSlice;
+  /** Вес = очки репутации адреса в этом канале на момент `asOf` (снэпшот; computePointsAsOf). */
+  reputationAsOf: (address: string, asOf: string) => number;
+  /** Забанковать эффекты на репутацию в журнал канала (ADR 0015). */
+  bankLedger: (entries: GameLedgerEntry[]) => void;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

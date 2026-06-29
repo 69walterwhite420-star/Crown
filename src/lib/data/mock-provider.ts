@@ -1,8 +1,8 @@
 import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
-import { computePoints, pointsForAmount, resolveTier } from "../reputation";
+import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
-import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games/bus";
+import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
 import { resolveAutoModerator, runPipeline } from "./moderation";
 import {
@@ -102,6 +102,7 @@ export interface StoreSnapshot {
   operatorActions: OperatorAction[];
   modCache: [string, ModerationVerdict][];
   reports: ReportRecord[];
+  gameState: [string, unknown][]; // состояние мини-игр (gameId → непрозрачный слайс; ADR 0016)
   seq: number;
 }
 
@@ -127,7 +128,7 @@ export class MockDataProvider implements DataProvider {
   private seq = 0;
   private modCache = new Map<string, ModerationVerdict>();
   // Состояние мини-игр: непрозрачный для ядра слайс на каждую игру (форму владеет сама игра; ADR 0016).
-  // В снимок/БД пока НЕ входит — персистентность состояния игр придёт с реальными операциями (G1.3).
+  // Входит в снимок и БД (таблица game_state) — переживает рестарт, как и остальной стор.
   private gameState = new Map<string, unknown>();
 
   // — Инфраструктура —
@@ -306,6 +307,7 @@ export class MockDataProvider implements DataProvider {
       operatorActions: this.operatorActions,
       modCache: [...this.modCache.entries()],
       reports: this.reports,
+      gameState: [...this.gameState.entries()],
       seq: this.seq,
     };
   }
@@ -322,6 +324,7 @@ export class MockDataProvider implements DataProvider {
     this.operatorActions = s.operatorActions ?? [];
     this.modCache = new Map(s.modCache ?? []);
     this.reports = s.reports ?? [];
+    this.gameState = new Map(s.gameState ?? []);
     this.seq = s.seq ?? 0;
   }
 
@@ -1130,10 +1133,29 @@ export class MockDataProvider implements DataProvider {
     const ctx: GameContext = {
       identity: this.currentAddress(),
       channelId: req.channelId,
+      channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
       now: () => this.now(),
+      newId: () => this.nextId("game"),
       state: {
         get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
         set: (value: unknown) => this.gameState.set(req.gameId, value),
+      },
+      // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала.
+      reputationAsOf: (address, asOf) =>
+        computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
+      bankLedger: (entries) => {
+        for (const e of entries) {
+          this.ledger.push({
+            id: this.nextId("gl"),
+            donor: e.address,
+            creator: req.channelId,
+            type: e.type as LedgerEvent["type"],
+            amount: BigInt(e.amount ?? "0"),
+            pointsDelta: e.pointsDelta,
+            configVersion: cfg.version,
+            ts: this.now(),
+          });
+        }
       },
     };
     try {

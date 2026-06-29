@@ -13,13 +13,17 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
   return {
     identity: "Donor111",
     channelId: "chan-1",
+    channelOwner: "Streamer1",
     now: () => "2026-01-01T00:00:00.000Z",
+    newId: () => "id-1",
     state: {
       get: <T = unknown>() => slice as T | undefined,
       set: (v: unknown) => {
         slice = v;
       },
     },
+    reputationAsOf: () => 0,
+    bankLedger: () => {},
     ...overrides,
   };
 }
