@@ -1,0 +1,20 @@
+[package]
+name = "escrow-task"
+version = "0.1.0"
+edition = "2021"
+description = "Non-custodial escrow program for the escrow-task mini-game (Standing) — G3a devnet"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "escrow_task"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.1"
+anchor-spl = "0.31.1"
