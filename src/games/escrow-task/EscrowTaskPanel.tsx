@@ -10,8 +10,8 @@ import { toast } from "@/components/ui/toast";
 import { useSession } from "@/lib/data/hooks";
 import { toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
-import { dueResolution } from "./machine";
-import type { EscrowTask } from "./types";
+import { dueResolution, tally } from "./machine";
+import type { EscrowTask, TaskDispute } from "./types";
 
 /**
  * Экран мини-игры «задание-донат» на странице канала (G1.4). Ролевой: показывает действия по состоянию
@@ -188,11 +188,7 @@ function TaskCard({
           По времени готово к разрешению: {outcomeLabel(due.outcome)}.
         </p>
       ) : null}
-      {task.status === "DISPUTED" && task.dispute ? (
-        <p className="text-small text-fg-faint">
-          Голосов: {task.dispute.votes.length} · вес считается по репутации на момент спора.
-        </p>
-      ) : null}
+      {task.dispute ? <DisputeTally dispute={task.dispute} /> : null}
 
       {/* Действия по роли и состоянию */}
       <div className="flex flex-wrap items-center gap-2">
@@ -286,6 +282,88 @@ function TaskCard({
             Забрать
           </Button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Визуализация голосования по спору: полоса весов «выполнил» vs «не выполнил» (вес = очки репутации на
+ * момент спора), сколько очков и голосов за каждую сторону, прогресс к кворуму и текущий лидер (tally).
+ */
+function DisputeTally({ dispute }: { dispute: TaskDispute }) {
+  let completed = 0;
+  let not = 0;
+  let cVotes = 0;
+  let nVotes = 0;
+  for (const v of dispute.votes) {
+    if (v.choice === "completed") {
+      completed += v.weight;
+      cVotes += 1;
+    } else {
+      not += v.weight;
+      nVotes += 1;
+    }
+  }
+  const total = completed + not;
+  const cPct = total > 0 ? (completed / total) * 100 : 50;
+  const quorumMet = total >= dispute.quorum;
+  const lead = tally(dispute); // текущий проектируемый исход
+
+  const Side = ({
+    label,
+    points,
+    votes,
+    color,
+    align,
+  }: {
+    label: string;
+    points: number;
+    votes: number;
+    color: string;
+    align: "left" | "right";
+  }) => (
+    <div className={`flex flex-col ${align === "right" ? "items-end" : "items-start"}`}>
+      <span className="text-small" style={{ color }}>
+        {label}
+      </span>
+      <span className="mono text-small text-fg">
+        {points} {points === 1 ? "очко" : "очков"}
+      </span>
+      <span className="text-caption text-fg-faint">{votes} голос(ов)</span>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border bg-[var(--bg)] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <Side
+          label="Выполнил"
+          points={completed}
+          votes={cVotes}
+          color="var(--money)"
+          align="left"
+        />
+        <Side label="Не выполнил" points={not} votes={nVotes} color="var(--danger)" align="right" />
+      </div>
+      {/* Полоса весов */}
+      <div className="flex h-2 overflow-hidden rounded-pill bg-surface-raised">
+        <div style={{ width: `${cPct}%`, backgroundColor: "var(--money)" }} />
+        <div style={{ width: `${100 - cPct}%`, backgroundColor: "var(--danger)" }} />
+      </div>
+      <div className="text-caption flex flex-wrap items-center justify-between gap-x-3 text-fg-faint">
+        <span className="mono">
+          вес {total} / кворум {dispute.quorum}
+          {quorumMet ? "" : " · кворум не собран"}
+        </span>
+        <span>
+          сейчас ведёт:{" "}
+          <span
+            style={{ color: lead.outcome === "to_streamer" ? "var(--money)" : "var(--danger)" }}
+          >
+            {lead.outcome === "to_streamer" ? "стримеру" : "возврат донору"}
+          </span>
+        </span>
       </div>
     </div>
   );
