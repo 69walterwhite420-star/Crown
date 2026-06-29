@@ -20,16 +20,9 @@ import type { EscrowTask, TaskDispute } from "./types";
 // Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
 const PRESETS = [5, 10, 25, 100];
 
-// Варианты срока на выполнение (в пределах коридора движка). Донор выбирает, сколько у стримера времени.
+// Срок на выполнение донор вписывает вручную (число + единица), потолок — 3 месяца (WINDOWS.executionMax).
 const H = 3_600_000;
-const DEADLINES = [
-  { ms: H, label: "1 час" },
-  { ms: 6 * H, label: "6 часов" },
-  { ms: 12 * H, label: "12 часов" },
-  { ms: 24 * H, label: "1 день" },
-  { ms: 3 * 24 * H, label: "3 дня" },
-  { ms: 7 * 24 * H, label: "7 дней" },
-];
+const DAY = 24 * H;
 
 /** Человеческое «осталось …» до момента iso (для таймера дедлайна на карточке). */
 function until(iso: string): string {
@@ -109,12 +102,24 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   const { run, pending } = useRun(channelId);
   const [amount, setAmount] = useState("");
   const [text, setText] = useState("");
-  const [deadlineMs, setDeadlineMs] = useState(WINDOWS.executionDefault); // срок выполнения, задаёт донор
+  // Срок выполнения задаёт донор вручную: число + единица (часы/дни). По умолчанию — 1 день.
+  const [dlValue, setDlValue] = useState("1");
+  const [dlUnit, setDlUnit] = useState<"h" | "d">("d");
 
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
   const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // предпросмотр прибавки очков
-  const valid = amountValid && text.trim().length > 0;
+
+  const dlNum = Number(dlValue);
+  const deadlineMs = dlNum * (dlUnit === "h" ? H : DAY);
+  const deadlineValid =
+    dlValue !== "" &&
+    Number.isInteger(dlNum) &&
+    deadlineMs >= WINDOWS.executionMin &&
+    deadlineMs <= WINDOWS.executionMax;
+  const deadlineError =
+    dlValue !== "" && !deadlineValid ? "Срок: от 1 часа до 3 месяцев" : undefined;
+  const valid = amountValid && text.trim().length > 0 && deadlineValid;
 
   function create() {
     if (!valid) return;
@@ -184,20 +189,30 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           />
 
           <div className="flex flex-col gap-1">
-            <Select
-              label="Срок на выполнение"
-              value={String(deadlineMs)}
-              onChange={(e) => setDeadlineMs(Number(e.target.value))}
-              className="bg-[var(--bg)]"
-            >
-              {DEADLINES.map((d) => (
-                <option key={d.ms} value={d.ms}>
-                  {d.label}
-                </option>
-              ))}
-            </Select>
+            <span className="text-small text-fg-muted">Срок на выполнение</span>
+            <div className="flex items-start gap-2">
+              <Input
+                mono
+                inputMode="numeric"
+                placeholder="1"
+                value={dlValue}
+                onChange={(e) => setDlValue(e.target.value.replace(/[^\d]/g, ""))}
+                error={deadlineError}
+                className="flex-1 bg-[var(--bg)]"
+              />
+              <Select
+                value={dlUnit}
+                onChange={(e) => setDlUnit(e.target.value as "h" | "d")}
+                aria-label="Единица срока"
+                className="w-28 bg-[var(--bg)]"
+              >
+                <option value="h">часов</option>
+                <option value="d">дней</option>
+              </Select>
+            </div>
             <p className="text-caption text-fg-faint">
-              Сколько у стримера времени после принятия. Не успел — донат вернётся тебе.
+              Сколько у стримера времени после принятия (до 3 месяцев). Не успел — донат вернётся
+              тебе.
             </p>
           </div>
 
