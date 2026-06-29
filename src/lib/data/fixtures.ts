@@ -14,7 +14,13 @@ export const TIER_DESC_MAX = 140;
 // — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2) —
 export const DEFAULT_TIERS: Tier[] = [
   { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },
-  { name: "Свой", threshold: 500, color: "#7FA7C9", badge: "regular", perks: [{ label: "Цветной ник" }] },
+  {
+    name: "Свой",
+    threshold: 500,
+    color: "#7FA7C9",
+    badge: "regular",
+    perks: [{ label: "Цветной ник" }],
+  },
   {
     name: "Постоянный",
     threshold: 5_000,
@@ -22,7 +28,13 @@ export const DEFAULT_TIERS: Tier[] = [
     badge: "frequent",
     perks: [{ label: "Эмодзи в чате" }],
   },
-  { name: "VIP", threshold: 50_000, color: "#C9A24B", badge: "vip", perks: [{ label: "Приоритет алерта" }] },
+  {
+    name: "VIP",
+    threshold: 50_000,
+    color: "#C9A24B",
+    badge: "vip",
+    perks: [{ label: "Приоритет алерта" }],
+  },
   {
     name: "Легенда",
     threshold: 200_000,
@@ -45,6 +57,7 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     nameMode: "addresses_only",
     textShowMode: "manual",
     moderators: [],
+    enabledGames: [], // мини-игры по умолчанию выключены (cold-start; ADR 0016)
     updatedAt: new Date().toISOString(),
   };
 }

@@ -92,6 +92,10 @@ export interface ChannelConfig {
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
   moderators: ModeratorRef[];
+  /** Включённые на канале мини-игры — id из реестра `src/games` (ADR 0016). По умолчанию пусто: стример
+   *  включает игру, когда комьюнити созрело (cold-start, спека игры §8). Хранится как непрозрачные строки —
+   *  ядро про конкретные игры не знает; валидация id — на слое игр (game-bus, G1.2). */
+  enabledGames: string[];
   updatedAt: Iso;
 }
 
@@ -311,5 +315,6 @@ export type ConfigPatch = Partial<
     | "nameMode"
     | "textShowMode"
     | "moderators"
+    | "enabledGames"
   >
 >;

@@ -78,11 +78,12 @@ export async function saveConfigs(
       await db.query(
         `INSERT INTO channel_configs
            (channel_id, version, hash, description, tiers, min_donation, min_donation_with_text,
-            message_max_len, name_mode, text_show_mode, moderators, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            message_max_len, name_mode, text_show_mode, moderators, enabled_games, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          ON CONFLICT (channel_id, version) DO UPDATE SET
            hash=$3, description=$4, tiers=$5, min_donation=$6, min_donation_with_text=$7,
-           message_max_len=$8, name_mode=$9, text_show_mode=$10, moderators=$11, updated_at=$12`,
+           message_max_len=$8, name_mode=$9, text_show_mode=$10, moderators=$11, enabled_games=$12,
+           updated_at=$13`,
         [
           cfg.channelId,
           cfg.version,
@@ -95,6 +96,7 @@ export async function saveConfigs(
           cfg.nameMode,
           cfg.textShowMode,
           JSON.stringify(cfg.moderators),
+          JSON.stringify(cfg.enabledGames ?? []),
           cfg.updatedAt,
         ],
       );
@@ -120,6 +122,7 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
       nameMode: row.name_mode as ChannelConfig["nameMode"],
       textShowMode: row.text_show_mode as ChannelConfig["textShowMode"],
       moderators: asJson(row.moderators, []),
+      enabledGames: asJson(row.enabled_games, []),
       updatedAt: toIso(row.updated_at),
     };
     const arr = m.get(cfg.channelId);
@@ -130,16 +133,19 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
 }
 
 // ───────────────────────── light_profiles ─────────────────────────
-export async function saveProfiles(
-  db: PGlite,
-  profiles: Map<string, LightProfile>,
-): Promise<void> {
+export async function saveProfiles(db: PGlite, profiles: Map<string, LightProfile>): Promise<void> {
   for (const p of profiles.values()) {
     await db.query(
       `INSERT INTO light_profiles (address, display_name, avatar_url, bio, links)
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (address) DO UPDATE SET display_name=$2, avatar_url=$3, bio=$4, links=$5`,
-      [p.address, p.displayName ?? null, p.avatarUrl ?? null, p.bio ?? null, JSON.stringify(p.links ?? [])],
+      [
+        p.address,
+        p.displayName ?? null,
+        p.avatarUrl ?? null,
+        p.bio ?? null,
+        JSON.stringify(p.links ?? []),
+      ],
     );
   }
 }
@@ -167,7 +173,17 @@ export async function saveLedger(db: PGlite, ledger: LedgerEvent[]): Promise<voi
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (id) DO UPDATE SET
          donor=$2, creator=$3, type=$4, amount=$5, points_delta=$6, config_version=$7, tx_signature=$8, ts=$9`,
-      [e.id, e.donor, e.creator, e.type, String(e.amount), e.pointsDelta, e.configVersion, e.txSignature ?? null, e.ts],
+      [
+        e.id,
+        e.donor,
+        e.creator,
+        e.type,
+        String(e.amount),
+        e.pointsDelta,
+        e.configVersion,
+        e.txSignature ?? null,
+        e.ts,
+      ],
     );
   }
 }
@@ -338,7 +354,16 @@ export async function saveIncidents(db: PGlite, incidents: IncidentLog[]): Promi
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (id) DO UPDATE SET
          channel_id=$2, address=$3, kind=$4, detail=$5, text=$6, resolution=$7, ts=$8`,
-      [i.id, i.channelId ?? null, i.address ?? null, i.kind, i.detail, i.text ?? null, i.resolution ?? null, i.ts],
+      [
+        i.id,
+        i.channelId ?? null,
+        i.address ?? null,
+        i.kind,
+        i.detail,
+        i.text ?? null,
+        i.resolution ?? null,
+        i.ts,
+      ],
     );
   }
 }
@@ -401,10 +426,10 @@ export async function getMeta(key: string): Promise<string | null> {
 
 export async function setMeta(key: string, value: string): Promise<void> {
   const db = await getDb();
-  await db.query("INSERT INTO meta (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", [
-    key,
-    value,
-  ]);
+  await db.query(
+    "INSERT INTO meta (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+    [key, value],
+  );
 }
 
 // ───────────────────────── сборка целого снимка ↔ Postgres ─────────────────────────
@@ -460,7 +485,10 @@ export async function loadStore(): Promise<StoreSnapshot | null> {
  */
 export async function saveStore(snap: StoreSnapshot): Promise<void> {
   const db = await getDb();
-  await saveChannels(db, snap.channelsById.map(([, c]) => c));
+  await saveChannels(
+    db,
+    snap.channelsById.map(([, c]) => c),
+  );
   await saveConfigs(db, new Map(snap.configsByChannel));
   await saveProfiles(db, new Map(snap.profiles));
   await saveLedger(db, snap.ledger);
@@ -472,5 +500,7 @@ export async function saveStore(snap: StoreSnapshot): Promise<void> {
   await saveIncidents(db, snap.incidents);
   await saveReports(db, snap.reports);
   await saveSeq(db, snap.seq);
-  await db.query("INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING");
+  await db.query(
+    "INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING",
+  );
 }

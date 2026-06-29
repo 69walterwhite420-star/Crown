@@ -71,9 +71,12 @@ async function ensureSchema(db: PGlite): Promise<void> {
       name_mode              text NOT NULL,
       text_show_mode         text NOT NULL,
       moderators             jsonb NOT NULL DEFAULT '[]',
+      enabled_games          jsonb NOT NULL DEFAULT '[]',
       updated_at             timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (channel_id, version)
     );
+    -- Миграция для уже созданных БД (CREATE TABLE IF NOT EXISTS не добавит колонку): включённые мини-игры.
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS enabled_games jsonb NOT NULL DEFAULT '[]';
 
     -- Журнал репутации — append-only источник истины.
     CREATE TABLE IF NOT EXISTS ledger_events (
