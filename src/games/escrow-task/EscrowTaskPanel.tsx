@@ -3,16 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Amount } from "@/components/domain/amount";
+import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { useSession } from "@/lib/data/hooks";
+import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
+import { pointsForAmount } from "@/lib/reputation";
 import { toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
+
+// Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
+const PRESETS = [5, 10, 25, 100];
 
 /**
  * UI мини-игры «задание-донат», две поверхности (ADR 0016 / редизайн раздела игр на канале):
@@ -61,21 +66,89 @@ function useRun(channelId: string): { run: Run; pending: boolean } {
 
 export function EscrowTaskRail({ channelId }: GameProps) {
   const viewer = useSession().data?.address ?? null;
+  const config = useChannelConfig(channelId).data;
+  const standingQ = useStanding(channelId, viewer);
   const { run, pending } = useRun(channelId);
+  const [amount, setAmount] = useState("");
+  const [text, setText] = useState("");
+
+  const num = Number(amount);
+  const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
+  const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // предпросмотр прибавки очков
+  const valid = amountValid && text.trim().length > 0;
+
+  function create() {
+    if (!valid) return;
+    run("create", { amount: toMicro(num).toString(), text: text.trim() }, "Задание создано");
+    setAmount("");
+    setText("");
+  }
+
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
-      <h3 className="text-h3 text-fg">Задание-донат</h3>
-      {viewer ? (
-        <CreateForm
-          pending={pending}
-          onCreate={(amount, text) => run("create", { amount, text }, "Задание создано")}
-        />
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
+      {!viewer ? (
+        <>
+          <h3 className="text-h3 text-fg">Задание-донат</h3>
+          <p className="text-small text-fg-muted">Подключи кошелёк, чтобы создать задание.</p>
+        </>
       ) : (
-        <p className="text-small text-fg-muted">Подключи кошелёк, чтобы создать задание.</p>
+        <>
+          {/* Та же карточка standing, что и у обычного доната: живой предпросмотр прибавки очков. */}
+          <StandingHeadline
+            standing={standingQ.data}
+            tiers={config?.tiers ?? []}
+            gain={gain}
+            loading={standingQ.isLoading}
+          />
+
+          <div className="border-t border-border" />
+
+          <h3 className="text-h3 text-fg">Задание-донат</h3>
+
+          <div className="flex flex-col gap-2">
+            <Input
+              label="Сумма, USDC"
+              mono
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(",", "."))}
+              className="bg-[var(--bg)]"
+            />
+            <div className="grid grid-cols-4 gap-2">
+              {PRESETS.map((p) => (
+                <Button
+                  key={p}
+                  variant="secondary"
+                  size="sm"
+                  className="w-full bg-[var(--bg)]"
+                  onClick={() => setAmount(String(p))}
+                >
+                  ${p}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <Textarea
+            label="Задание"
+            placeholder="Что сделать стримеру…"
+            maxLength={280}
+            showCount
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="bg-[var(--bg)]"
+          />
+
+          <Button variant="money" disabled={!valid || pending} onClick={create}>
+            Создать задание
+          </Button>
+
+          <p className="text-small text-fg-faint">
+            Деньги «в эскроу» — пока имитируются (реальный ончейн-эскроу позже).
+          </p>
+        </>
       )}
-      <p className="text-small text-fg-faint">
-        Деньги «в эскроу» — пока имитируются (реальный ончейн-эскроу позже).
-      </p>
     </div>
   );
 }
@@ -157,50 +230,6 @@ function EscrowTaskRules() {
 }
 
 // ───────────────────────── переиспользуемые части ─────────────────────────
-
-function CreateForm({
-  onCreate,
-  pending,
-}: {
-  onCreate: (amount: string, text: string) => void;
-  pending: boolean;
-}) {
-  const [amount, setAmount] = useState("");
-  const [text, setText] = useState("");
-  const num = Number(amount);
-  const valid = amount !== "" && Number.isFinite(num) && num > 0 && text.trim().length > 0;
-  return (
-    <div className="flex flex-col gap-2">
-      <Input
-        label="Сумма, USDC"
-        mono
-        inputMode="decimal"
-        placeholder="0.00"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value.replace(",", "."))}
-      />
-      <Textarea
-        label="Задание"
-        placeholder="Что сделать стримеру…"
-        maxLength={280}
-        showCount
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <Button
-        variant="money"
-        disabled={!valid || pending}
-        onClick={() => {
-          onCreate(toMicro(num).toString(), text.trim());
-          setAmount("");
-          setText("");
-        }}
-      >
-        Создать задание
-      </Button>
-    </div>
-  );
-}
 
 function TaskCard({
   task,
