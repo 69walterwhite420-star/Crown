@@ -33,6 +33,7 @@
 | [`docs/data-model.md`](./docs/data-model.md) | Сущности, журнал репутации, версионирование конфига |
 | [`docs/legal-and-risk.md`](./docs/legal-and-risk.md) | Карта юридических рисков и инварианты |
 | [`docs/glossary.md`](./docs/glossary.md) | Глоссарий |
+| [`docs/games/escrow-task-spec.md`](./docs/games/escrow-task-spec.md) | Спека первой мини-игры «задание-донат» (v1.1) |
 | [`frontend/`](./frontend/) | Спека UI/UX (Фаза 1) |
 | [`backend/spec.md`](./backend/spec.md) | Бэкенд (Фаза 2) |
 | [`crypto/spec.md`](./crypto/spec.md) | Крипта (Фаза 3) |
