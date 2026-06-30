@@ -1119,19 +1119,20 @@ export class MockDataProvider implements DataProvider {
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
-  /** ESC-15: хвост очереди сериализации мутаций игры на канал (один на канал; бесконечного роста нет). */
+  /** ESC-15: хвост очереди сериализации мутаций игры по gameId (слайс игры один на ВСЕ каналы; рост ограничен). */
   private gameActionTails = new Map<string, Promise<void>>();
   /**
-   * Сериализует мутацию игры по каналу: следующая ждёт предыдущую. Закрывает гонку двойной банковки —
-   * фоновый сеттлер и пользовательский claim/settleDue не зайдут в `settle` по одному заданию одновременно
-   * (в `settle` есть `await` на RPC, который отдаёт event-loop между проверкой статуса и `bankLedger`).
+   * Сериализует мутацию игры по ключу очереди: следующая ждёт предыдущую. Ключ = `gameId`, потому что слайс
+   * состояния игры один на ВСЕ каналы (`gameState.get(gameId)`) — лок по каналу не спас бы от гонки между
+   * каналами (read→await(RPC)→write всего массива). Закрывает и двойную банковку, и потерю обновлений:
+   * фоновый сеттлер и пользовательские create/vote/claim/settleDue не перетрут общий слайс устаревшим снимком.
    */
-  private serializeGameAction<T>(channelId: string, run: () => Promise<T>): Promise<T> {
-    const prev = this.gameActionTails.get(channelId) ?? Promise.resolve();
+  private serializeGameAction<T>(key: string, run: () => Promise<T>): Promise<T> {
+    const prev = this.gameActionTails.get(key) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     this.gameActionTails.set(
-      channelId,
+      key,
       prev.then(() => gate),
     );
     return prev.catch(() => undefined).then(async () => {
@@ -1207,7 +1208,8 @@ export class MockDataProvider implements DataProvider {
         throw e;
       }
     };
-    // ESC-15: мутации игры сериализуем по каналу (гонка двойной банковки); чтения не мутируют — без очереди.
-    return kind === "action" ? this.serializeGameAction(req.channelId, exec) : exec();
+    // ESC-15: мутации игры сериализуем по gameId (слайс общий на все каналы — лок по каналу не спас бы от
+    // межканальной гонки/потери обновлений); чтения не мутируют — без очереди.
+    return kind === "action" ? this.serializeGameAction(req.gameId, exec) : exec();
   }
 }

@@ -304,7 +304,7 @@ export interface EscrowAccount {
   resolver: PublicKey;
   amount: bigint;
   executionWindow: bigint;
-  state: number; // 0 Pending,1 Accepted,2 Done,3 Resolved
+  state: number; // 0 Pending,1 Accepted,2 Done,3 Resolved,4 Disputed
   resolution: number; // 0 Unresolved,1 ToStreamer,2 ToDonor
   acceptDeadline: bigint;
   doneDeadline: bigint;

@@ -32,7 +32,7 @@ export const WINDOWS = FAST_TEST_WINDOWS
       accept: 3 * MIN,
       grace: 1 * MIN,
       executionDefault: 2 * MIN,
-      executionMin: 1 * MIN,
+      executionMin: 2 * MIN, // ESC-17: > grace, иначе окно mark_done (после грейса) вырождается
       executionMax: 90 * DAY,
       disputeWindow: 2 * MIN,
       voting: 2 * MIN,
@@ -41,7 +41,9 @@ export const WINDOWS = FAST_TEST_WINDOWS
       accept: 72 * HOUR, // не принят за это время → возврат донору
       grace: 2 * MIN, // окно отмены донором после принятия
       executionDefault: 24 * HOUR,
-      executionMin: 1 * MIN, // минимум — 1 минута (донор вписывает срок в минутах/часах/днях)
+      // ESC-17: минимальный срок сдачи ОБЯЗАН превышать грейс (иначе окно mark_done после грейса пустое/
+      // вырожденное → гарантированный no-show). Держим заметный запас над grace (2 мин).
+      executionMin: 5 * MIN,
       executionMax: 90 * DAY, // потолок срока выполнения — до 3 месяцев (донор вписывает число вручную)
       disputeWindow: 12 * HOUR, // от «Готово» — окно поднять спор
       voting: 24 * HOUR,

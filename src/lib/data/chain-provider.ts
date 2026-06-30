@@ -538,9 +538,10 @@ export class ChainDataProvider implements DataProvider {
         const channel = card ? await this.api.getChannel(card.handle) : null;
         if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
         const rawMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
-        // Клампим окно сдачи > грейса (паритет с machine.createTask и ончейн require execution_window >
-        // CANCEL_GRACE, ESC-17) — иначе fund ревертит. То же значение уходит в офчейн-create (без рассинхрона окон).
-        const executionMs = Math.max(rawMs, WINDOWS.grace + 1000);
+        // Клампим окно сдачи к executionMin (тот же пол, что и machine.createTask; executionMin > grace, ESC-17)
+        // — иначе fund ревертит на ончейн require, а офчейн-дедлайн разошёлся бы с ончейн done_deadline. То же
+        // значение уходит в офчейн-create → ончейн и зеркало согласованы.
+        const executionMs = Math.max(rawMs, WINDOWS.executionMin);
         const taskId = randomTaskId();
         const ix = await buildFundIx({
           programId,
