@@ -10,13 +10,11 @@
  * Платит кошелёк ~/.config/solana/id.json (он же донор); нужен devnet-SOL.
  */
 import {
-  createAssociatedTokenAccountInstruction,
   createMint,
   getAccount,
   getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
   mintTo,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   Connection,
@@ -24,12 +22,12 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import {
-  buildAcceptIx,
   buildClaimDonorIxs,
   buildClaimStreamerIxs,
   buildFundIx,
@@ -56,7 +54,12 @@ function randTaskId(): Uint8Array {
   for (let i = 0; i < 32; i++) a[i] = Math.floor(Math.random() * 256);
   return a;
 }
-async function send(conn: Connection, ixs: any[], payer: Keypair, signers: Keypair[]): Promise<string> {
+async function send(
+  conn: Connection,
+  ixs: TransactionInstruction[],
+  payer: Keypair,
+  signers: Keypair[],
+): Promise<string> {
   const tx = new Transaction().add(...ixs);
   tx.feePayer = payer.publicKey;
   return sendAndConfirmTransaction(conn, tx, [payer, ...signers], { commitment: "confirmed" });
@@ -97,7 +100,7 @@ async function main() {
   const escrow1 = escrowPda(PROGRAM_ID, t1);
   await send(conn, [await buildFundIx({ programId: PROGRAM_ID, donor: donor.publicKey, streamer: streamer.publicKey, treasury: treasury.publicKey, resolver: resolver.publicKey, mint, taskId: t1, amount: AMOUNT, executionWindow: EXEC_WINDOW })], payer, []);
   assert((await conn.getAccountInfo(escrow1)) !== null, "эскроу создан после fund");
-  await send(conn, [buildAcceptIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
+  // accept больше не ончейн (бесплатный оффчейн-шаг) → «Готово» сразу из Pending.
   await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
   // resolve_dispute импортируется отдельно
   const { buildResolveDisputeIx } = await import("../src/lib/chain/escrow-tx");

@@ -26,9 +26,9 @@ declare_id!("GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4");
 // — Протокольные константы (спека §10: окна/комиссия — НЕ рычаг донора) —
 const FEE_BPS: u64 = 300; // 3% с дошедшего доната (§13); на возврат донору комиссии нет (§6).
 const BPS_DENOM: u64 = 10_000;
-// ⚠️ ВРЕМЕННО (тест): короткие окна, чтобы прогонять цикл за минуты. ВЕРНУТЬ В ПРОД + РЕДЕПЛОЙ:
-//   ACCEPT_WINDOW = 72 * 60 * 60 (72ч), DISPUTE_WINDOW = 12 * 60 * 60 (12ч). Должны совпадать с machine.ts.
-const ACCEPT_WINDOW: i64 = 3 * 60; // ТЕСТ: 3 мин (прод: 72ч) — не принял → возврат (§6, §11)
+// ⚠️ ВРЕМЕННО (тест): короткое окно спора, чтобы прогонять цикл за минуты. ВЕРНУТЬ В ПРОД + РЕДЕПЛОЙ:
+//   DISPUTE_WINDOW = 12 * 60 * 60 (12ч). Должно совпадать с machine.ts. (Срок СДАЧИ задаёт донор при `fund`;
+//   отдельного окна «принятия» нет — `accept` стал бесплатным оффчейн-шагом.)
 const DISPUTE_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод: 12ч) — окно оспаривания от «Готово» (§10)
 const EXEC_WINDOW_MIN: i64 = 60; // коридор срока выполнения (паритет с мок-машиной machine.ts)
 const EXEC_WINDOW_MAX: i64 = 90 * 24 * 60 * 60; // ≈3 месяца
@@ -38,8 +38,8 @@ pub mod escrow_task {
     use super::*;
 
     /// Донор создаёт задание-донат: заводит эскроу-PDA + хранилище и переводит туда `amount` USDC.
-    /// `task_id` — 32-байтовый id задания (хэш game-bus id), `execution_window` — срок на выполнение
-    /// (донор предлагает в коридоре, гейтит стример «Принять»). Резолвер спора фиксируется здесь же.
+    /// `task_id` — 32-байтовый id задания (хэш game-bus id), `execution_window` — срок СДАЧИ (от создания;
+    /// не сдал → возврат). «Принять» — бесплатный оффчейн-шаг, на цепочке его нет. Резолвер фиксируется тут.
     pub fn fund(
         ctx: Context<Fund>,
         task_id: [u8; 32],
@@ -63,8 +63,8 @@ pub mod escrow_task {
         e.execution_window = execution_window;
         e.state = TaskState::Pending as u8;
         e.resolution = Resolution::Unresolved as u8;
-        e.accept_deadline = now + ACCEPT_WINDOW;
-        e.done_deadline = 0;
+        e.accept_deadline = 0; // не используется (accept — бесплатный оффчейн-шаг)
+        e.done_deadline = now + execution_window; // срок сдачи от создания: не сдал → возврат (no-show)
         e.dispute_deadline = 0;
         e.bump = ctx.bumps.escrow;
 
@@ -83,17 +83,6 @@ pub mod escrow_task {
         Ok(())
     }
 
-    /// Стример принимает задание (только владелец payout-адреса). Стартует срок выполнения (no-show).
-    pub fn accept(ctx: Context<StreamerAction>) -> Result<()> {
-        let now = Clock::get()?.unix_timestamp;
-        let e = &mut ctx.accounts.escrow;
-        require!(e.state == TaskState::Pending as u8, EscrowError::BadState);
-        require!(now <= e.accept_deadline, EscrowError::Expired);
-        e.state = TaskState::Accepted as u8;
-        e.done_deadline = now + e.execution_window;
-        Ok(())
-    }
-
     /// Стример отклоняет задание → возврат донору (деньги сохраняются, §6).
     pub fn reject(ctx: Context<StreamerAction>) -> Result<()> {
         let e = &mut ctx.accounts.escrow;
@@ -106,17 +95,21 @@ pub mod escrow_task {
         Ok(())
     }
 
-    /// Стример отмечает «Готово» → стартует окно оспаривания.
+    /// Стример отмечает «Готово» (из Pending — accept оффчейн; Accepted допускаем для старых эскроу) →
+    /// стартует окно оспаривания.
     pub fn mark_done(ctx: Context<StreamerAction>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
-        require!(e.state == TaskState::Accepted as u8, EscrowError::BadState);
+        require!(
+            e.state == TaskState::Pending as u8 || e.state == TaskState::Accepted as u8,
+            EscrowError::BadState
+        );
         e.state = TaskState::Done as u8;
         e.dispute_deadline = now + DISPUTE_WINDOW;
         Ok(())
     }
 
-    /// Донор отменяет до принятия (грейс) → возврат донору.
+    /// Донор отменяет до «Готово» → возврат донору.
     pub fn cancel(ctx: Context<DonorAction>) -> Result<()> {
         let e = &mut ctx.accounts.escrow;
         require!(e.state == TaskState::Pending as u8, EscrowError::BadState);
@@ -126,16 +119,15 @@ pub mod escrow_task {
     }
 
     /// Разрешение по таймауту — PERMISSIONLESS (вызывает кто угодно; решает блокчейн по часам, не оператор):
-    ///   * Pending и истёк accept → возврат донору (не приняли за 72ч);
-    ///   * Accepted и истёк срок выполнения → возврат донору (no-show);
+    ///   * Pending/Accepted и истёк срок сдачи → возврат донору (не сдал / no-show);
     ///   * Done и истекло окно спора → стримеру (спора не было).
     pub fn resolve_timeout(ctx: Context<ResolveTimeout>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
-        if e.state == TaskState::Pending as u8 && now > e.accept_deadline {
-            e.resolution = Resolution::ToDonor as u8;
-        } else if e.state == TaskState::Accepted as u8 && now > e.done_deadline {
-            e.resolution = Resolution::ToDonor as u8;
+        if (e.state == TaskState::Pending as u8 || e.state == TaskState::Accepted as u8)
+            && now > e.done_deadline
+        {
+            e.resolution = Resolution::ToDonor as u8; // не сдал в срок → возврат
         } else if e.state == TaskState::Done as u8 && now > e.dispute_deadline {
             e.resolution = Resolution::ToStreamer as u8;
         } else {

@@ -67,12 +67,14 @@ export interface CreateTaskInput {
 }
 
 export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
-  // Срок выполнения предлагает донор (в пределах коридора); применяется при принятии (отсчёт от accept).
+  // Срок СДАЧИ задаёт донор и он отсчитывается ОТ СОЗДАНИЯ (= ончейн done_deadline от `fund`). «Принять» —
+  // бесплатная оффчейн-пометка, отдельного окна принятия и сброса срока нет (упрощение UX, см. переписку).
   const proposed = clamp(
     input.executionMs ?? WINDOWS.executionDefault,
     WINDOWS.executionMin,
     WINDOWS.executionMax,
   );
+  const deliverBy = iso(nowMs + proposed);
   return {
     id: input.id,
     channelId: input.channelId,
@@ -81,7 +83,8 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
     text: input.text,
     proposedExecutionMs: proposed,
     createdAt: iso(nowMs),
-    acceptDeadline: iso(nowMs + WINDOWS.accept),
+    acceptDeadline: deliverBy, // = дедлайн сдачи (срок «не сдал → возврат»)
+    executionDeadline: deliverBy,
     status: "PENDING",
   };
 }
@@ -89,36 +92,34 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
 export function accept(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING")
     throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
-  if (nowMs > ms(task.acceptDeadline))
-    throw new GameBusError("ACCEPT_EXPIRED", "Срок принятия истёк — донат вернётся донору.");
+  if (nowMs > ms(task.executionDeadline ?? task.acceptDeadline))
+    throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
+  // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи задан при создании — не сбрасываем.
   return {
     ...task,
     status: "ACCEPTED",
     acceptedAt: iso(nowMs),
     graceUntil: iso(nowMs + WINDOWS.grace),
-    executionDeadline: iso(nowMs + task.proposedExecutionMs),
   };
 }
 
 export function reject(task: EscrowTask, nowMs: number): EscrowTask {
-  if (task.status !== "PENDING")
-    throw new GameBusError("NOT_PENDING", "Отклонить можно только ожидающее задание.");
+  if (task.status !== "PENDING" && task.status !== "ACCEPTED")
+    throw new GameBusError("NOT_OPEN", "Отклонить можно только до «Готово».");
   return applyResolution(task, { outcome: "to_donor", reason: "rejected" }, nowMs);
 }
 
 export function cancel(task: EscrowTask, nowMs: number): EscrowTask {
-  if (task.status !== "ACCEPTED")
-    throw new GameBusError("NOT_ACCEPTED", "Отмена доступна только сразу после принятия.");
-  if (nowMs > ms(task.graceUntil ?? task.createdAt))
-    throw new GameBusError("GRACE_OVER", "Окно отмены закрыто.");
+  if (task.status !== "PENDING" && task.status !== "ACCEPTED")
+    throw new GameBusError("NOT_OPEN", "Отменить можно только до «Готово».");
   return applyResolution(task, { outcome: "to_donor", reason: "canceled" }, nowMs);
 }
 
 export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
-  if (task.status !== "ACCEPTED")
-    throw new GameBusError("NOT_ACCEPTED", "Отметить «Готово» можно только принятое задание.");
+  if (task.status !== "PENDING" && task.status !== "ACCEPTED")
+    throw new GameBusError("NOT_OPEN", "Отметить «Готово» можно только до разрешения.");
   if (nowMs > ms(task.executionDeadline ?? task.createdAt))
-    throw new GameBusError("EXEC_OVER", "Срок выполнения истёк — донат вернётся донору (no-show).");
+    throw new GameBusError("EXEC_OVER", "Срок сдачи истёк — донат вернётся донору (no-show).");
   // Пруфа нет: у контентмейкеров доказательство — сам стрим/VOD, комьюнити его и так мониторит. «Готово» —
   // просто декларация, открывающая окно оспаривания; не сделано → комьюнити поднимает спор.
   return {

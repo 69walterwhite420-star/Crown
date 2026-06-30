@@ -123,9 +123,7 @@ function streamerAction(
     ],
   });
 }
-export function buildAcceptIx(programId: PublicKey, streamer: PublicKey, taskId: TaskId) {
-  return streamerAction(programId, streamer, escrowPda(programId, taskId), DISC.accept);
-}
+// accept больше не ончейн (бесплатный оффчейн-шаг) — билдера нет; DISC.accept оставлен для справки.
 export function buildRejectIx(programId: PublicKey, streamer: PublicKey, taskId: TaskId) {
   return streamerAction(programId, streamer, escrowPda(programId, taskId), DISC.reject);
 }

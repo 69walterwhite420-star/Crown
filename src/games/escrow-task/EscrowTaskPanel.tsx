@@ -56,7 +56,7 @@ function until(iso: string, now: number): string {
 function deadlineLabel(task: EscrowTask, now: number): string | null {
   switch (task.status) {
     case "PENDING":
-      return `Принять до · ${until(task.acceptDeadline, now)}`;
+      return `Сдать до · ${until(task.acceptDeadline, now)}`;
     case "ACCEPTED":
       return task.executionDeadline ? `Выполнить · ${until(task.executionDeadline, now)}` : null;
     case "DONE":

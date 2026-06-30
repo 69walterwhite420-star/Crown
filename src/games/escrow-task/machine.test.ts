@@ -50,32 +50,38 @@ function throwsCode(fn: () => unknown): string {
 }
 
 describe("создание и принятие", () => {
-  it("createTask → PENDING с дедлайном принятия и клампом срока", () => {
+  it("createTask → PENDING с дедлайном СДАЧИ (от создания) и клампом срока", () => {
     const t = newTask(999 * WINDOWS.executionMax); // выше потолка → клампится
     expect(t.status).toBe("PENDING");
     expect(t.proposedExecutionMs).toBe(WINDOWS.executionMax);
-    expect(Date.parse(t.acceptDeadline)).toBe(T0 + WINDOWS.accept);
+    // Дедлайн сдачи отсчитывается от СОЗДАНИЯ (= ончейн done_deadline от fund).
+    expect(Date.parse(t.acceptDeadline)).toBe(T0 + WINDOWS.executionMax);
+    expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionMax);
   });
 
-  it("accept → ACCEPTED с грейсом и сроком выполнения от момента принятия", () => {
+  it("accept → ACCEPTED с грейсом; срок сдачи НЕ сбрасывается (задан при создании)", () => {
     const t = accept(newTask(), T0 + 1000);
     expect(t.status).toBe("ACCEPTED");
     expect(Date.parse(t.graceUntil!)).toBe(T0 + 1000 + WINDOWS.grace);
-    expect(Date.parse(t.executionDeadline!)).toBe(T0 + 1000 + WINDOWS.executionDefault);
+    expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionDefault); // от создания, не от accept
   });
 
-  it("accept после дедлайна принятия → ACCEPT_EXPIRED", () => {
-    expect(throwsCode(() => accept(newTask(), T0 + WINDOWS.accept + 1))).toBe("ACCEPT_EXPIRED");
+  it("accept после срока сдачи → ACCEPT_EXPIRED", () => {
+    expect(throwsCode(() => accept(newTask(), T0 + WINDOWS.executionDefault + 1))).toBe(
+      "ACCEPT_EXPIRED",
+    );
   });
 
-  it("reject → возврат донору; cancel только в грейс-окне", () => {
+  it("reject → возврат донору; cancel — до «Готово»", () => {
     expect(reject(newTask(), T0 + 1).resolution).toMatchObject({
       outcome: "to_donor",
       reason: "rejected",
     });
     const acc = accept(newTask(), T0);
-    expect(cancel(acc, T0 + WINDOWS.grace - 1).resolution).toMatchObject({ reason: "canceled" });
-    expect(throwsCode(() => cancel(acc, T0 + WINDOWS.grace + 1))).toBe("GRACE_OVER");
+    expect(cancel(acc, T0 + 1).resolution).toMatchObject({ reason: "canceled" });
+    // после «Готово» отменить уже нельзя
+    const done = markDone(acc, T0 + 1);
+    expect(throwsCode(() => cancel(done, T0 + 2))).toBe("NOT_OPEN");
   });
 });
 
@@ -83,9 +89,9 @@ describe("выполнение и спор", () => {
   const accepted = () => accept(newTask(), T0);
 
   it("markDone → DONE с окном оспаривания (без пруфа)", () => {
-    const d = markDone(accepted(), T0 + HOUR());
+    const d = markDone(accepted(), T0 + 1000);
     expect(d.status).toBe("DONE");
-    expect(Date.parse(d.disputeWindowEndsAt!)).toBe(T0 + HOUR() + WINDOWS.disputeWindow);
+    expect(Date.parse(d.disputeWindowEndsAt!)).toBe(T0 + 1000 + WINDOWS.disputeWindow);
   });
 
   it("markDone после срока → EXEC_OVER (логика no-show — в dueResolution)", () => {
@@ -223,7 +229,3 @@ describe("claim (ADR 0015)", () => {
     expect(throwsCode(() => claim(claimed, STREAMER, STREAMER, T0))).toBe("ALREADY_CLAIMED");
   });
 });
-
-function HOUR() {
-  return 3_600_000;
-}
