@@ -33,6 +33,7 @@ function harness(rep: Record<string, number> = {}) {
     reputationAsOf: (address) => rep[address] ?? 0,
     bankLedger: (entries) => ledger.push(...entries),
     moderate: async (text) => (/убей|укради/i.test(text) ? "HARD_BLOCK" : "CLEAR"),
+    verifyEscrow: async () => true,
   });
   const run = (identity: string | null, t: number, op: string, payload?: unknown) =>
     dispatchGame(

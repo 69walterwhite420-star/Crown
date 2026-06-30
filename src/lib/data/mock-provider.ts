@@ -1145,6 +1145,13 @@ export class MockDataProvider implements DataProvider {
       reputationAsOf: (address, asOf) =>
         computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
       moderate: (text) => classifyTaskText(text),
+      // Трастлесс-сверка эскроу (ADR 0017): на сервере читаем devnet (динамический импорт — web3.js не
+      // тащим в клиентский mock-бандл); в браузере (mock) эскроу нет → true.
+      verifyEscrow: async (escrowTaskId, expect) => {
+        if (typeof window !== "undefined") return true;
+        const { verifyEscrowOnChain } = await import("@/server/escrow-verify");
+        return verifyEscrowOnChain(escrowTaskId, expect);
+      },
       bankLedger: (entries) => {
         for (const e of entries) {
           this.ledger.push({

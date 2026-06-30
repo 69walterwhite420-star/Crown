@@ -88,6 +88,15 @@ export const escrowTaskHandlers: GameHandlers = {
           "ILLEGAL_TASK",
           "Задание не прошло модерацию: запрещён нелегальный/опасный контент.",
         );
+      // Трастлесс-сверка ончейн-эскроу (chain-режим): задание без подтверждённого эскроу (нет аккаунта,
+      // чужой донор/сумма/mint) не записываем — сервер не верит клиенту (ADR 0017). В mock/api — всегда ок.
+      const escrowTaskId = typeof p.escrowTaskId === "string" ? p.escrowTaskId : undefined;
+      if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount }))) {
+        throw new GameBusError(
+          "ESCROW_INVALID",
+          "Ончейн-эскроу не найден или не совпадает (донор/сумма/mint).",
+        );
+      }
       const task = M.createTask(
         {
           // id используется в URL страницы спора → делаем URL-безопасным (id стора несёт ISO с «:»/«.»).
@@ -103,7 +112,7 @@ export const escrowTaskHandlers: GameHandlers = {
       // chain-режим: привязываем оффчейн-зеркало к ончейн-эскроу (провайдер уже отправил `fund`).
       const stored: typeof task = {
         ...task,
-        ...(typeof p.escrowTaskId === "string" ? { escrowTaskId: p.escrowTaskId } : {}),
+        ...(escrowTaskId ? { escrowTaskId } : {}),
         ...(typeof p.fundTx === "string" ? { fundTx: p.fundTx } : {}),
       };
       saveTasks(ctx, [...loadTasks(ctx), stored]);

@@ -47,6 +47,15 @@ export interface GameContext {
   bankLedger: (entries: GameLedgerEntry[]) => void;
   /** Модерация текста (UGC игры): вердикт. HARD_BLOCK → запрещённый/опасный контент, не пропускаем. */
   moderate: (text: string) => Promise<"CLEAR" | "FLAG" | "HARD_BLOCK">;
+  /**
+   * Трастлесс-сверка ончейн-эскроу (chain-режим, ADR 0017): аккаунт существует, владелец = программа,
+   * донор/сумма совпадают. Закрывает доверие к клиенту (нельзя записать задание без реального эскроу или с
+   * чужой суммой). В mock/api денег нет → всегда true. Сервер в chain-режиме читает devnet.
+   */
+  verifyEscrow: (
+    escrowTaskId: string,
+    expect: { donor: string; amount: string },
+  ) => Promise<boolean>;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;
