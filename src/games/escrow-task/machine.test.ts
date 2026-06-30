@@ -56,15 +56,14 @@ describe("создание и принятие", () => {
     expect(t.status).toBe("PENDING");
     expect(t.proposedExecutionMs).toBe(WINDOWS.executionMax);
     // Дедлайн сдачи отсчитывается от СОЗДАНИЯ (= ончейн done_deadline от fund).
-    expect(Date.parse(t.acceptDeadline)).toBe(T0 + WINDOWS.executionMax);
-    expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionMax);
+    expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionMax);
   });
 
   it("accept → ACCEPTED; грейс и срок сдачи заданы при СОЗДАНИИ, accept их не сбрасывает", () => {
     const t = accept(newTask(), T0 + 1000);
     expect(t.status).toBe("ACCEPTED");
     expect(Date.parse(t.graceUntil!)).toBe(T0 + WINDOWS.grace); // от создания (= ончейн accept_deadline), не от accept
-    expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionDefault); // от создания, не от accept
+    expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionDefault); // от создания, не от accept
   });
 
   it("accept после срока сдачи → ACCEPT_EXPIRED", () => {

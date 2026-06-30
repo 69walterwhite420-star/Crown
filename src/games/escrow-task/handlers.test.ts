@@ -147,7 +147,7 @@ describe("M3: chain-backed задание банкуется ТОЛЬКО при
   };
 
   it("исход неизвестен (эскроу закрыт, индексер ещё не записал) → НЕ банкует, откладывает", async () => {
-    const h = harness({}, "Payout1", async () => ({ present: false, outcome: null }));
+    const h = harness({}, "Payout1", async () => null);
     const { at } = await mature(h);
     const r = (await h.run(null, at, "settleDue")) as { settled: number };
     expect(r.settled).toBe(0); // отложено — никакого офчейн-таймера
@@ -155,7 +155,7 @@ describe("M3: chain-backed задание банкуется ТОЛЬКО при
   });
 
   it("индексер зафиксировал claim → to_streamer → банкует DONATION донору (истина денег)", async () => {
-    const h = harness({}, "Payout1", async () => ({ present: false, outcome: "to_streamer" }));
+    const h = harness({}, "Payout1", async () => "to_streamer");
     const { at } = await mature(h);
     const r = (await h.run(null, at, "settleDue")) as { settled: number };
     expect(r.settled).toBe(1);

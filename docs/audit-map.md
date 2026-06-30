@@ -90,7 +90,10 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 раунд 4 (ESC-17 контракт; ESC-14/ESC-15/ESC-16 — серверные) — tx `uaryR9At2WrHco7NFVYWRHEcudjq8u6R7uagfwzZbicwfYi4tUzU13npE6y6j12x42A14fA2kd7y9qtkFZYTxhx`;
 раунд 5 (ESC-18 + ESC-6 fail-closed + кламп окна + `graceUntil` — БЕЗ редеплоя, серверные/клиентские/доки);
 раунд 6 (**M3** event-индексер claim'ов + `settle` строго по ончейн-исходу — БЕЗ редеплоя, серверные);
-раунд 7 (повторный аудит: ESC-15 лок по `gameId` вместо канала + ESC-17 off-chain `executionMin > grace` — БЕЗ редеплоя).
+раунд 7 (повторный аудит: ESC-15 лок по `gameId` вместо канала + ESC-17 off-chain `executionMin > grace` — БЕЗ редеплоя);
+раунд 8 (минимизация, поведение неизменно: убран мёртвый `present` из `escrowOutcome`; off-chain `acceptDeadline`
+схлопнут в `executionDeadline` (были равны); общий `readEscrowAccount` в `escrow-verify`; снят мёртвый `DISC.accept`).
+TODO к mainnet-редеплою: снять мёртвое состояние `Accepted` из контракта (его уже никто не выставляет — accept оффчейн).
 Все исправления подтверждены `scripts/escrow-smoke.ts` (DUST-атака ESC-10; mark_done-в-грейсе ESC-13; bad-window ESC-17)
 и vitest (ESC-14 повторный claim не чеканит репутацию; ESC-18 повторный escrowTaskId отклонён; ESC-6 fail-closed).
 

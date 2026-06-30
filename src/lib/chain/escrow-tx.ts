@@ -23,7 +23,7 @@ import bs58 from "bs58";
 // Дискриминаторы (sha256("global:<fn>")[..8]) — посчитаны из имён функций программы.
 const DISC = {
   fund: [218, 188, 111, 221, 152, 113, 174, 7],
-  accept: [65, 150, 70, 216, 133, 6, 107, 4],
+  // accept убран с цепочки (бесплатный оффчейн-шаг) — дискриминатора нет.
   reject: [135, 7, 63, 85, 131, 114, 111, 224],
   markDone: [112, 146, 215, 90, 40, 16, 44, 149], // mark_done
   cancel: [232, 219, 223, 41, 219, 236, 220, 190],
@@ -120,7 +120,7 @@ function streamerAction(
     ],
   });
 }
-// accept больше не ончейн (бесплатный оффчейн-шаг) — билдера нет; DISC.accept оставлен для справки.
+// accept больше не ончейн (бесплатный оффчейн-шаг) — билдера нет.
 export function buildRejectIx(programId: PublicKey, streamer: PublicKey, taskId: TaskId) {
   return streamerAction(programId, streamer, escrowPda(programId, taskId), DISC.reject);
 }

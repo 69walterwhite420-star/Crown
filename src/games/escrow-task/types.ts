@@ -55,7 +55,9 @@ export interface EscrowTask {
   text: string; // текст задания (UGC; модерация — на G2)
   proposedExecutionMs: number; // предложенный донором срок выполнения (мс), применяется при принятии
   createdAt: string; // ISO
-  acceptDeadline: string; // ISO — после него PENDING истекает (возврат донору)
+  // Срок сдачи (нажать «Готово»), отсчитывается от создания (= ончейн done_deadline). После него — возврат
+  // донору (no-show). Задаётся при createTask, не сбрасывается. Раньше дублировался полем acceptDeadline.
+  executionDeadline: string; // ISO
   status: TaskStatus;
 
   // Ончейн-эскроу (chain-режим, G3a; ADR 0017). В mock/api пусто — деньги мок.
@@ -65,7 +67,6 @@ export interface EscrowTask {
   // ACCEPTED:
   acceptedAt?: string;
   graceUntil?: string; // ISO — окно отмены донором
-  executionDeadline?: string; // ISO — срок нажать «Готово»
 
   // DONE:
   doneAt?: string;

@@ -59,14 +59,12 @@ export interface GameContext {
     expect: { donor: string; amount: string; streamer?: string },
   ) => Promise<boolean>;
   /**
-   * Реконсайл репутации против ЦЕПОЧКИ (ESC-12, chain-режим): читает ончейн-исход эскроу. Возвращает
-   * `null` вне chain-режима (тогда банкуем по офчейн-таймеру, как раньше — mock/api). `outcome` не-null
-   * только когда исход на цепочке зафиксирован (resolution = ToStreamer|ToDonor). Деньги = истина:
-   * сеттлер банкует донат-репутацию только при подтверждённом ончейн-исходе, а не по офчейн-таймеру.
+   * Реконсайл репутации против ЦЕПОЧКИ (ESC-12/M3, chain-режим): ончейн-исход эскроу (деньги = истина).
+   * `"to_streamer"|"to_donor"` — исход подтверждён (живая `resolution` или индексированный claim);
+   * `null` — исход неизвестен (Unresolved / не проиндексирован / сбой RPC / вне chain-режима) → банковку
+   * откладываем. Отсутствует (mock/api) → задание без `escrowTaskId`, сверка с цепочкой не нужна.
    */
-  escrowOutcome?: (
-    escrowTaskId: string,
-  ) => Promise<{ present: boolean; outcome: "to_streamer" | "to_donor" | null } | null>;
+  escrowOutcome?: (escrowTaskId: string) => Promise<"to_streamer" | "to_donor" | null>;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

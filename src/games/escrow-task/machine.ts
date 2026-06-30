@@ -87,8 +87,7 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
     text: input.text,
     proposedExecutionMs: proposed,
     createdAt: iso(nowMs),
-    acceptDeadline: deliverBy, // = дедлайн сдачи (срок «не сдал → возврат»)
-    executionDeadline: deliverBy,
+    executionDeadline: deliverBy, // срок сдачи от создания (= ончейн done_deadline)
     // Грейс-окно отмены донора отсчитывается ОТ СОЗДАНИЯ (= ончейн accept_deadline = fund + CANCEL_GRACE),
     // как и проверка в cancel/markDone. Задаём здесь один раз — accept его НЕ переопределяет (ESC-18-аудит:
     // раньше accept писал acceptedAt+grace, расходясь с реальным окном отмены → путаница в UI).
@@ -100,7 +99,7 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
 export function accept(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING")
     throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
-  if (nowMs > ms(task.executionDeadline ?? task.acceptDeadline))
+  if (nowMs > ms(task.executionDeadline))
     throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
   // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи И грейс отмены заданы при создании — не сбрасываем.
   return {
@@ -133,7 +132,7 @@ export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
   // иначе стример фронт-раннит «Готово» сразу после fund и обнуляет аварийную отмену донора.
   if (nowMs <= ms(task.createdAt) + WINDOWS.grace)
     throw new GameBusError("GRACE_ACTIVE", "Сдать можно после грейс-окна отмены донора.");
-  if (nowMs > ms(task.executionDeadline ?? task.createdAt))
+  if (nowMs > ms(task.executionDeadline))
     throw new GameBusError("EXEC_OVER", "Срок сдачи истёк — донат вернётся донору (no-show).");
   // Пруфа нет: у контентмейкеров доказательство — сам стрим/VOD, комьюнити его и так мониторит. «Готово» —
   // просто декларация, открывающая окно оспаривания; не сделано → комьюнити поднимает спор.
@@ -198,11 +197,9 @@ export function dueResolution(
 ): { outcome: TaskOutcome; reason: ResolutionReason } | null {
   switch (task.status) {
     case "PENDING":
-      return nowMs > ms(task.acceptDeadline) ? { outcome: "to_donor", reason: "expired" } : null;
+      return nowMs > ms(task.executionDeadline) ? { outcome: "to_donor", reason: "expired" } : null;
     case "ACCEPTED":
-      return task.executionDeadline && nowMs > ms(task.executionDeadline)
-        ? { outcome: "to_donor", reason: "no_show" }
-        : null;
+      return nowMs > ms(task.executionDeadline) ? { outcome: "to_donor", reason: "no_show" } : null;
     case "DONE":
       return task.disputeWindowEndsAt && nowMs > ms(task.disputeWindowEndsAt)
         ? { outcome: "to_streamer", reason: "completed" }

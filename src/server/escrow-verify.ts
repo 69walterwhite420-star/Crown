@@ -1,76 +1,67 @@
 import { DEVNET_RPC, DEVNET_USDC_MINT, ESCROW_PROGRAM_ID } from "@/lib/chain/addresses";
-import { decodeEscrow, escrowPda } from "@/lib/chain/escrow-tx";
+import { type EscrowAccount, decodeEscrow, escrowPda } from "@/lib/chain/escrow-tx";
 import { getMeta } from "@/server/store-db";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 /** M3: префикс meta-ключа, под которым event-индексер пишет ончейн-исход эскроу по его PDA (base58). */
 export const ESCROW_OUTCOME_META_PREFIX = "escrowOutcome:";
 
+export type EscrowOutcome = "to_streamer" | "to_donor";
+
 /**
- * Трастлесс-сверка ончейн-эскроу задания (G3a, ADR 0017). Сервер НЕ верит клиенту, что `fund` реально
- * прошёл: читает аккаунт эскроу из devnet по `escrowTaskId` и проверяет, что он принадлежит нашей программе
- * и совпадает по донору, сумме, mint, payout-стримеру (ESC-6) и что он СВЕЖИЙ (state == Pending). Возвращает
- * false при любом несовпадении/сбое (fail-closed) — задание без подтверждённого эскроу не записывается.
- * Только сервер (тянет web3.js; в стор инжектится динамически).
+ * Прочитать эскроу-аккаунт по hex `task_id`. Возвращает `{ pda, escrow }` — `escrow=null`, если аккаунт
+ * закрыт (заклеймлен) или не принадлежит программе. Возвращает `null`, если эскроу не настроен, `task_id`
+ * битый или RPC недоступен. PDA нужен и при закрытом аккаунте (для M3-записи), поэтому отдаём его отдельно.
+ */
+async function readEscrowAccount(
+  escrowTaskId: string,
+): Promise<{ pda: PublicKey; escrow: EscrowAccount | null } | null> {
+  if (!ESCROW_PROGRAM_ID || !/^[0-9a-fA-F]{64}$/.test(escrowTaskId)) return null;
+  try {
+    const programId = new PublicKey(ESCROW_PROGRAM_ID);
+    const pda = escrowPda(programId, Uint8Array.from(Buffer.from(escrowTaskId, "hex")));
+    const info = await new Connection(DEVNET_RPC, "confirmed").getAccountInfo(pda);
+    return { pda, escrow: info && info.owner.equals(programId) ? decodeEscrow(info.data) : null };
+  } catch {
+    return null; // сбой RPC / decode
+  }
+}
+
+/**
+ * Трастлесс-сверка ончейн-эскроу задания (G3a, ADR 0017). Сервер НЕ верит клиенту, что `fund` прошёл:
+ * читает аккаунт из devnet и сверяет донора, сумму, mint, payout-стримера (ESC-6) и что он СВЕЖИЙ
+ * (state == Pending). Любое несовпадение / сбой / закрытый аккаунт → false (fail-closed).
  */
 export async function verifyEscrowOnChain(
   escrowTaskId: string,
   expect: { donor: string; amount: string; streamer?: string },
 ): Promise<boolean> {
-  if (!ESCROW_PROGRAM_ID) return false; // не настроено — не пропускаем (fail-closed)
-  try {
-    if (!/^[0-9a-fA-F]{64}$/.test(escrowTaskId)) return false; // ровно 32 байта hex
-    const programId = new PublicKey(ESCROW_PROGRAM_ID);
-    const taskId = Uint8Array.from(Buffer.from(escrowTaskId, "hex"));
-    const pda = escrowPda(programId, taskId);
-    const conn = new Connection(DEVNET_RPC, "confirmed");
-    const info = await conn.getAccountInfo(pda);
-    if (!info || !info.owner.equals(programId)) return false;
-    const e = decodeEscrow(info.data);
-    if (e.donor.toBase58() !== expect.donor) return false;
-    if (e.amount !== BigInt(expect.amount)) return false;
-    if (DEVNET_USDC_MINT && e.mint.toBase58() !== DEVNET_USDC_MINT) return false;
-    // ESC-6: эскроу обязан указывать на payout именно ЭТОГО канала, иначе задание канала C ссылалось бы на
-    // чужой эскроу (расширяет поверхность реконсайла ESC-12). state==Pending — эскроу свежий, не пере-использован.
-    if (expect.streamer && e.streamer.toBase58() !== expect.streamer) return false;
-    if (e.state !== 0) return false; // 0 = Pending (TaskState)
-    return true;
-  } catch {
-    return false; // битый id / сбой RPC / decode → не пропускаем
-  }
+  const r = await readEscrowAccount(escrowTaskId);
+  if (!r?.escrow) return false;
+  const e = r.escrow;
+  return (
+    e.donor.toBase58() === expect.donor &&
+    e.amount === BigInt(expect.amount) &&
+    (!DEVNET_USDC_MINT || e.mint.toBase58() === DEVNET_USDC_MINT) &&
+    // ESC-6: эскроу обязан указывать на payout именно ЭТОГО канала; state==Pending — свежий, не пере-использован.
+    (!expect.streamer || e.streamer.toBase58() === expect.streamer) &&
+    e.state === 0 // 0 = Pending (TaskState)
+  );
 }
 
 /**
- * ESC-12 — реконсайл репутации против цепочки. Читает ончейн-исход эскроу (деньги = истина): сеттлер банкует
- * донат-репутацию только когда исход на цепочке ЗАФИКСИРОВАН (resolution = ToStreamer|ToDonor), а не по
- * офчейн-таймеру. `present=false` → эскроу закрыт (уже заклеймлен) или отсутствует. `outcome=null` → исход
- * ещё не зафиксирован (Unresolved) → банковку откладываем. Возвращает null при сбое RPC (fail-safe: не банкуем).
+ * ESC-12/M3 — ончейн-исход эскроу для реконсайла репутации (деньги = истина). Сеттлер банкует репутацию
+ * только при ИЗВЕСТНОМ исходе. Живая `resolution` (ToStreamer|ToDonor) — пока аккаунт открыт; после закрытия
+ * (claim) исход берём из M3-записи event-индексера. `null` — исход неизвестен (Unresolved / ещё не
+ * проиндексирован / сбой RPC) → банковку откладываем (не угадываем по офчейн-таймеру).
  */
-export async function readEscrowOutcome(
-  escrowTaskId: string,
-): Promise<{ present: boolean; outcome: "to_streamer" | "to_donor" | null } | null> {
-  if (!ESCROW_PROGRAM_ID) return null;
-  try {
-    if (!/^[0-9a-fA-F]{64}$/.test(escrowTaskId)) return null;
-    const programId = new PublicKey(ESCROW_PROGRAM_ID);
-    const taskId = Uint8Array.from(Buffer.from(escrowTaskId, "hex"));
-    const pda = escrowPda(programId, taskId);
-    const conn = new Connection(DEVNET_RPC, "confirmed");
-    const info = await conn.getAccountInfo(pda);
-    if (!info || !info.owner.equals(programId)) {
-      // M3: аккаунт закрыт (заклеймлен) → берём ЗАФИКСИРОВАННЫЙ event-индексером ончейн-исход claim'а (истина
-      // денег переживает закрытие). Нет записи → outcome null (сеттлер откладывает, индексер догонит на опросе).
-      const rec = await getMeta(ESCROW_OUTCOME_META_PREFIX + pda.toBase58());
-      return {
-        present: false,
-        outcome: rec === "to_streamer" || rec === "to_donor" ? rec : null,
-      };
-    }
-    const e = decodeEscrow(info.data);
-    // resolution: 1 = ToStreamer, 2 = ToDonor, 0 = Unresolved (исход ещё не зафиксирован на цепочке).
-    const outcome = e.resolution === 1 ? "to_streamer" : e.resolution === 2 ? "to_donor" : null;
-    return { present: true, outcome };
-  } catch {
-    return null; // сбой RPC → не банкуем в этот проход (повторим на следующем опросе сеттлера)
+export async function readEscrowOutcome(escrowTaskId: string): Promise<EscrowOutcome | null> {
+  const r = await readEscrowAccount(escrowTaskId);
+  if (!r) return null; // не настроено / битый id / сбой RPC → откладываем
+  if (!r.escrow) {
+    // Аккаунт закрыт → зафиксированный event-индексером исход claim'а (истина денег переживает закрытие).
+    const rec = await getMeta(ESCROW_OUTCOME_META_PREFIX + r.pda.toBase58());
+    return rec === "to_streamer" || rec === "to_donor" ? rec : null;
   }
+  return r.escrow.resolution === 1 ? "to_streamer" : r.escrow.resolution === 2 ? "to_donor" : null;
 }
