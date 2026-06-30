@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { fromMicro } from "@/lib/utils";
 import type { Donation } from "@/lib/data/types";
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -23,7 +24,7 @@ function matches(d: Donation, q: string): boolean {
     d.txSignature ?? "", // хеш транзакции
     d.message?.text ?? "",
     d.id,
-    (Number(d.amount) / 1_000_000).toString(),
+    String(fromMicro(d.amount)),
   ]
     .join(" ")
     .toLowerCase();

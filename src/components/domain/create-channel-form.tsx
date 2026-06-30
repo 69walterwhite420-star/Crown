@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useCreateChannel, useSession } from "@/lib/data/hooks";
+import { isLikelyBase58Address } from "@/lib/utils";
 
 const HANDLE_RE = /^[a-z0-9-]{3,32}$/;
 
@@ -25,7 +26,7 @@ export function CreateChannelForm() {
   }, [address, payout]);
 
   const handleValid = HANDLE_RE.test(handle);
-  const payoutValid = payout.trim().length >= 32;
+  const payoutValid = isLikelyBase58Address(payout.trim());
   const canSubmit = handleValid && payoutValid && !create.isPending;
 
   function submit() {

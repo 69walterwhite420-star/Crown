@@ -8,11 +8,9 @@ import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useMyChannel, useSession } from "@/lib/data/hooks";
-import { fromMicro, plural } from "@/lib/utils";
+import { formatUSDCNumber as usd, fromMicro, plural } from "@/lib/utils";
 
 const DONORS = ["донатёр", "донатёра", "донатёров"] as const;
-const usd = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function StudioDashboardPage() {
   const sessionQ = useSession();

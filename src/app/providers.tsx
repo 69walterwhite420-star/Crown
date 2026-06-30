@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 import { DataProviderProvider } from "@/lib/data/context";
 import { createDataProvider } from "@/lib/data/provider";
 
@@ -14,8 +15,6 @@ const ChainProviders = dynamic(
   () => import("@/lib/chain/chain-providers").then((m) => m.ChainProviders),
   { ssr: false },
 );
-
-const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 
 /**
  * Корневые провайдеры. Селектор по ENV: chain → отдельное дерево с кошельком; иначе — оффчейн

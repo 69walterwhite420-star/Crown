@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { useAddBlock, useChannelBlocklist, useMyChannel, useRemoveBlock } from "@/lib/data/hooks";
-import { shortAddress, timeAgo } from "@/lib/utils";
+import { isLikelyBase58Address, shortAddress, timeAgo } from "@/lib/utils";
 
 // Готовые причины канальной блокировки (почему стример закрыл этому кошельку донаты-с-сообщениями).
 const BLOCK_REASONS = [
@@ -33,7 +33,7 @@ export default function BlocklistPage() {
   if (!channelId) return <EmptyState title="Сначала создай канал" />;
 
   function submit() {
-    if (address.trim().length < 32) {
+    if (!isLikelyBase58Address(address.trim())) {
       toast({ variant: "error", title: "Похоже на неполный адрес" });
       return;
     }

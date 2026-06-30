@@ -6,7 +6,6 @@ import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
 import { TierBadge } from "./standing";
-import { ProfileAvatar } from "./standing-list";
 import { CumulativeAreaChart, RangeTabs, type ChartRange } from "./area-chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,11 +34,35 @@ import { useCopied } from "@/components/ui/use-copied";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
 import type { Donation, DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
-import { channelHue, cn, collapseWhitespace, formatPoints, fromMicro, plural, timeAgo } from "@/lib/utils";
+import {
+  channelHue,
+  cn,
+  collapseWhitespace,
+  formatPoints,
+  formatUSDCNumber,
+  fromMicro,
+  plural,
+  timeAgo,
+} from "@/lib/utils";
 
 const DONATIONS = ["донат", "доната", "донатов"] as const;
 const CHANNELS = ["канал", "канала", "каналов"] as const;
 const POINTS = ["очко", "очка", "очков"] as const;
+
+/** Аватар профиля: монограмма со стабильным цветом по имени/адресу (картинок нет — §профиль). */
+export function ProfileAvatar({ name, address }: { name?: string; address: string }) {
+  const seed = name?.trim() || address;
+  const initial = seed.replace(/^@/, "").slice(0, 1).toUpperCase();
+  const hue = channelHue(seed);
+  return (
+    <div
+      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full font-display text-h3"
+      style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
+    >
+      {initial}
+    </div>
+  );
+}
 
 // — Аналог polymarket-профиля в нашем контексте: деньги (донаты) агрегируемы, репутация — ПОканальная
 //   (инвариант §4.3, глобального рейтинга нет). Headline + график = «всего задонатил» во времени;
@@ -48,16 +71,6 @@ const POINTS = ["очко", "очка", "очков"] as const;
 function monthYear(iso?: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-}
-
-/** Число долларов → «$88.60» (formatValue графика; деньги уже в USDC-числе). */
-function dollars(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 /** Кнопка-иконка «скопировать» (адрес / ссылка) с галочкой-подтверждением. */
@@ -241,7 +254,7 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
     <CumulativeAreaChart
       events={events}
       range={range}
-      formatValue={dollars}
+      formatValue={formatUSDCNumber}
       emptyHint="Пока нет донатов — график появится после первого."
     />
   );

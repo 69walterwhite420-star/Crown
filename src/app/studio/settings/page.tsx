@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { CHANNEL_DESC_MAX } from "@/lib/channel-links";
 import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
-import { fromMicro, toMicro } from "@/lib/utils";
+import { fromMicro, isLikelyBase58Address, toMicro } from "@/lib/utils";
 import type { ChannelConfig, ConfigPatch, ModeratorRef, Tier } from "@/lib/data/types";
 
 interface Draft {
@@ -276,7 +276,7 @@ function ModeratorEditor({
         <Button
           variant="secondary"
           onClick={() => {
-            if (address.trim().length < 32) return;
+            if (!isLikelyBase58Address(address.trim())) return;
             onChange([...value, { address: address.trim(), scope }]);
             setAddress("");
           }}

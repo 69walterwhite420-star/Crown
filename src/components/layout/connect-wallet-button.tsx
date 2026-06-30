@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-
-const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 
 // Auth-aware кнопка входа (учитывает и подключение кошелька, и наличие SIWS-сессии). Грузится динамически
 // (ssr:false), только в режиме chain → wallet-adapter-стек не попадает в bundle mock/api.

@@ -21,14 +21,19 @@ export function fromMicro(micro: bigint): number {
   return Number(micro) / 1_000_000;
 }
 
-/** micro-USDC → "$12.50" (моно, tabular-nums применяется классом на элементе). */
-export function formatUSDC(micro: bigint): string {
-  return fromMicro(micro).toLocaleString("en-US", {
+/** Число долларов → "$12.50". Единый форматтер валюты (для уже-USDC чисел: оси графика и т.п.). */
+export function formatUSDCNumber(usd: number): string {
+  return usd.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+/** micro-USDC → "$12.50" (моно, tabular-nums применяется классом на элементе). */
+export function formatUSDC(micro: bigint): string {
+  return formatUSDCNumber(fromMicro(micro));
 }
 
 /** Очки репутации → "5,000". */

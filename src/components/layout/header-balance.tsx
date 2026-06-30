@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-
-const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 
 // Баланс USDC грузим динамически (ssr:false) и только в chain — wallet-adapter/spl-token не попадают
 // в bundle mock/api.
