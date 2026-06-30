@@ -82,15 +82,15 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   if (!due) return task;
   if (task.escrowTaskId && ctx.escrowOutcome) {
     const oc = await ctx.escrowOutcome(task.escrowTaskId);
-    if (oc) {
-      // present без исхода → на цепочке ещё не зафиксировано → не банкуем (сеттлер повторит на след. опросе).
-      if (oc.present && !oc.outcome) return task;
-      // present с исходом → ончейн-сторона; gone (закрыт/заклеймлен) → best-effort офчейн (остаток M3, документирован).
-      const res = oc.present && oc.outcome ? reconcile(due, oc.outcome, task) : due;
-      const resolved = M.applyResolution(task, res, nowMs(ctx));
-      ctx.bankLedger(M.repEffects(resolved, res));
-      return resolved;
-    }
+    // ESC-16: chain-backed задание → исход берём ТОЛЬКО с цепочки. `null` (сбой RPC / нет доступа) или
+    // present-без-исхода → ОТКЛАДЫВАЕМ банковку (не падаем в офчейн-таймер — иначе репутация разойдётся с
+    // деньгами при недоступном RPC; сеттлер повторит на следующем опросе, когда цепочка ответит).
+    if (!oc || (oc.present && !oc.outcome)) return task;
+    // present + исход → ончейн-сторона (деньги = истина); gone (закрыт/заклеймлен) → best-effort офчейн (остаток M3).
+    const res = oc.present && oc.outcome ? reconcile(due, oc.outcome, task) : due;
+    const resolved = M.applyResolution(task, res, nowMs(ctx));
+    ctx.bankLedger(M.repEffects(resolved, res));
+    return resolved;
   }
   const resolved = M.applyResolution(task, due, nowMs(ctx));
   ctx.bankLedger(M.repEffects(resolved, due));
@@ -228,8 +228,13 @@ export const escrowTaskHandlers: GameHandlers = {
     claim: async (ctx, payload) => {
       const by = requireIdentity(ctx);
       const tasks = loadTasks(ctx);
-      const settled = await settle(ctx, findTask(tasks, idOf(payload), ctx.channelId));
-      return commit(ctx, tasks, M.claim(settled, by, ctx.channelOwner ?? "", nowMs(ctx)));
+      const task = findTask(tasks, idOf(payload), ctx.channelId);
+      const settled = await settle(ctx, task);
+      // ESC-14: ПЕРСИСТИМ резолв (со всеми забанкованными эффектами) ДО проверки победителя. Иначе M.claim
+      // бросает NOT_WINNER до commit → статус не сохранён, а банковка (сайд-эффект settle) уже прошла →
+      // повторный claim неполучателем снова видит задание дозревшим и чеканит репутацию без предела.
+      if (settled !== task) commit(ctx, tasks, settled);
+      return commit(ctx, loadTasks(ctx), M.claim(settled, by, ctx.channelOwner ?? "", nowMs(ctx)));
     },
 
     // PERMISSIONLESS: разрешить по времени + забанковать репутацию для ВСЕХ дозревших заданий канала, не

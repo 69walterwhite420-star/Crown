@@ -61,6 +61,9 @@ pub mod escrow_task {
             (EXEC_WINDOW_MIN..=EXEC_WINDOW_MAX).contains(&execution_window),
             EscrowError::BadWindow
         );
+        // ESC-17: окно сдачи ОБЯЗАНО превышать грейс отмены — иначе после ESC-13 (mark_done только при
+        // now > accept_deadline) окно «Готово» пустое: стример не сдаст никогда → задание всегда no-show.
+        require!(execution_window > CANCEL_GRACE, EscrowError::BadWindow);
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
         e.task_id = task_id;

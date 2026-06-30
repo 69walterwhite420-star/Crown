@@ -108,7 +108,7 @@ async function main() {
     [],
   );
 
-  const fund = (taskId: Uint8Array) =>
+  const fund = (taskId: Uint8Array, executionWindow = EXEC_WINDOW) =>
     buildFundIx({
       programId: PROGRAM_ID,
       donor: donor.publicKey,
@@ -116,8 +116,18 @@ async function main() {
       mint,
       taskId,
       amount: AMOUNT,
-      executionWindow: EXEC_WINDOW,
+      executionWindow,
     });
+
+  // ───────── ESC-17: fund с окном сдачи <= грейса отклоняется (иначе mark_done невозможен → вечный no-show) ─────────
+  console.log("\n[ESC-17] fund с execution_window = CANCEL_GRACE → отклонён");
+  let badWindowBlocked = false;
+  try {
+    await send(conn, [await fund(randTaskId(), 60n)], payer, []); // 60 = CANCEL_GRACE (тест), не > грейса
+  } catch {
+    badWindowBlocked = true;
+  }
+  assert(badWindowBlocked, "ESC-17: fund с execution_window <= CANCEL_GRACE отклонён");
 
   // ───────── happy-path (через permissionless resolve_timeout) ─────────
   console.log(

@@ -1119,6 +1119,30 @@ export class MockDataProvider implements DataProvider {
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
+  /** ESC-15: хвост очереди сериализации мутаций игры на канал (один на канал; бесконечного роста нет). */
+  private gameActionTails = new Map<string, Promise<void>>();
+  /**
+   * Сериализует мутацию игры по каналу: следующая ждёт предыдущую. Закрывает гонку двойной банковки —
+   * фоновый сеттлер и пользовательский claim/settleDue не зайдут в `settle` по одному заданию одновременно
+   * (в `settle` есть `await` на RPC, который отдаёт event-loop между проверкой статуса и `bankLedger`).
+   */
+  private serializeGameAction<T>(channelId: string, run: () => Promise<T>): Promise<T> {
+    const prev = this.gameActionTails.get(channelId) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    this.gameActionTails.set(
+      channelId,
+      prev.then(() => gate),
+    );
+    return prev.catch(() => undefined).then(async () => {
+      try {
+        return await run();
+      } finally {
+        release();
+      }
+    });
+  }
+
   /**
    * Общий диспатч операций мини-игр: канал должен существовать и игра — быть включена на нём (cold-start).
    * Дальше маршрутизируем в обработчик игры через шину, дав ему узкий контекст (личность, канал, now, свой
@@ -1130,56 +1154,60 @@ export class MockDataProvider implements DataProvider {
     if (!cfg.enabledGames.includes(req.gameId)) {
       throw new DataError("GAME_NOT_ENABLED", "Эта мини-игра не включена на канале.");
     }
-    const ctx: GameContext = {
-      identity: this.currentAddress(),
-      channelId: req.channelId,
-      channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
-      channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
-      now: () => this.now(),
-      newId: () => this.nextId("game"),
-      state: {
-        get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
-        set: (value: unknown) => this.gameState.set(req.gameId, value),
-      },
-      // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
-      // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
-      reputationAsOf: (address, asOf) =>
-        computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
-      moderate: (text) => classifyTaskText(text),
-      // Трастлесс-сверка эскроу (ADR 0017): на сервере читаем devnet (динамический импорт — web3.js не
-      // тащим в клиентский mock-бандл); в браузере (mock) эскроу нет → true.
-      verifyEscrow: async (escrowTaskId, expect) => {
-        if (typeof window !== "undefined") return true;
-        const { verifyEscrowOnChain } = await import("@/server/escrow-verify");
-        return verifyEscrowOnChain(escrowTaskId, expect);
-      },
-      // ESC-12: ончейн-исход эскроу для реконсайла репутации (деньги = истина). На сервере читает devnet;
-      // в браузере исхода не знаем → null (тогда settle банкует по офчейн-таймеру, как раньше).
-      escrowOutcome: async (escrowTaskId) => {
-        if (typeof window !== "undefined") return null;
-        const { readEscrowOutcome } = await import("@/server/escrow-verify");
-        return readEscrowOutcome(escrowTaskId);
-      },
-      bankLedger: (entries) => {
-        for (const e of entries) {
-          this.ledger.push({
-            id: this.nextId("gl"),
-            donor: e.address,
-            creator: req.channelId,
-            type: e.type as LedgerEvent["type"],
-            amount: BigInt(e.amount ?? "0"),
-            pointsDelta: e.pointsDelta,
-            configVersion: cfg.version,
-            ts: this.now(),
-          });
-        }
-      },
+    const exec = async (): Promise<unknown> => {
+      const ctx: GameContext = {
+        identity: this.currentAddress(),
+        channelId: req.channelId,
+        channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
+        channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
+        now: () => this.now(),
+        newId: () => this.nextId("game"),
+        state: {
+          get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
+          set: (value: unknown) => this.gameState.set(req.gameId, value),
+        },
+        // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
+        // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
+        reputationAsOf: (address, asOf) =>
+          computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
+        moderate: (text) => classifyTaskText(text),
+        // Трастлесс-сверка эскроу (ADR 0017): на сервере читаем devnet (динамический импорт — web3.js не
+        // тащим в клиентский mock-бандл); в браузере (mock) эскроу нет → true.
+        verifyEscrow: async (escrowTaskId, expect) => {
+          if (typeof window !== "undefined") return true;
+          const { verifyEscrowOnChain } = await import("@/server/escrow-verify");
+          return verifyEscrowOnChain(escrowTaskId, expect);
+        },
+        // ESC-12: ончейн-исход эскроу для реконсайла репутации (деньги = истина). На сервере читает devnet;
+        // null (браузер / сбой RPC) → settle ОТКЛАДЫВАЕТ банковку chain-backed задания (ESC-16), не по таймеру.
+        escrowOutcome: async (escrowTaskId) => {
+          if (typeof window !== "undefined") return null;
+          const { readEscrowOutcome } = await import("@/server/escrow-verify");
+          return readEscrowOutcome(escrowTaskId);
+        },
+        bankLedger: (entries) => {
+          for (const e of entries) {
+            this.ledger.push({
+              id: this.nextId("gl"),
+              donor: e.address,
+              creator: req.channelId,
+              type: e.type as LedgerEvent["type"],
+              amount: BigInt(e.amount ?? "0"),
+              pointsDelta: e.pointsDelta,
+              configVersion: cfg.version,
+              ts: this.now(),
+            });
+          }
+        },
+      };
+      try {
+        return await dispatchGame(GAME_HANDLERS, req.gameId, kind, req.op, ctx, req.payload);
+      } catch (e) {
+        if (e instanceof GameBusError) throw new DataError(e.code, e.message);
+        throw e;
+      }
     };
-    try {
-      return await dispatchGame(GAME_HANDLERS, req.gameId, kind, req.op, ctx, req.payload);
-    } catch (e) {
-      if (e instanceof GameBusError) throw new DataError(e.code, e.message);
-      throw e;
-    }
+    // ESC-15: мутации игры сериализуем по каналу (гонка двойной банковки); чтения не мутируют — без очереди.
+    return kind === "action" ? this.serializeGameAction(req.channelId, exec) : exec();
   }
 }

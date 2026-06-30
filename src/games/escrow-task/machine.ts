@@ -69,9 +69,11 @@ export interface CreateTaskInput {
 export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
   // Срок СДАЧИ задаёт донор и он отсчитывается ОТ СОЗДАНИЯ (= ончейн done_deadline от `fund`). «Принять» —
   // бесплатная оффчейн-пометка, отдельного окна принятия и сброса срока нет (упрощение UX, см. переписку).
+  // ESC-17: нижняя граница срока сдачи ОБЯЗАНА превышать грейс (паритет с ончейн require execution_window >
+  // CANCEL_GRACE) — иначе окно mark_done (после грейса, ESC-13) пустое и задание всегда уходит в no-show.
   const proposed = clamp(
     input.executionMs ?? WINDOWS.executionDefault,
-    WINDOWS.executionMin,
+    Math.max(WINDOWS.executionMin, WINDOWS.grace + 1),
     WINDOWS.executionMax,
   );
   const deliverBy = iso(nowMs + proposed);
