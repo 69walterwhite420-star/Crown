@@ -85,12 +85,10 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
     donor: input.donor,
     amount: input.amount,
     text: input.text,
-    proposedExecutionMs: proposed,
     createdAt: iso(nowMs),
     executionDeadline: deliverBy, // срок сдачи от создания (= ончейн done_deadline)
-    // Грейс-окно отмены донора отсчитывается ОТ СОЗДАНИЯ (= ончейн accept_deadline = fund + CANCEL_GRACE),
-    // как и проверка в cancel/markDone. Задаём здесь один раз — accept его НЕ переопределяет (ESC-18-аудит:
-    // раньше accept писал acceptedAt+grace, расходясь с реальным окном отмены → путаница в UI).
+    // Грейс-окно отмены донора — ОТ СОЗДАНИЯ (= ончейн accept_deadline = fund + CANCEL_GRACE), как и проверка
+    // в cancel/markDone. Задаётся один раз при создании, accept не сбрасывает.
     graceUntil: iso(nowMs + WINDOWS.grace),
     status: "PENDING",
   };
@@ -101,12 +99,8 @@ export function accept(task: EscrowTask, nowMs: number): EscrowTask {
     throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
   if (nowMs > ms(task.executionDeadline))
     throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
-  // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи И грейс отмены заданы при создании — не сбрасываем.
-  return {
-    ...task,
-    status: "ACCEPTED",
-    acceptedAt: iso(nowMs),
-  };
+  // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи и грейс отмены заданы при создании — не сбрасываем.
+  return { ...task, status: "ACCEPTED" };
 }
 
 export function reject(task: EscrowTask, nowMs: number): EscrowTask {
@@ -139,7 +133,6 @@ export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
   return {
     ...task,
     status: "DONE",
-    doneAt: iso(nowMs),
     disputeWindowEndsAt: iso(nowMs + WINDOWS.disputeWindow),
   };
 }

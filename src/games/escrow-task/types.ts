@@ -53,10 +53,9 @@ export interface EscrowTask {
   donor: string; // адрес донора
   amount: string; // micro-USDC десятичной строкой
   text: string; // текст задания (UGC; модерация — на G2)
-  proposedExecutionMs: number; // предложенный донором срок выполнения (мс), применяется при принятии
   createdAt: string; // ISO
   // Срок сдачи (нажать «Готово»), отсчитывается от создания (= ончейн done_deadline). После него — возврат
-  // донору (no-show). Задаётся при createTask, не сбрасывается. Раньше дублировался полем acceptDeadline.
+  // донору (no-show). Задаётся при createTask, не сбрасывается.
   executionDeadline: string; // ISO
   status: TaskStatus;
 
@@ -65,11 +64,9 @@ export interface EscrowTask {
   fundTx?: string; // подпись tx фандинга эскроу
 
   // ACCEPTED:
-  acceptedAt?: string;
   graceUntil?: string; // ISO — окно отмены донором
 
   // DONE:
-  doneAt?: string;
   disputeWindowEndsAt?: string; // ISO — до него можно поднять спор
 
   // DISPUTED:

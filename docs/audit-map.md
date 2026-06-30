@@ -92,8 +92,10 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 раунд 6 (**M3** event-индексер claim'ов + `settle` строго по ончейн-исходу — БЕЗ редеплоя, серверные);
 раунд 7 (повторный аудит: ESC-15 лок по `gameId` вместо канала + ESC-17 off-chain `executionMin > grace` — БЕЗ редеплоя);
 раунд 8 (минимизация, поведение неизменно: убран мёртвый `present` из `escrowOutcome`; off-chain `acceptDeadline`
-схлопнут в `executionDeadline` (были равны); общий `readEscrowAccount` в `escrow-verify`; снят мёртвый `DISC.accept`).
-TODO к mainnet-редеплою: снять мёртвое состояние `Accepted` из контракта (его уже никто не выставляет — accept оффчейн).
+схлопнут в `executionDeadline` (были равны); общий `readEscrowAccount` в `escrow-verify`; снят мёртвый `DISC.accept`);
+раунд 9 (минимизация: сняты write-only поля `proposedExecutionMs`/`acceptedAt`/`doneAt` — нигде не читались; `DecodedIx`
+больше не экспортируется). on-chain `Accepted` НЕ трогаем — это намеренный legacy-совместимый escape-hatch (его снятие
+заперло бы средства старых Accepted-эскроу), а не мёртвый код.
 Все исправления подтверждены `scripts/escrow-smoke.ts` (DUST-атака ESC-10; mark_done-в-грейсе ESC-13; bad-window ESC-17)
 и vitest (ESC-14 повторный claim не чеканит репутацию; ESC-18 повторный escrowTaskId отклонён; ESC-6 fail-closed).
 

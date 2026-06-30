@@ -260,7 +260,7 @@ export async function buildClaimDonorIxs(
 }
 
 /** Лёгкая форма инструкции из `getParsedTransaction` (PartiallyDecodedInstruction) — для декодера M3. */
-export interface DecodedIx {
+interface DecodedIx {
   programId: PublicKey;
   accounts?: PublicKey[];
   data?: string; // base58 (как отдаёт getParsedTransaction для неизвестных программ)

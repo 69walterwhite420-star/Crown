@@ -54,8 +54,7 @@ describe("создание и принятие", () => {
   it("createTask → PENDING с дедлайном СДАЧИ (от создания) и клампом срока", () => {
     const t = newTask(999 * WINDOWS.executionMax); // выше потолка → клампится
     expect(t.status).toBe("PENDING");
-    expect(t.proposedExecutionMs).toBe(WINDOWS.executionMax);
-    // Дедлайн сдачи отсчитывается от СОЗДАНИЯ (= ончейн done_deadline от fund).
+    // Дедлайн сдачи = создание + клампленный срок (от СОЗДАНИЯ = ончейн done_deadline от fund).
     expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionMax);
   });
 
