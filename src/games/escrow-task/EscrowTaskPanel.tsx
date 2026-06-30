@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { explorerTxUrl } from "@/lib/chain/addresses";
+import { ESCROW_RESOLVER, explorerTxUrl } from "@/lib/chain/addresses";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { toMicro } from "@/lib/utils";
@@ -339,6 +339,8 @@ function TaskCard({
 
   const isStreamer = !!viewer && viewer === ownerAddress;
   const isDonor = !!viewer && viewer === task.donor;
+  // Резолвер спора (оператор) — может пометить эскроу спорным и зафиксировать вердикт на цепочке (G3a).
+  const isResolver = !!viewer && !!ESCROW_RESOLVER && viewer === ESCROW_RESOLVER && !!task.escrowTaskId;
   const id = task.id;
   const within = (iso?: string) => !!iso && now <= Date.parse(iso);
   const alreadyVoted = !!viewer && (task.dispute?.votes.some((v) => v.voter === viewer) ?? false);
@@ -470,6 +472,36 @@ function TaskCard({
               Голос: не выполнил
             </Button>
           </>
+        ) : null}
+
+        {/* Резолвер (оператор) — во время спора метит эскроу спорным (защита от таймаута). */}
+        {isResolver && task.status === "DISPUTED" && !due && !final ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => run("markDisputed", { taskId: id }, "Помечено спорным на цепочке")}
+          >
+            Пометить спорным (on-chain)
+          </Button>
+        ) : null}
+
+        {/* Резолвер — после голосования фиксирует вердикт на цепочке (исход берём из тальи). */}
+        {isResolver && task.dispute && due && !final ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={pending}
+            onClick={() =>
+              run(
+                "resolveDispute",
+                { taskId: id, toStreamer: due.outcome === "to_streamer" },
+                "Итог зафиксирован на цепочке",
+              )
+            }
+          >
+            Зафиксировать на цепочке: {outcomeLabel(due.outcome)}
+          </Button>
         ) : null}
 
         {canClaim ? (
