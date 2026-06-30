@@ -4,14 +4,10 @@ import {
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { FEE_BPS, USDC_DECIMALS } from "./config";
+import { USDC_DECIMALS, splitAmount } from "./config";
 import { buildMemoInstruction, encodeActivationMemo, encodeMemo } from "./memo";
 
-/** Целочисленное расщепление суммы: fee = 3%, net = остаток (те же числа, что считает бэкенд/мок). */
-export function splitAmount(amountMicro: bigint): { fee: bigint; net: bigint } {
-  const fee = (amountMicro * BigInt(FEE_BPS)) / 10000n;
-  return { fee, net: amountMicro - fee };
-}
+export { splitAmount }; // ре-экспорт (исторические импортеры берут его отсюда); определение — в addresses.ts
 
 export interface DonationTxParams {
   donor: PublicKey;

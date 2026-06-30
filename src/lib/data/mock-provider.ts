@@ -1,4 +1,4 @@
-import { OPERATOR_ADDRESS } from "../chain/addresses";
+import { OPERATOR_ADDRESS, splitAmount } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
@@ -574,7 +574,14 @@ export class MockDataProvider implements DataProvider {
         totalDonated,
       });
     }
-    entries.sort((a, b) => b.points - a.points);
+    // §4.4 детерминизм: при равенстве очков ранг НЕ должен зависеть от порядка в журнале. Вторичные ключи —
+    // больше задонатил, затем адрес (уникален) → полный порядок, перевычислимый независимо.
+    entries.sort(
+      (a, b) =>
+        b.points - a.points ||
+        (b.totalDonated > a.totalDonated ? 1 : b.totalDonated < a.totalDonated ? -1 : 0) ||
+        a.donor.localeCompare(b.donor),
+    );
     entries.forEach((e, i) => (e.rank = i + 1));
     return period === "top_donor_month" ? entries.slice(0, 1) : entries.slice(0, 50);
   }
@@ -690,7 +697,7 @@ export class MockDataProvider implements DataProvider {
     // B4: лимит длины текста (как трастлесс-приём в server/ingest.ts) — иначе мегабайтный текст осел бы в
     // сторе и каждый раз гонялся в OpenAI-модерацию (DoS/амплификация).
     if (hasText && input.text!.trim().length > cfg.messageMaxLen)
-      throw new DataError("TEXT_TOO_LONG", "Текст доната превышает лимит канала.");
+      throw new DataError("TOO_LONG", "Текст доната превышает лимит канала.");
     const amount = toMicro(input.amountUSDC);
     const min = hasText ? cfg.minDonationWithText : cfg.minDonation;
     if (amount < min) throw new DataError("BELOW_MIN", "Сумма ниже минимума канала.");
@@ -701,8 +708,7 @@ export class MockDataProvider implements DataProvider {
     ) {
       throw new DataError("BLOCKED", "Этот кошелёк заблокирован на канале для донатов-с-текстом.");
     }
-    const fee = (amount * 3n) / 100n;
-    const net = amount - fee;
+    const { fee, net } = splitAmount(amount); // единый источник ставки (addresses.ts), не дублируем 3%
     return this.record({
       channelId: input.channelId,
       donor,

@@ -20,11 +20,15 @@ function isBigintTag(v: unknown): v is BigintTag {
   );
 }
 
-/** Сериализация: bigint → { __bigint: "<dec>" }. */
+/** Сериализация: bigint → { __bigint: "<dec>" }. Симметрично decode: то, что decode не оживит (> 40 цифр),
+ *  и не кодируем — иначе значение молча вернулось бы объектом, а не bigint. Для денег недостижимо. */
 export function encode(value: unknown): string {
-  return JSON.stringify(value, (_k, v) =>
-    typeof v === "bigint" ? ({ __bigint: v.toString() } satisfies BigintTag) : v,
-  );
+  return JSON.stringify(value, (_k, v) => {
+    if (typeof v !== "bigint") return v;
+    const s = v.toString();
+    if (!BIGINT_RE.test(s)) throw new Error("bigint вне диапазона кодека (> 40 цифр)");
+    return { __bigint: s } satisfies BigintTag;
+  });
 }
 
 /** Десериализация: { __bigint } → bigint. */

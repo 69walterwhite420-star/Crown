@@ -103,11 +103,10 @@ export interface ChannelConfig {
 export type LedgerType =
   | "DONATION" // (+) единственный источник роста в ядре
   | "ADMIN_VOID" // (−) списание оператором при нелегальщине
-  // зарезервировано под игры — НЕ используется в ядре:
-  | "DISPUTE_WON"
-  | "DISPUTE_LOST"
-  | "GAME"
-  | "REFUND";
+  | "DISPUTE_WON" // (+) выигранный спор (игра escrow-task, ADR 0015)
+  | "DISPUTE_LOST" // (−) проигранный спор (игра escrow-task)
+  | "GAME" // зарезервировано под будущие игры
+  | "REFUND"; // зарезервировано (возврат)
 
 export interface LedgerEvent {
   id: string;

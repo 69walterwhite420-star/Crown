@@ -104,7 +104,7 @@ export async function buildFundIx(p: FundParams): Promise<TransactionInstruction
   });
 }
 
-/** Действие стримера (accept/reject/mark_done): подписывает владелец payout-адреса. */
+/** Действие стримера (reject/mark_done): подписывает владелец payout-адреса. */
 function streamerAction(
   programId: PublicKey,
   streamer: PublicKey,

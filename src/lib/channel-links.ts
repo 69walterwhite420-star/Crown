@@ -9,7 +9,6 @@
  */
 import type { ChannelLink, ChannelLinkPlatform } from "./data/types";
 
-export const CHANNEL_NAME_MAX = 40;
 export const CHANNEL_DESC_MAX = 280;
 
 export interface PlatformDef {

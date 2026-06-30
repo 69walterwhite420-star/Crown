@@ -26,6 +26,15 @@ export function explorerAddressUrl(address: string): string {
 export const USDC_DECIMALS = 6;
 export const FEE_BPS = 300; // 3%
 
+/**
+ * Целочисленное расщепление суммы доната: fee = FEE_BPS, net = остаток. ЕДИНЫЙ источник правды о ставке
+ * (web3-free, поэтому зовётся и из mock/api, и из UI, и из chain-пути) — не дублировать `*3n/100n` по месту.
+ */
+export function splitAmount(amountMicro: bigint): { fee: bigint; net: bigint } {
+  const fee = (amountMicro * BigInt(FEE_BPS)) / 10_000n;
+  return { fee, net: amountMicro - fee };
+}
+
 /** Одноразовый сбор активации канала (~$2 в трежери), анти-флуд-якорь (core-spec §3/§9). */
 const ACTIVATION_FEE_USDC = 2;
 export const ACTIVATION_FEE_MICRO = BigInt(ACTIVATION_FEE_USDC) * 1_000_000n;
@@ -54,16 +63,20 @@ export const OPERATOR_ADDRESS =
 
 // — Эскроу-программа задания-доната (игра, G3a; ADR 0017). На devnet — задеплоенный id; в проде env. —
 const DEVNET_ESCROW_PROGRAM = "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4";
+// ОБЯЗАН совпадать с RESOLVER-константой в anchor/programs/escrow-task/src/lib.rs — иначе подписанные
+// resolve_dispute/mark_disputed отвергаются программой (ровно эта рассинхронизация и была: дефолт тянулся
+// от OPERATOR_ADDRESS = трежери, а программа ждёт другой ключ).
+const DEVNET_ESCROW_RESOLVER = "6F5Y3qLdDCB7gm1hFwdangodbRjWJRhnvNSxgPofB5xR";
 /** Program id эскроу-программы. На mainnet задать свежий задеплоенный id через env. */
 export const ESCROW_PROGRAM_ID =
   process.env.NEXT_PUBLIC_ESCROW_PROGRAM_ID ?? devnetOnly(DEVNET_ESCROW_PROGRAM);
 /**
  * Bounded-резолвер спора (G3a, devnet-only): адрес, которому программа разрешает выбрать сторону спора
- * (украсть/перенаправить не может — получатели зашиты в эскроу). Дефолт = оператор. На мейннете заменяется
- * ончейн-голосованием (G3b) — переменная уйдёт.
+ * (украсть/перенаправить не может — получатели зашиты в эскроу). Дефолт = захардкоженный в программе RESOLVER.
+ * На мейннете заменяется ончейн-голосованием (G3b) — переменная уйдёт.
  */
 export const ESCROW_RESOLVER =
-  process.env.NEXT_PUBLIC_ESCROW_RESOLVER ?? OPERATOR_ADDRESS;
+  process.env.NEXT_PUBLIC_ESCROW_RESOLVER ?? devnetOnly(DEVNET_ESCROW_RESOLVER);
 
 /**
  * Fail-closed валидация денежной конфигурации на mainnet (аудит C2). Вне прода — no-op (devnet-дефолты ок).

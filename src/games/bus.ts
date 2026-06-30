@@ -79,8 +79,8 @@ export interface GameHandlers {
 export type GameHandlerRegistry = Record<string, GameHandlers>;
 
 /**
- * Реестр обработчиков по id игры. Заполняется по мере готовности игр (escrow-task — G1.3). Пока пусто:
- * труба есть, операций ещё нет. Добавить игру = добавить её обработчики сюда (как манифест в `registry.ts`).
+ * Реестр обработчиков по id игры. Заполняется при импорте из `games/index.ts` (сейчас — `escrow-task`).
+ * Добавить игру = зарегистрировать её обработчики там (как манифест в `registry.ts`).
  */
 export const GAME_HANDLERS: GameHandlerRegistry = {};
 

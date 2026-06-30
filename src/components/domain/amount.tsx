@@ -1,3 +1,4 @@
+import { splitAmount } from "@/lib/chain/addresses";
 import { cn, formatUSDC } from "@/lib/utils";
 
 /** Денежная сумма: моно, tabular-nums. variant="money" — для подтверждённого/финального (design-system §2). */
@@ -19,8 +20,7 @@ export function Amount({
 
 /** Разбивка комиссии 97/3 прямо в виджете доната (screens.md). */
 export function FeeSplit({ amount }: { amount: bigint }) {
-  const fee = (amount * 3n) / 100n;
-  const net = amount - fee;
+  const { fee, net } = splitAmount(amount);
   return (
     <div className="flex flex-col gap-1.5 rounded border border-border bg-[var(--bg)] p-3 text-small">
       <div className="flex items-center justify-between">

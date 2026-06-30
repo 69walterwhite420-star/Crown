@@ -31,16 +31,6 @@ export function formatUSDC(micro: bigint): string {
   });
 }
 
-/** micro-USDC → "$21.3K" (компактно, для плиток-статов и осей графика). */
-export function formatUSDCCompact(micro: bigint): string {
-  return fromMicro(micro).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  });
-}
-
 /** Очки репутации → "5,000". */
 export function formatPoints(points: number): string {
   return Math.round(points).toLocaleString("en-US");
@@ -68,14 +58,6 @@ export function plural(n: number, forms: readonly [one: string, few: string, man
   if (mod10 === 1 && mod100 !== 11) return forms[0];
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
   return forms[2];
-}
-
-/** Число + согласованное слово: pluralize(22, ["донат","доната","донатов"]) → "22 доната". */
-export function pluralize(
-  n: number,
-  forms: readonly [one: string, few: string, many: string],
-): string {
-  return `${n} ${plural(n, forms)}`;
 }
 
 /**

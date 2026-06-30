@@ -50,17 +50,17 @@ export interface TierResolution {
 
 /**
  * Текущий тир по очкам + прогресс до следующего. Тиры/пороги — единственный рычаг стримера.
- * Если очков меньше порога ПЕРВОГО тира — тира нет (tier: undefined), а nextTier указывает на первый
- * тир: тир ЗАРАБАТЫВАЕТСЯ с его порога, а не выдаётся по умолчанию (иначе человек ниже входа ошибочно
- * получал бы первый тир).
+ * Тир зарабатывается с порога: если очков меньше порога ПЕРВОГО тира — тира нет (tier: undefined),
+ * nextTier указывает на первый. Частный случай — первый тир с порогом 0 (как дефолтный «Новичок»): это
+ * пол, его получает любой донор (ветка «ниже входа» тогда недостижима). Обе конфигурации поддержаны.
  */
 export function resolveTier(points: Points, tiers: Tier[]): TierResolution {
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
   const first = sorted[0];
   if (!first) return { progressToNext: 0 }; // тиров нет вовсе
   if (points < first.threshold) {
-    // ниже входа: прогресс к первому тиру считаем от 0
-    return { nextTier: first, progressToNext: clamp01(points / first.threshold) };
+    // ниже входа: прогресс к первому тиру от 0 (threshold > 0 здесь гарантирован проверкой выше).
+    return { nextTier: first, progressToNext: first.threshold > 0 ? clamp01(points / first.threshold) : 1 };
   }
   let current = first;
   for (const t of sorted) {

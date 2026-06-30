@@ -11,8 +11,3 @@ export const GAMES: readonly GameModule[] = [escrowTask];
 export function getGame(id: GameId): GameModule | undefined {
   return GAMES.find((g) => g.id === id);
 }
-
-/** Игры, доступные каналам к включению (модули в статусе `building` скрыты вне дева). */
-export function availableGames(): GameModule[] {
-  return GAMES.filter((g) => g.status === "available");
-}
