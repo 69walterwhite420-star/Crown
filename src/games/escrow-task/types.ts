@@ -58,6 +58,10 @@ export interface EscrowTask {
   acceptDeadline: string; // ISO — после него PENDING истекает (возврат донору)
   status: TaskStatus;
 
+  // Ончейн-эскроу (chain-режим, G3a; ADR 0017). В mock/api пусто — деньги мок.
+  escrowTaskId?: string; // hex 32-байтового seed эскроу-PDA (клиент генерит при создании)
+  fundTx?: string; // подпись tx фандинга эскроу
+
   // ACCEPTED:
   acceptedAt?: string;
   graceUntil?: string; // ISO — окно отмены донором

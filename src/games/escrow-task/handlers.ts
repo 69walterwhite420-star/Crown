@@ -70,7 +70,13 @@ export const escrowTaskHandlers: GameHandlers = {
     // Донор создаёт задание-донат (деньги «в эскроу» — мок).
     create: async (ctx, payload) => {
       const donor = requireIdentity(ctx);
-      const p = (payload ?? {}) as { amount?: unknown; text?: unknown; executionMs?: unknown };
+      const p = (payload ?? {}) as {
+        amount?: unknown;
+        text?: unknown;
+        executionMs?: unknown;
+        escrowTaskId?: unknown; // chain-режим: ссылка на ончейн-эскроу (ADR 0017)
+        fundTx?: unknown;
+      };
       const amount = String(p.amount ?? "");
       if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n)
         throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
@@ -94,8 +100,14 @@ export const escrowTaskHandlers: GameHandlers = {
         },
         nowMs(ctx),
       );
-      saveTasks(ctx, [...loadTasks(ctx), task]);
-      return task;
+      // chain-режим: привязываем оффчейн-зеркало к ончейн-эскроу (провайдер уже отправил `fund`).
+      const stored: typeof task = {
+        ...task,
+        ...(typeof p.escrowTaskId === "string" ? { escrowTaskId: p.escrowTaskId } : {}),
+        ...(typeof p.fundTx === "string" ? { fundTx: p.fundTx } : {}),
+      };
+      saveTasks(ctx, [...loadTasks(ctx), stored]);
+      return stored;
     },
 
     // Стример: принять / отклонить / отметить «Готово».

@@ -224,8 +224,15 @@ activate → Discovery, isCreator/isOperator по адресу; build (chain) з
     ни у кого). **Собрана и ЗАДЕПЛОЕНА на devnet** (2026-06-29): program id
     `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`, upgrade authority — кошелёк `G1vJ…uz14`; рекорд в
     `.env.local` `NEXT_PUBLIC_ESCROW_PROGRAM_ID`. Тулчейн: Solana 4.0.2 / platform-tools v1.53 / rustc
-    1.89. **Осталось:** ончейн-`gameAction` в `ChainDataProvider` (строить инструкции кошельком) +
-    наблюдение программы индексером (`DONATION`/`REFUND`/`DISPUTE_*` в журнал).
+    1.89. Билдеры инструкций `src/lib/chain/escrow-tx.ts` (без anchor-IDL) **проверены смоуком против живой
+    программы** (`scripts/escrow-smoke.ts`: fund→accept→done→resolve→claim 97/3 + возврат). Ончейн-
+    `gameAction` в `ChainDataProvider` подключён: денежные операции (create→`fund`, accept/reject/markDone,
+    cancel, claim с авто-`resolve_timeout`) реально двигают USDC кошельком, оффчейн-зеркало/репутация — через
+    `api` в лок-степе; спор/голоса оффчейн. typecheck/lint/тесты зелёные. **Браузерно НЕ проверено** (нужен
+    кошелёк). **Осталось:** (a) трастлесс серверная валидация эскроу из цепочки (сейчас оффчейн-зеркало
+    доверяет клиенту — ок для devnet, до прода закрыть, как ingestSignature для донатов); (b) индексер
+    программы (доганивание `DONATION`/`REFUND`/`DISPUTE_*` независимо от браузера); (c) бэкенд-резолвер
+    спора (подпись `resolve_dispute` ключом-резолвером по итогу оффчейн-голосования).
   - [ ] G3b (до мейннета): ончейн commit-reveal взвешенное голосование вместо bounded-резолвера +
     мастер-переменная (юрисдикция/США) + аудит контракта
 

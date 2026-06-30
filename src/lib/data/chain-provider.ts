@@ -1,9 +1,11 @@
 import type { WalletContextState } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import {
   ACTIVATION_FEE_MICRO,
   DEVNET_RPC,
   DEVNET_USDC_MINT,
+  ESCROW_PROGRAM_ID,
+  ESCROW_RESOLVER,
   TREASURY_OWNER,
 } from "../chain/config";
 import {
@@ -11,6 +13,18 @@ import {
   buildDonationInstructions,
   splitAmount,
 } from "../chain/donation-tx";
+import {
+  buildAcceptIx,
+  buildCancelIx,
+  buildClaimDonorIxs,
+  buildClaimStreamerIxs,
+  buildFundIx,
+  buildMarkDoneIx,
+  buildRejectIx,
+  buildResolveTimeoutIx,
+  decodeEscrow,
+  escrowPda,
+} from "../chain/escrow-tx";
 import { resolveTier } from "../reputation";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
@@ -56,6 +70,20 @@ function toBase64(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s);
+}
+
+// — Хелперы 32-байтового seed эскроу (chain-режим игры, G3a) —
+const toHex = (b: Uint8Array): string =>
+  Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+function fromHex(s: string): Uint8Array {
+  const a = new Uint8Array(s.length >> 1);
+  for (let i = 0; i < a.length; i++) a[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  return a;
+}
+function randomTaskId(): Uint8Array {
+  const a = new Uint8Array(32);
+  crypto.getRandomValues(a);
+  return a;
 }
 
 export class ChainDataProvider implements DataProvider {
@@ -439,10 +467,159 @@ export class ChainDataProvider implements DataProvider {
     return this.api.getIncidentLog(o);
   }
 
-  // — Мини-игры (game-bus, ADR 0016): чтения/мутации идут на сервер через api (как остальные данные) —
-  gameAction(req: GameRequest): Result<unknown> {
-    return this.api.gameAction(req);
+  // — Мини-игры (game-bus, ADR 0016) —
+  // Для escrow-task (ADR 0017): денежные операции реально двигают USDC через ончейн-программу подключённым
+  // кошельком (программа сама проверяет, что подписант — нужный актор: донор/стример/получатель), затем
+  // обновляем оффчейн-зеркало через `api` (там же — модерация текста и банковка репутации). Спор/голоса в
+  // G3a остаются оффчейн (на цепочку их исход пушит резолвер-оператор отдельно). Чтения — из бэкенда.
+
+  /** Собрать tx из инструкций, подписать подключённым кошельком, дождаться confirmed. Вернуть подпись. */
+  private async sendTx(ixs: TransactionInstruction[]): Promise<string> {
+    const w = this.wallet;
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    const tx = new Transaction().add(...ixs);
+    tx.feePayer = w.publicKey;
+    const latest = await this.connection.getLatestBlockhash();
+    tx.recentBlockhash = latest.blockhash;
+    const sig = await w.sendTransaction(tx, this.connection);
+    await this.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+    return sig;
   }
+
+  /** 32-байтовый seed эскроу задания (из оффчейн-зеркала) для пересборки PDA в последующих операциях. */
+  private async escrowTaskIdOf(channelId: string, taskId: unknown): Promise<Uint8Array> {
+    const task = (await this.api.gameQuery({
+      gameId: "escrow-task",
+      channelId,
+      op: "get",
+      payload: { taskId },
+    })) as { escrowTaskId?: string } | null;
+    if (!task?.escrowTaskId)
+      throw new DataError("NO_ESCROW", "У задания нет ончейн-эскроу (создано не в chain-режиме?).");
+    return fromHex(task.escrowTaskId);
+  }
+
+  async gameAction(req: GameRequest): Result<unknown> {
+    if (req.gameId !== "escrow-task") return this.api.gameAction(req);
+    const w = this.wallet;
+    if (!w?.publicKey) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!ESCROW_PROGRAM_ID || !DEVNET_USDC_MINT || !TREASURY_OWNER || !ESCROW_RESOLVER) {
+      throw new DataError(
+        "NOT_CONFIGURED",
+        "Не задан адрес эскроу-программы или денежная конфигурация (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC/TREASURY).",
+      );
+    }
+    const programId = new PublicKey(ESCROW_PROGRAM_ID);
+    const mint = new PublicKey(DEVNET_USDC_MINT);
+    const p = (req.payload ?? {}) as Record<string, unknown>;
+
+    switch (req.op) {
+      case "create": {
+        const amountStr = String(p.amount ?? "");
+        if (!/^\d+$/.test(amountStr) || BigInt(amountStr) <= 0n)
+          throw new DataError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
+        // Модерация ДО подписи/отправки: деньги ончейн необратимы — запрещёнку ловим заранее, иначе
+        // эскроу был бы профинансирован под задание, которое оффчейн-create потом отклонит.
+        const text = typeof p.text === "string" ? p.text.trim() : "";
+        if (text) {
+          const { blocked, reason } = await this.api.precheckText(text, req.channelId);
+          if (blocked)
+            throw new DataError(
+              reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
+              reason === "blocklist"
+                ? "Кошелёк заблокирован на канале для сообщений."
+                : "Текст задания не прошёл модерацию (запрещённый/опасный контент).",
+            );
+        }
+        // channelId → payout-адрес стримера (через оффчейн-бэкенд, как в createDonation).
+        const list = await this.api.listChannels();
+        const card = list.items.find((c) => c.channelId === req.channelId);
+        const channel = card ? await this.api.getChannel(card.handle) : null;
+        if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+        const executionMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
+        const taskId = randomTaskId();
+        const ix = await buildFundIx({
+          programId,
+          donor: w.publicKey,
+          streamer: new PublicKey(channel.payoutAddress),
+          treasury: new PublicKey(TREASURY_OWNER),
+          resolver: new PublicKey(ESCROW_RESOLVER),
+          mint,
+          taskId,
+          amount: BigInt(amountStr),
+          executionWindow: BigInt(Math.floor(executionMs / 1000)),
+        });
+        const fundTx = await this.sendTx([ix]);
+        return this.api.gameAction({
+          ...req,
+          payload: { ...p, escrowTaskId: toHex(taskId), fundTx },
+        });
+      }
+
+      case "accept":
+      case "reject":
+      case "markDone":
+      case "cancel": {
+        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
+        const ix =
+          req.op === "accept"
+            ? buildAcceptIx(programId, w.publicKey, taskId)
+            : req.op === "reject"
+              ? buildRejectIx(programId, w.publicKey, taskId)
+              : req.op === "markDone"
+                ? buildMarkDoneIx(programId, w.publicKey, taskId)
+                : buildCancelIx(programId, w.publicKey, taskId);
+        await this.sendTx([ix]);
+        return this.api.gameAction(req);
+      }
+
+      case "claim": {
+        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
+        const escrow = escrowPda(programId, taskId);
+        const info = await this.connection.getAccountInfo(escrow);
+        if (info) {
+          let acc = decodeEscrow(info.data);
+          if (acc.resolution === 0) {
+            // Unresolved → авторазрешение по таймауту (permissionless). Если ещё «не дозрело» или открыт
+            // спор — программа откатит (claim станет возможен после окна/резолва спора оператором).
+            await this.sendTx([buildResolveTimeoutIx(programId, w.publicKey, taskId)]);
+            const after = await this.connection.getAccountInfo(escrow);
+            if (after) acc = decodeEscrow(after.data);
+          }
+          if (acc.resolution === 1) {
+            await this.sendTx(
+              await buildClaimStreamerIxs(this.connection, {
+                programId,
+                streamer: w.publicKey,
+                donor: acc.donor,
+                treasury: acc.treasury,
+                mint,
+                taskId,
+              }),
+            );
+          } else if (acc.resolution === 2) {
+            await this.sendTx(
+              await buildClaimDonorIxs(this.connection, {
+                programId,
+                donor: w.publicKey,
+                mint,
+                taskId,
+              }),
+            );
+          } else {
+            throw new DataError("NOT_RESOLVED", "Задание ещё не разрешено (спор не закрыт оператором).");
+          }
+        }
+        // Оффчейн-settle забанкует репутацию (DONATION/REFUND) — мозг состояния/репутации остаётся оффчейн.
+        return this.api.gameAction(req);
+      }
+
+      default:
+        // raiseDispute, vote и прочее — оффчейн (спор в G3a не на цепочке).
+        return this.api.gameAction(req);
+    }
+  }
+
   gameQuery(req: GameRequest): Result<unknown> {
     return this.api.gameQuery(req);
   }
