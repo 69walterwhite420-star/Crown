@@ -54,6 +54,19 @@ export const TREASURY_OWNER = process.env.NEXT_PUBLIC_TREASURY_OWNER ?? devnetOn
 export const OPERATOR_ADDRESS =
   process.env.NEXT_PUBLIC_OPERATOR_ADDRESS ?? devnetOnly(TREASURY_OWNER);
 
+// — Эскроу-программа задания-доната (игра, G3a; ADR 0017). На devnet — задеплоенный id; в проде env. —
+const DEVNET_ESCROW_PROGRAM = "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4";
+/** Program id эскроу-программы. На mainnet задать свежий задеплоенный id через env. */
+export const ESCROW_PROGRAM_ID =
+  process.env.NEXT_PUBLIC_ESCROW_PROGRAM_ID ?? devnetOnly(DEVNET_ESCROW_PROGRAM);
+/**
+ * Bounded-резолвер спора (G3a, devnet-only): адрес, которому программа разрешает выбрать сторону спора
+ * (украсть/перенаправить не может — получатели зашиты в эскроу). Дефолт = оператор. На мейннете заменяется
+ * ончейн-голосованием (G3b) — переменная уйдёт.
+ */
+export const ESCROW_RESOLVER =
+  process.env.NEXT_PUBLIC_ESCROW_RESOLVER ?? OPERATOR_ADDRESS;
+
 /**
  * Fail-closed валидация денежной конфигурации на mainnet (аудит C2). Вне прода — no-op (devnet-дефолты ок).
  * В проде требует явные трежери/оператор/USDC-mint, запрещает devnet-трежери и совпадение оператор=трежери
