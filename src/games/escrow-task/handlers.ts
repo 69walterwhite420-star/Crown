@@ -197,6 +197,22 @@ export const escrowTaskHandlers: GameHandlers = {
       const settled = settle(ctx, findTask(tasks, idOf(payload), ctx.channelId));
       return commit(ctx, tasks, M.claim(settled, by, ctx.channelOwner ?? "", nowMs(ctx)));
     },
+
+    // PERMISSIONLESS: разрешить по времени + забанковать репутацию для ВСЕХ дозревших заданий канала, не
+    // дожидаясь claim (ADR 0015 §2 — репутация в момент резолва). Зовётся фоновым сеттлером (indexer-service)
+    // независимо от браузера. Идемпотентно: settle() не трогает уже RESOLVED. Деньги не двигает (claim-модель).
+    settleDue: (ctx) => {
+      const tasks = loadTasks(ctx);
+      let settledCount = 0;
+      const next = tasks.map((t) => {
+        if (t.status === "RESOLVED" || t.channelId !== ctx.channelId) return t;
+        const s = settle(ctx, t); // банкует эффекты при переходе в RESOLVED (побочный эффект bankLedger)
+        if (s !== t) settledCount++;
+        return s;
+      });
+      if (settledCount > 0) saveTasks(ctx, next);
+      return { settled: settledCount };
+    },
   },
 
   queries: {

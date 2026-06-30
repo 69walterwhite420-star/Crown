@@ -82,6 +82,31 @@ describe("happy-path: создал → принял → готово → (окн
   });
 });
 
+describe("settleDue: фоновый резолв по времени банкует репутацию без claim (permissionless)", () => {
+  it("DONE без спора после окна → DONATION донору, идемпотентно", async () => {
+    const h = harness();
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
+    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id });
+
+    // Окно спора прошло → сеттлер (без личности) резолвит и банкует, не дожидаясь claim.
+    const r1 = (await h.run(null, T0 + 2 + WINDOWS.disputeWindow + 1, "settleDue")) as {
+      settled: number;
+    };
+    expect(r1.settled).toBe(1);
+    expect(h.ledger).toEqual([
+      { address: "Donor", type: "DONATION", pointsDelta: 5, amount: AMOUNT },
+    ]);
+
+    // Повторный прогон — ничего нового (идемпотентно: уже RESOLVED).
+    const r2 = (await h.run(null, T0 + 2 + WINDOWS.disputeWindow + 2, "settleDue")) as {
+      settled: number;
+    };
+    expect(r2.settled).toBe(0);
+    expect(h.ledger).toHaveLength(1);
+  });
+});
+
 describe("спор: комьюнити решает «не выполнил» → возврат донору", async () => {
   it("донор забирает 100%, инициатору спора — бонус, доната нет", async () => {
     const h = harness({ Disputer: 1, JurorA: 4, JurorB: 3 });

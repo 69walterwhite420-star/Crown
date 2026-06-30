@@ -57,6 +57,30 @@ async function runLoop(store: MockDataProvider, persist: () => void): Promise<vo
     } catch (e) {
       console.error("[indexer] ошибка опроса:", e instanceof Error ? e.message : e);
     }
+
+    // Фоновый сеттлер заданий-игры (G3a, ADR 0017 / 0015 §2): банкует репутацию при резолве ПО ВРЕМЕНИ
+    // независимо от браузера (репутация оффчейн-детерминирована из журнала; деньги не трогаем — claim-
+    // модель). Идемпотентно: settle() не трогает уже RESOLVED. Канал без игры → GAME_NOT_ENABLED, пропуск.
+    try {
+      const channels = await store.listChannels();
+      let settledAny = false;
+      for (const c of channels.items) {
+        try {
+          const r = (await store.gameAction({
+            gameId: "escrow-task",
+            channelId: c.channelId,
+            op: "settleDue",
+          })) as { settled: number };
+          if (r.settled > 0) settledAny = true;
+        } catch {
+          /* игра не включена на канале / прочее — пропускаем */
+        }
+      }
+      if (settledAny) persist();
+    } catch (e) {
+      console.error("[settler] ошибка:", e instanceof Error ? e.message : e);
+    }
+
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
 }
