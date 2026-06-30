@@ -88,7 +88,8 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 раунд 2 (ESC-10/ESC-11) — tx `4ev52BPL7AzPUQMuYsxyxYGg7fG8TB3RMoPfmJvK9uJdkwtYc4rND8ERqDV4ygwuMpcASxYinQNSfx12rbytejEz`;
 раунд 3 (ESC-13 контракт; ESC-12 + ESC-6 — серверные) — tx `LDESFuePHUi1CLpPRfz2BzU5E37PLWvtdq5Jb26vccc8mgvpL6YGZgvi8cS6Bv6kuQgDcWJzpoe7avXGQJSTNMB`;
 раунд 4 (ESC-17 контракт; ESC-14/ESC-15/ESC-16 — серверные) — tx `uaryR9At2WrHco7NFVYWRHEcudjq8u6R7uagfwzZbicwfYi4tUzU13npE6y6j12x42A14fA2kd7y9qtkFZYTxhx`;
-раунд 5 (ESC-18 + ESC-6 fail-closed + кламп окна + `graceUntil` — БЕЗ редеплоя, серверные/клиентские/доки).
+раунд 5 (ESC-18 + ESC-6 fail-closed + кламп окна + `graceUntil` — БЕЗ редеплоя, серверные/клиентские/доки);
+раунд 6 (**M3** event-индексер claim'ов + `settle` строго по ончейн-исходу — БЕЗ редеплоя, серверные).
 Все исправления подтверждены `scripts/escrow-smoke.ts` (DUST-атака ESC-10; mark_done-в-грейсе ESC-13; bad-window ESC-17)
 и vitest (ESC-14 повторный claim не чеканит репутацию; ESC-18 повторный escrowTaskId отклонён; ESC-6 fail-closed).
 
@@ -105,25 +106,27 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 | ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!` — открыто (INFO; индексер декодирует аккаунты). Гонку дедлайна закрыл ESC-11 |
 | ESC-10 | **HIGH** | перманентная заморозка: любой шлёт «пыль» на публичный ATA хранилища → `claim` выводит ровно `e.amount`, остаток валит `close_account` (`NonNativeHasBalance`) → tx claim откатывается навсегда; деньги и рента заперты, цена атаки — пыль+газ | **закрыто** | `lib.rs → claim_streamer`/`claim_donor`: выплата от ЖИВОГО баланса `vault.amount` (не `e.amount`) → пыль распределяется/возвращается, vault обнуляется и закрывается. Смоук: обе ветки с DUST-атакой проходят |
 | ESC-11 | LOW→MED | `mark_disputed` без верхней границы окна: без кипера `Done` висит долго, резолвер мог пометить спор вне окна оспаривания и развернуть к донору (ончейн слабее `machine.ts`) | **закрыто** | `lib.rs → mark_disputed`: `require!(now <= e.dispute_deadline)` (паритет с `raiseDispute`); заодно закрывает гонку ESC-9 (`mark_disputed` и `resolve_timeout`-ветка Done больше не пересекаются во времени) |
-| ESC-12 | **HIGH** | репутация банкуется по офчейн-таймеру без сверки с ончейн-исходом (`settleDue` падал в api, не читал `escrow.resolution`) → liveness-резолвера: офчейн-вердикт `to_donor`, а деньги по `resolve_timeout` ушли стримеру → репутация ≠ деньги (открытые H1/M3, бьющие по продукту) | **закрыто** (остаток M3) | `handlers.ts → settle` async: для chain-backed задания читает ончейн-исход (`GameContext.escrowOutcome` → `readEscrowOutcome`) и банкует по ДЕНЬГАМ (`reconcile`), Unresolved → откладывает. Остаток: эскроу закрыт до того, как сеттлер увидел resolution → best-effort офчейн (нужен event-индексер, M3) |
+| ESC-12 | **HIGH** | репутация банкуется по офчейн-таймеру без сверки с ончейн-исходом (`settleDue` падал в api, не читал `escrow.resolution`) → liveness-резолвера: офчейн-вердикт `to_donor`, а деньги по `resolve_timeout` ушли стримеру → репутация ≠ деньги (открытые H1/M3, бьющие по продукту) | **закрыто** | `handlers.ts → settle` async: для chain-backed задания читает ончейн-исход (`GameContext.escrowOutcome` → `readEscrowOutcome`) и банкует по ДЕНЬГАМ (`reconcile`), исход неизвестен → откладывает. Хвост (эскроу закрыт до чтения resolution) закрыт **M3** (event-индексер, ниже) |
 | ESC-13 | MEDIUM | `mark_done` из `Pending` затирал грейс-окно: стример фронт-раннил «Готово» сразу после `fund` → донорская отмена (`cancel` только из Pending) мертва, ошибочный донат невозвратен | **закрыто** | `lib.rs → mark_done`: `require!(now > e.accept_deadline)` (нельзя сдать в грейсе); зеркало `machine.ts → markDone` (`GRACE_ACTIVE`). Смоук: mark_done-в-грейсе отклонён. Требует `execution_window > CANCEL_GRACE` → ESC-17 |
 | ESC-14 | **HIGH** | бесконечная накрутка репутации: `claim` банковал в `settle` (сайд-эффект) ДО `M.claim`; бросок `NOT_WINNER` оставлял статус не-RESOLVED → повторный claim неполучателем чеканил `DONATION`/`DISPUTE_WON` без предела (пробивает Замок 2 — вес голоса = репутация) | **закрыто** | `handlers.ts → claim`: ПЕРСИСТ резолва (`commit settled`) ДО `M.claim` → бросок не оставляет недосохранённого состояния, `settle` идемпотентен (RESOLVED → ранний выход). Тест `handlers.test.ts` ESC-14 |
 | ESC-15 | MEDIUM | гонка двойной банковки (регрессия от async-`settle` ESC-12): фоновый сеттлер и пользовательский claim/settleDue заходят в `settle` по одному заданию, оба ждут RPC, оба банкуют (мьютекса в сторе нет) | **закрыто** | `mock-provider.ts → serializeGameAction`: мутации игры сериализованы по каналу (per-channel очередь) → нет интерливинга на `await` в `settle` |
-| ESC-16 | MEDIUM | ESC-12 неполный: при сбое RPC `escrowOutcome` возвращал `null` → `settle` падал в офчейн-таймер и фиксировал RESOLVED (репутация ≠ деньги; не самолечится) | **закрыто** | `handlers.ts → settle`: `!oc` (null/сбой RPC) для chain-backed задания → ОТКЛАДЫВАЕМ банковку (как present-без-исхода), не по таймеру; сеттлер повторит, когда RPC ответит |
+| ESC-16 | MEDIUM | ESC-12 неполный: при сбое RPC `escrowOutcome` возвращал `null` → `settle` падал в офчейн-таймер и фиксировал RESOLVED (репутация ≠ деньги; не самолечится) | **закрыто** | `handlers.ts → settle`: банкуем ТОЛЬКО при известном ончейн-исходе; `null`/неизвестно → откладываем. Офчейн-таймера для chain-backed задания больше нет совсем (M3) |
 | ESC-17 | LOW | `fund` не гарантировал `execution_window > CANCEL_GRACE` → донор задаёт окно = грейсу → окно `mark_done` пустое (ESC-13): стример не сдаст никогда → вечный no-show (грифинг + заморозка до возврата) | **закрыто** | `lib.rs → fund`: `require!(execution_window > CANCEL_GRACE)`; зеркало `machine.ts → createTask` клампит нижнюю границу к `grace + 1`. Смоук: fund с окном = грейсу отклонён |
 | ESC-18 | MEDIUM | `create` не проверял уникальность `escrowTaskId` → один профинансированный эскроу (ОДИН платёж) зеркалится в N офчейн-заданий; каждое при `to_streamer` банкует `DONATION` донору → инфляция репутации (§4.4) + удешевление clawback | **закрыто** | `handlers.ts → create`: `escrowTaskId`, уже привязанный к заданию канала, → `ESCROW_REUSED`. Тест `handlers.test.ts` ESC-18 |
+| M3 | **HIGH** (продукт) | «репутация ≠ деньги»: эскроу закрывается (claim) в той же tx, что и resolve_timeout → живое чтение аккаунта опаздывает, банковка падала в офчейн-таймер. Главный остаточный фронт (ESC-12/16/18 — его частные случаи) | **закрыто** | event-индексер программы: `indexer-service.scanEscrowClaims` сканирует подписи программы, `escrow-tx.decodeEscrowClaims` декодирует `claim_streamer`/`claim_donor` из инструкций (истина денег переживает закрытие аккаунта), пишет исход в `meta` по PDA; `readEscrowOutcome` читает эту запись для закрытого эскроу. `settle` банкует строго по известному ончейн-исходу. Декодер проверен на реальных claim-tx devnet + юнит-тесты |
 
 Мелочи/робастность (раунд 5): клиентский `execution_window` теперь клампится в `chain-provider.create` к `> grace`
 (паритет с `createTask`/ESC-17 — не шлём заведомо ревертящий `fund`); `graceUntil` задаётся в `createTask` от
 СОЗДАНИЯ (= ончейн `accept_deadline`), `accept` его не переопределяет (раньше писал `acceptedAt+grace`, расходясь
 с реальным окном отмены и сбивая UI-гейт кнопки отмены).
 
-Известно открытым (не патч, отдельные сборки/политика): **M3** — «репутация ≠ деньги», если эскроу закрыт до того,
-как сеттлер прочитал `resolution` (ветка `present=false → due`); полное закрытие — event-индексер (декод `resolution`
-из логов до закрытия аккаунта). **ESC-18 — частный случай M3, закрыт точечно.** Модерация задания fail-open (только
-HARD_BLOCK; без `OPENAI_API_KEY` → CLEAR кроме CSAM) — осознанный размен (память проекта), флаг §12 к mainnet.
-Спека §5 разошлась с реализацией (нет «72ч окна принятия»/«грейса после принятия» — срок сдачи и грейс от СОЗДАНИЯ);
-учтено здесь, чтобы будущий аудитор не искал несуществующее окно.
+Известно открытым (не патч — политика/прод-настройка): модерация задания fail-open (только HARD_BLOCK; без
+`OPENAI_API_KEY` → CLEAR кроме CSAM) — осознанный размен (память проекта), флаг §12 к mainnet; **ESC-7** (пин
+`mint` к USDC) и хвост **ESC-9** (длинные прод-окна + `FAST_TEST_WINDOWS=false` + редеплой; `emit!`-события —
+сейчас индексер декодирует инструкции, M3) — вернуть перед mainnet. Зависимость M3: event-индексер обязан
+работать в chain-режиме (запускается из `store.ts`); без него chain-backed задания не банкуются (fail-safe —
+лучше не начислить, чем начислить не за теми деньгами). Спека §5 разошлась с реализацией (нет «72ч окна
+принятия»/«грейса после принятия» — срок сдачи и грейс от СОЗДАНИЯ); учтено здесь.
 
 Подтверждено корректным (контр-аудит): получатели зашиты в PDA и читаются в `claim` только из `escrow`
 (даже резолвер не направит деньги третьему — держит некастодиальность маршрутизации); `overflow-checks`;

@@ -10,6 +10,7 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
+import bs58 from "bs58";
 
 /**
  * Билдеры инструкций к эскроу-программе задания-доната (G3a, ADR 0017; программа — `anchor/`). Вручную, без
@@ -256,6 +257,41 @@ export async function buildClaimDonorIxs(
     }),
   );
   return ix;
+}
+
+/** Лёгкая форма инструкции из `getParsedTransaction` (PartiallyDecodedInstruction) — для декодера M3. */
+export interface DecodedIx {
+  programId: PublicKey;
+  accounts?: PublicKey[];
+  data?: string; // base58 (как отдаёт getParsedTransaction для неизвестных программ)
+}
+
+/**
+ * M3 (event-индексер): из инструкций ПОДПИСАННОЙ tx достаём ончейн-исход `claim`'ов нашей программы — момент,
+ * когда деньги РЕАЛЬНО двинулись. `claim_streamer` → to_streamer (эскроу = accounts[2]); `claim_donor` →
+ * to_donor (эскроу = accounts[1]). Декод из ИНСТРУКЦИИ, а не из аккаунта → истина переживает закрытие эскроу
+ * (claim закрывает аккаунт в той же tx). Чистая функция (без IO) — тестируема. Возвращает [{escrow(base58), outcome}].
+ */
+export function decodeEscrowClaims(
+  programId: PublicKey,
+  instructions: DecodedIx[],
+): { escrow: string; outcome: "to_streamer" | "to_donor" }[] {
+  const out: { escrow: string; outcome: "to_streamer" | "to_donor" }[] = [];
+  for (const ix of instructions) {
+    if (!ix.programId.equals(programId) || !ix.data || !ix.accounts) continue;
+    let disc: Uint8Array;
+    try {
+      disc = bs58.decode(ix.data).subarray(0, 8);
+    } catch {
+      continue; // не base58 / пустая data
+    }
+    const eq = (d: readonly number[]) => disc.length === 8 && d.every((b, i) => b === disc[i]);
+    if (eq(DISC.claimStreamer) && ix.accounts[2])
+      out.push({ escrow: ix.accounts[2].toBase58(), outcome: "to_streamer" });
+    else if (eq(DISC.claimDonor) && ix.accounts[1])
+      out.push({ escrow: ix.accounts[1].toBase58(), outcome: "to_donor" });
+  }
+  return out;
 }
 
 /** Декодер аккаунта Escrow (для индексера/чтения состояния): раскладка из программы (Anchor). */

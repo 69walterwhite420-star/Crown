@@ -1,6 +1,10 @@
 import { DEVNET_RPC, DEVNET_USDC_MINT, ESCROW_PROGRAM_ID } from "@/lib/chain/addresses";
 import { decodeEscrow, escrowPda } from "@/lib/chain/escrow-tx";
+import { getMeta } from "@/server/store-db";
 import { Connection, PublicKey } from "@solana/web3.js";
+
+/** M3: префикс meta-ключа, под которым event-индексер пишет ончейн-исход эскроу по его PDA (base58). */
+export const ESCROW_OUTCOME_META_PREFIX = "escrowOutcome:";
 
 /**
  * Трастлесс-сверка ончейн-эскроу задания (G3a, ADR 0017). Сервер НЕ верит клиенту, что `fund` реально
@@ -53,7 +57,15 @@ export async function readEscrowOutcome(
     const pda = escrowPda(programId, taskId);
     const conn = new Connection(DEVNET_RPC, "confirmed");
     const info = await conn.getAccountInfo(pda);
-    if (!info || !info.owner.equals(programId)) return { present: false, outcome: null };
+    if (!info || !info.owner.equals(programId)) {
+      // M3: аккаунт закрыт (заклеймлен) → берём ЗАФИКСИРОВАННЫЙ event-индексером ончейн-исход claim'а (истина
+      // денег переживает закрытие). Нет записи → outcome null (сеттлер откладывает, индексер догонит на опросе).
+      const rec = await getMeta(ESCROW_OUTCOME_META_PREFIX + pda.toBase58());
+      return {
+        present: false,
+        outcome: rec === "to_streamer" || rec === "to_donor" ? rec : null,
+      };
+    }
     const e = decodeEscrow(info.data);
     // resolution: 1 = ToStreamer, 2 = ToDonor, 0 = Unresolved (исход ещё не зафиксирован на цепочке).
     const outcome = e.resolution === 1 ? "to_streamer" : e.resolution === 2 ? "to_donor" : null;

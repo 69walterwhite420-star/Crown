@@ -1,8 +1,11 @@
 import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { Connection } from "@solana/web3.js";
+import { Connection, type PartiallyDecodedInstruction, PublicKey } from "@solana/web3.js";
+import { ESCROW_PROGRAM_ID } from "@/lib/chain/addresses";
 import { DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
-import { fetchNewTreasurySignatures } from "@/lib/chain/indexer";
+import { decodeEscrowClaims } from "@/lib/chain/escrow-tx";
+import { fetchNewProgramSignatures, fetchNewTreasurySignatures } from "@/lib/chain/indexer";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
+import { ESCROW_OUTCOME_META_PREFIX } from "@/server/escrow-verify";
 import { ingestActivation, ingestSignature } from "@/server/ingest";
 import { getMeta, setMeta } from "@/server/store-db";
 
@@ -20,6 +23,33 @@ import { getMeta, setMeta } from "@/server/store-db";
  */
 const POLL_MS = 20_000;
 const CURSOR_KEY = "indexerCursor";
+const ESCROW_CURSOR_KEY = "escrowIndexerCursor";
+
+/**
+ * M3 — event-индексер эскроу-программы. Сканирует подписи программы и фиксирует ончейн-исход `claim`'ов
+ * (`claim_streamer` → to_streamer, `claim_donor` → to_donor) в meta по PDA эскроу. Это ИСТИНА ДЕНЕГ, которая
+ * переживает закрытие аккаунта (claim закрывает эскроу в той же tx) — сеттлер читает её через readEscrowOutcome
+ * и банкует репутацию строго за реально ушедшими деньгами (закрывает хвост ESC-12/16: «репутация ≠ деньги»).
+ * Возвращает true, если что-то записал.
+ */
+async function scanEscrowClaims(connection: Connection, programId: PublicKey): Promise<boolean> {
+  const cursor = (await getMeta(ESCROW_CURSOR_KEY)) ?? undefined;
+  const sigs = await fetchNewProgramSignatures(connection, programId, cursor);
+  let wrote = false;
+  for (const sig of sigs) {
+    const tx = await connection.getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 });
+    const ixs = (tx?.transaction.message.instructions ?? [])
+      .filter((ix): ix is PartiallyDecodedInstruction => "data" in ix && "accounts" in ix)
+      .map((ix) => ({ programId: ix.programId, accounts: ix.accounts, data: ix.data }));
+    for (const { escrow, outcome } of decodeEscrowClaims(programId, ixs)) {
+      await setMeta(ESCROW_OUTCOME_META_PREFIX + escrow, outcome);
+      wrote = true;
+    }
+    await setMeta(ESCROW_CURSOR_KEY, sig); // обработано → двигаем курсор (claim/прочая tx программы)
+    await new Promise((r) => setTimeout(r, 200)); // бережём бесплатный RPC
+  }
+  return wrote;
+}
 
 export function startIndexer(store: MockDataProvider, persist: () => void): void {
   if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "chain") return; // ончейн-донатов нет вне chain
@@ -56,6 +86,16 @@ async function runLoop(store: MockDataProvider, persist: () => void): Promise<vo
       if (changed) persist();
     } catch (e) {
       console.error("[indexer] ошибка опроса:", e instanceof Error ? e.message : e);
+    }
+
+    // M3: фиксируем ончейн-исходы claim'ов ДО сеттлера — чтобы он читал истину денег даже по закрытым эскроу.
+    try {
+      if (ESCROW_PROGRAM_ID) {
+        const wrote = await scanEscrowClaims(connection, new PublicKey(ESCROW_PROGRAM_ID));
+        if (wrote) persist();
+      }
+    } catch (e) {
+      console.error("[escrow-indexer] ошибка:", e instanceof Error ? e.message : e);
     }
 
     // Фоновый сеттлер заданий-игры (G3a, ADR 0017 / 0015 §2): банкует репутацию при резолве ПО ВРЕМЕНИ

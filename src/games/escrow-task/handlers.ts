@@ -82,12 +82,12 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   if (!due) return task;
   if (task.escrowTaskId && ctx.escrowOutcome) {
     const oc = await ctx.escrowOutcome(task.escrowTaskId);
-    // ESC-16: chain-backed задание → исход берём ТОЛЬКО с цепочки. `null` (сбой RPC / нет доступа) или
-    // present-без-исхода → ОТКЛАДЫВАЕМ банковку (не падаем в офчейн-таймер — иначе репутация разойдётся с
-    // деньгами при недоступном RPC; сеттлер повторит на следующем опросе, когда цепочка ответит).
-    if (!oc || (oc.present && !oc.outcome)) return task;
-    // present + исход → ончейн-сторона (деньги = истина); gone (закрыт/заклеймлен) → best-effort офчейн (остаток M3).
-    const res = oc.present && oc.outcome ? reconcile(due, oc.outcome, task) : due;
+    // M3 (полностью закрывает хвост ESC-12/16): банкуем ТОЛЬКО при ИЗВЕСТНОМ ончейн-исходе — живая `resolution`
+    // ИЛИ зафиксированный event-индексером claim (истина денег переживает закрытие аккаунта). Исход неизвестен
+    // (Unresolved / ещё не проиндексирован / сбой RPC) → ОТКЛАДЫВАЕМ (сеттлер повторит). Офчейн-таймера для
+    // chain-backed задания больше НЕТ — репутация не уйдёт за деньгами, которых не было.
+    if (!oc?.outcome) return task;
+    const res = reconcile(due, oc.outcome, task);
     const resolved = M.applyResolution(task, res, nowMs(ctx));
     ctx.bankLedger(M.repEffects(resolved, res));
     return resolved;

@@ -188,3 +188,19 @@ export async function fetchNewTreasurySignatures(
     .map((s) => s.signature)
     .reverse();
 }
+
+/** M3: новые УСПЕШНЫЕ подписи эскроу-программы после `afterSignature` (для event-индексера claim'ов). */
+export async function fetchNewProgramSignatures(
+  connection: Connection,
+  programId: PublicKey,
+  afterSignature?: string,
+): Promise<string[]> {
+  const sigs = await connection.getSignaturesForAddress(programId, {
+    until: afterSignature,
+    limit: 50,
+  });
+  return sigs
+    .filter((s) => !s.err)
+    .map((s) => s.signature)
+    .reverse();
+}
