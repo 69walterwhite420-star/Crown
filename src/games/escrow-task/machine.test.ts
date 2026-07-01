@@ -13,6 +13,8 @@ import {
   raiseDispute,
   reject,
   repEffects,
+  report,
+  REPORT_HIDE_THRESHOLD,
   tally,
   WINDOWS,
 } from "./machine";
@@ -230,5 +232,27 @@ describe("claim (ADR 0015)", () => {
     const claimed = claim(resolved, STREAMER, STREAMER, T0);
     expect(claimed.resolution!.claimed).toBe(true);
     expect(throwsCode(() => claim(claimed, STREAMER, STREAMER, T0))).toBe("ALREADY_CLAIMED");
+  });
+});
+
+describe("report (жалоба зрителя на текст задания)", () => {
+  it("на своё задание жаловаться нельзя", () => {
+    expect(throwsCode(() => report(newTask(), "Donor1", "спам", T0))).toBe("SELF_REPORT");
+  });
+
+  it("дедуп по reporter — второй раз тем же нельзя", () => {
+    const t = report(newTask(), "Viewer1", "спам", T0);
+    expect(t.reports).toHaveLength(1);
+    expect(throwsCode(() => report(t, "Viewer1", "ещё", T0))).toBe("ALREADY_REPORTED");
+  });
+
+  it("порог REPORT_HIDE_THRESHOLD разных жалобщиков → авто-скрытие текста (деньги не трогаем)", () => {
+    let t = newTask();
+    for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) t = report(t, `V${i}`, undefined, T0);
+    expect(t.textHidden ?? false).toBe(false);
+    t = report(t, `V${REPORT_HIDE_THRESHOLD - 1}`, undefined, T0);
+    expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD);
+    expect(t.textHidden).toBe(true);
+    expect(t.status).toBe("PENDING"); // жалоба на текст не двигает стадию/деньги
   });
 });

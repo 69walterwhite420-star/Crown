@@ -36,45 +36,66 @@ export function ReportDialog({
   open: controlledOpen,
   onOpenChange,
   trigger,
+  onSubmit,
+  title = "Пожаловаться на сообщение",
+  description = "Выбери причину — жалоба уйдёт стримеру и оператору (T&S). При нескольких жалобах текст авто-скрывается.",
 }: {
-  messageId: string;
+  messageId?: string;
   channelId: string;
   label?: string;
   open?: boolean; // управляемый режим (напр. открыть из меню «…»)
   onOpenChange?: (open: boolean) => void;
   trigger?: ReactNode; // кастомный триггер; null → без триггера (открывают извне)
+  // Задан → шлём жалобу СЮДА вместо reportMessage(messageId). Для целей, отличных от сообщения доната
+  // (напр. жалоба на текст задания игры). Возвращает тот же {reports,hidden}, что reportMessage — для тоста.
+  onSubmit?: (fullReason: string) => Promise<{ reports?: number; hidden?: boolean }>;
+  title?: string;
+  description?: string;
 }) {
   const report = useReportMessage(channelId);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = (o: boolean) => (isControlled ? onOpenChange?.(o) : setUncontrolledOpen(o));
-  const [reason, setReason] = useState(REASONS[0]);
+  const [reason, setReason] = useState(REASONS[0] ?? "");
   const [comment, setComment] = useState("");
 
-  function submit() {
+  const ok = (r: { reports?: number; hidden?: boolean }) => {
+    toast({
+      title: r.hidden ? "Скрыто по жалобам" : "Жалоба отправлена",
+      description: r.hidden
+        ? "Текст авто-скрыт до решения стримера/оператора."
+        : typeof r.reports === "number"
+          ? `Учтено жалоб: ${r.reports}.`
+          : undefined,
+    });
+    setOpen(false);
+    setComment("");
+  };
+  const fail = (e: unknown) =>
+    toast({
+      variant: "error",
+      title: "Жалоба не отправлена",
+      description: e instanceof Error ? e.message : String(e),
+    });
+
+  async function submit() {
     const full = comment.trim() ? `${reason}: ${comment.trim()}` : reason;
-    report.mutate(
-      { messageId, reason: full },
-      {
-        onSuccess: (r) => {
-          toast({
-            title: r.hidden ? "Скрыто по жалобам" : "Жалоба отправлена",
-            description: r.hidden
-              ? "Текст авто-скрыт до решения стримера/оператора."
-              : `Учтено жалоб: ${r.reports}.`,
-          });
-          setOpen(false);
-          setComment("");
-        },
-        onError: (e) =>
-          toast({
-            variant: "error",
-            title: "Жалоба не отправлена",
-            description: e instanceof Error ? e.message : String(e),
-          }),
-      },
-    );
+    // Кастомный таргет (напр. жалоба на текст задания игры) — вместо reportMessage(messageId).
+    if (onSubmit) {
+      setBusy(true);
+      try {
+        ok(await onSubmit(full));
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (!messageId) return;
+    report.mutate({ messageId, reason: full }, { onSuccess: ok, onError: fail });
   }
 
   return (
@@ -95,11 +116,8 @@ export function ReportDialog({
       )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Пожаловаться на сообщение</DialogTitle>
-          <DialogDescription>
-            Выбери причину — жалоба уйдёт стримеру и оператору (T&S). При нескольких жалобах текст
-            авто-скрывается.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <Select label="Причина" value={reason} onChange={(e) => setReason(e.target.value)}>
           {REASONS.map((r) => (
@@ -118,11 +136,11 @@ export function ReportDialog({
         />
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost" disabled={report.isPending}>
+            <Button variant="ghost" disabled={report.isPending || busy}>
               Отмена
             </Button>
           </DialogClose>
-          <Button variant="danger" loading={report.isPending} onClick={submit}>
+          <Button variant="danger" loading={report.isPending || busy} onClick={submit}>
             Отправить жалобу
           </Button>
         </DialogFooter>

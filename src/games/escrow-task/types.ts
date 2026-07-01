@@ -74,6 +74,17 @@ export interface EscrowTask {
 
   // RESOLVED:
   resolution?: TaskResolution;
+
+  // Модерация текста задания (жалобы зрителей). Деньги/эскроу от текста не зависят (§7 «деньги ≠ показ»).
+  reports?: TaskReport[];
+  textHidden?: boolean; // авто-скрыт по жалобам (порог) — вместо текста показываем заглушку
+}
+
+/** Жалоба зрителя на текст задания (публичный UGC). Дедуп по reporter, как у жалоб на сообщения доната. */
+export interface TaskReport {
+  reporter: string;
+  reason?: string;
+  ts: string; // ISO
 }
 
 /** Эффект на репутацию для бановки в журнал (ADR 0015). Деньги-провенанс — строкой micro. */

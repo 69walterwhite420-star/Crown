@@ -14,6 +14,7 @@ import type {
   ResolutionReason,
   TaskDispute,
   TaskOutcome,
+  TaskReport,
   TaskVote,
 } from "./types";
 
@@ -270,4 +271,36 @@ export function claim(
   const winner = task.resolution.outcome === "to_streamer" ? streamerAddress : task.donor;
   if (by !== winner) throw new GameBusError("NOT_WINNER", "Забрать может только получатель.");
   return { ...task, resolution: { ...task.resolution, claimed: true } };
+}
+
+// ───────────────────────── жалобы на текст задания ─────────────────────────
+
+/** Порог авто-скрытия текста задания по жалобам (как у сообщений доната, mock-provider). */
+export const REPORT_HIDE_THRESHOLD = 3;
+const REASON_MAX = 500;
+
+/**
+ * Жалоба зрителя на текст задания. Дедуп по reporter; на своё задание жаловаться нельзя. При достижении
+ * порога текст авто-скрывается (`textHidden`) — деньги/эскроу НЕ трогаем (§7 «скрытие текста ≠ решение о деньгах»).
+ */
+export function report(
+  task: EscrowTask,
+  reporter: string,
+  reason: string | undefined,
+  nowMs: number,
+): EscrowTask {
+  if (reporter === task.donor)
+    throw new GameBusError("SELF_REPORT", "На своё задание пожаловаться нельзя.");
+  const reports = task.reports ?? [];
+  if (reports.some((r) => r.reporter === reporter))
+    throw new GameBusError("ALREADY_REPORTED", "Ты уже пожаловался на это задание.");
+  const next: TaskReport[] = [
+    ...reports,
+    { reporter, reason: reason?.slice(0, REASON_MAX), ts: iso(nowMs) },
+  ];
+  return {
+    ...task,
+    reports: next,
+    textHidden: task.textHidden || next.length >= REPORT_HIDE_THRESHOLD,
+  };
 }

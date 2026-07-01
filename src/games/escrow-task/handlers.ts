@@ -197,6 +197,23 @@ export const escrowTaskHandlers: GameHandlers = {
       return commit(ctx, tasks, M.cancel(task, nowMs(ctx)));
     },
 
+    // Зритель: жалоба на текст задания (публичный UGC). Дедуп/порог/авто-скрытие текста — в машине; деньги
+    // и эскроу не трогаем (§7). Возвращаем {reports,hidden} — как reportMessage, чтобы UI дал тот же тост.
+    report: (ctx, payload) => {
+      const reporter = requireIdentity(ctx);
+      const p = (payload ?? {}) as { reason?: unknown };
+      const reason = typeof p.reason === "string" ? p.reason : undefined;
+      const tasks = loadTasks(ctx);
+      const updated = M.report(
+        findTask(tasks, idOf(payload), ctx.channelId),
+        reporter,
+        reason,
+        nowMs(ctx),
+      );
+      commit(ctx, tasks, updated);
+      return { reports: updated.reports?.length ?? 0, hidden: !!updated.textHidden };
+    },
+
     // Квалифицированный зритель поднимает спор (не стример; репутация ≥ порога).
     raiseDispute: (ctx, payload) => {
       const id = requireIdentity(ctx);

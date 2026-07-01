@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Amount, FeeSplit } from "@/components/domain/amount";
 import { ModerationMenu } from "@/components/domain/moderation-menu";
+import { ReportDialog } from "@/components/domain/report-dialog";
 import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
 import {
@@ -397,16 +398,21 @@ export function EscrowTaskRules() {
 export function TaskFeedRow({
   task,
   handle,
+  viewer,
   manageChannelId,
 }: {
   task: EscrowTask;
   handle: string;
+  viewer?: string | null; // текущий зритель — чтобы показать «Пожаловаться» (не своё задание, не менеджеру)
   manageChannelId?: string; // задан (владелец/модератор) → «…» с бан/скрытием донора, как у доната
 }) {
+  const reportAction = useEscrowAction(task.channelId);
   const final = task.resolution ?? null;
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
+  // «Пожаловаться» — как у доната: обычному зрителю (не автору задания; у менеджера вместо этого «…»).
+  const canReport = !!viewer && viewer !== task.donor && !manageChannelId;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
       <div className="flex items-center justify-between gap-2">
@@ -426,7 +432,11 @@ export function TaskFeedRow({
         </div>
         <Amount micro={BigInt(task.amount)} />
       </div>
-      <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      {task.textHidden ? (
+        <p className="break-words text-body italic text-fg-faint">[скрыто по жалобам]</p>
+      ) : (
+        <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      )}
       {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
       {task.dispute ? (
         <>
@@ -453,6 +463,19 @@ export function TaskFeedRow({
             >
               <ExternalLinkIcon className="h-4 w-4" />
             </a>
+          ) : null}
+          {canReport ? (
+            <ReportDialog
+              channelId={task.channelId}
+              title="Пожаловаться на задание"
+              description="Выбери причину — жалоба уйдёт стримеру и оператору. При нескольких жалобах текст задания авто-скрывается."
+              onSubmit={async (reason) =>
+                (await reportAction.mutateAsync({
+                  op: "report",
+                  payload: { taskId: task.id, reason },
+                })) as { reports?: number; hidden?: boolean }
+              }
+            />
           ) : null}
           {/* «…» модерации, как у доната. Показ/скрытие и жалоба завязаны на сообщение доната — у задания его
               нет, поэтому меню задания даёт донор-действия (скрыть все сообщения донора / бан донатов-с-текстом). */}
@@ -515,7 +538,11 @@ function TaskCard({
         <Amount micro={BigInt(task.amount)} />
       </div>
 
-      <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      {task.textHidden ? (
+        <p className="break-words text-body italic text-fg-faint">[скрыто по жалобам]</p>
+      ) : (
+        <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      )}
 
       {task.dispute ? (
         <>

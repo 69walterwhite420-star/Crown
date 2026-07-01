@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TaskFeedRow } from "@/games/escrow-task/EscrowTaskPanel";
 import type { EscrowTask } from "@/games/escrow-task/types";
+import { useSession } from "@/lib/data/hooks";
 import type { Donation } from "@/lib/data/types";
 import { fromMicro } from "@/lib/utils";
 
@@ -46,6 +47,7 @@ export function ChannelFeed({
   reportable?: boolean; // «Пожаловаться» на показанных сообщениях (бывшая «Лента»)
   manageChannelId?: string; // задан → «Забанить» донора (владелец/модератор)
 }) {
+  const viewer = useSession().data?.address ?? null; // для «Пожаловаться» на заданиях
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(0);
@@ -132,6 +134,7 @@ export function ChannelFeed({
                   key={it.key}
                   task={it.t}
                   handle={handle}
+                  viewer={viewer}
                   manageChannelId={manageChannelId}
                 />
               ),
