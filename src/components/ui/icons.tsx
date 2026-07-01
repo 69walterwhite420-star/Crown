@@ -193,3 +193,14 @@ export function GiftIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Мишень — игра «задание за донат». */
+export function TargetIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}

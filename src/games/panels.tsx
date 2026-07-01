@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { EscrowTaskHub, EscrowTaskRail, EscrowTaskRules } from "./escrow-task/EscrowTaskPanel";
 import type { GameId } from "./types";
-import { ShieldIcon } from "@/components/ui/icons";
+import { TargetIcon } from "@/components/ui/icons";
 
 /**
  * Реестр ЭКРАНОВ игр (UI), отдельно от data-манифеста (`registry.ts`). Каждая игра даёт поверхности:
@@ -25,5 +25,5 @@ export interface GameUI {
 }
 
 export const GAME_PANELS: Partial<Record<GameId, GameUI>> = {
-  "escrow-task": { Rail: EscrowTaskRail, Hub: EscrowTaskHub, Rules: EscrowTaskRules, Icon: ShieldIcon },
+  "escrow-task": { Rail: EscrowTaskRail, Hub: EscrowTaskHub, Rules: EscrowTaskRules, Icon: TargetIcon },
 };

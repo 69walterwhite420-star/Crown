@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeftIcon, ChevronRightIcon, InfoIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, InfoIcon } from "@/components/ui/icons";
 import { pickerEntries, type PickerEntry, type RailContext } from "./picker";
 
 /**
@@ -35,16 +35,7 @@ export function GameActionRail({
     <div className="flex flex-col gap-3">
       {picking ? (
         <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">Что сделать</span>
-            <button
-              type="button"
-              onClick={() => setPicking(false)}
-              className="text-small text-fg-muted transition-colors hover:text-fg"
-            >
-              Закрыть
-            </button>
-          </div>
+          <span className="text-caption uppercase tracking-wide text-fg-faint">Что сделать</span>
           {entries.map((e) => (
             <div
               key={e.id}
@@ -78,28 +69,22 @@ export function GameActionRail({
           ))}
         </div>
       ) : (
-        <>
-          {current.id === "donate" ? (
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              className="flex items-center gap-1 self-end text-small text-fg-muted transition-colors hover:text-fg"
-            >
-              другие игры
-              <ChevronRightIcon className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              className="flex items-center gap-1 self-start text-small text-fg-muted transition-colors hover:text-fg"
-            >
-              <ChevronLeftIcon className="h-4 w-4" />
-              назад
-            </button>
-          )}
-          <current.Form ctx={ctx} />
-        </>
+        // Форма выбранного действия в ОДНОЙ карточке: сверху слева «другие игры» (всегда — и для доната по
+        // умолчанию, и для любой игры; одна кнопка, одна сторона), ниже сама форма. Собственную рамку/фон/
+        // паддинг формы гасим — карточку даёт этот контейнер (форму не переписываем). Клик → список игр.
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="flex items-center gap-1 self-start text-small text-fg-muted transition-colors hover:text-fg"
+          >
+            другие игры
+            <ChevronRightIcon className="h-4 w-4" />
+          </button>
+          <div className="[&>*]:!rounded-none [&>*]:!border-0 [&>*]:!bg-transparent [&>*]:!p-0">
+            <current.Form ctx={ctx} />
+          </div>
+        </div>
       )}
 
       <Dialog open={!!rulesFor} onOpenChange={(o) => (o ? null : setRulesFor(null))}>
