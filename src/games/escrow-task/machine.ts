@@ -104,6 +104,8 @@ export function accept(task: EscrowTask, nowMs: number): EscrowTask {
     throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
   // Принять можно ТОЛЬКО показанное задание: иначе стример «выполнит» скрытый текст, и в возможном споре
   // непонятно, что он брал в работу и за что голосуют. Публикация (SHOWN) обязательна ДО взятия в работу.
+  // ВНИМАНИЕ: это UI/сервер-гейт — контракт текст НЕ видит; ончейн `mark_done` из Pending его обходит
+  // (audit-map ESC-19). Полный фикс — на контракте в крипто-фазе (ончейн-accept-гейт / переворот дефолта).
   if (!isTextPublic(task))
     throw new GameBusError(
       "TEXT_NOT_SHOWN",
