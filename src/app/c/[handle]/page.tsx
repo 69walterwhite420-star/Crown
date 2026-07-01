@@ -75,8 +75,10 @@ export default function ChannelPage() {
         ) : (
           // На мобиле — поток: шапка → донат → лента (главное действие сразу под шапкой, не внизу страницы).
           // На lg — грид [1fr_360px]: шапка/лента в левой колонке (строки 1 и 2), донат закреплён справа
-          // (row-span-2, rail-pinned). gap-x-6 = прежний зазор между колонками; gap-y-8 = прежний зазор шапка↔лента.
-          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-x-6 lg:gap-y-8">
+          // (row-span-2, rail-pinned). Строки [auto_1fr]: шапка (row 1 = auto) НЕ растягивается, когда правый
+          // рейл выше левой колонки (напр. высокая форма задания) — избыток высоты уходит в row 2 (под ленту),
+          // а не в зазор под шапкой. gap-x-6 — зазор колонок; gap-y-8 — зазор шапка↔лента.
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_360px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-6 lg:gap-y-8">
             {/* Шапка канала. min-w-0: длинные ники/mono-адреса не должны раздувать 1fr-трек шире вьюпорта,
                 иначе страница становится шире экрана и правый блок хедера («Войти») уезжает за край. */}
             <div className="min-w-0 lg:col-start-1 lg:row-start-1">
