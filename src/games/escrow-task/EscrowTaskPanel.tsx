@@ -2,9 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Amount } from "@/components/domain/amount";
+import { Amount, FeeSplit } from "@/components/domain/amount";
 import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { ExternalLinkIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -91,15 +100,18 @@ const STATUS_LABEL: Record<EscrowTask["status"], string> = {
 const outcomeLabel = (o: "to_streamer" | "to_donor") =>
   o === "to_streamer" ? "стримеру" : "возврат донору";
 
-type Run = (op: string, payload?: unknown, okMsg?: string) => void;
+type Run = (op: string, payload?: unknown, okMsg?: string, onDone?: () => void) => void;
 
 function useRun(channelId: string): { run: Run; pending: boolean } {
   const action = useEscrowAction(channelId);
-  const run: Run = (op, payload, okMsg) =>
+  const run: Run = (op, payload, okMsg, onDone) =>
     action.mutate(
       { op, payload },
       {
-        onSuccess: () => okMsg && toast({ variant: "success", title: okMsg }),
+        onSuccess: () => {
+          if (okMsg) toast({ variant: "success", title: okMsg });
+          onDone?.(); // напр. закрыть диалог подтверждения и очистить форму — только по успеху
+        },
         onError: (e) =>
           toast({
             variant: "error",
@@ -123,6 +135,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   // Срок выполнения задаёт донор вручную: число + единица (часы/дни). По умолчанию — 1 день.
   const [dlValue, setDlValue] = useState("1");
   const [dlUnit, setDlUnit] = useState<"m" | "h" | "d">("d");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
@@ -143,15 +156,19 @@ export function EscrowTaskRail({ channelId }: GameProps) {
       : undefined;
   const valid = amountValid && text.trim().length > 0 && deadlineValid;
 
-  function create() {
+  function confirmCreate() {
     if (!valid) return;
     run(
       "create",
       { amount: toMicro(num).toString(), text: text.trim(), executionMs: deadlineMs },
       "Задание создано",
+      () => {
+        // очищаем и закрываем ТОЛЬКО по успеху — отменил подпись → форма и диалог на месте
+        setConfirmOpen(false);
+        setAmount("");
+        setText("");
+      },
     );
-    setAmount("");
-    setText("");
   }
 
   return (
@@ -242,15 +259,51 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           <Button
             variant="secondary"
             disabled={!valid || pending}
-            onClick={create}
+            onClick={() => setConfirmOpen(true)}
             className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
           >
             Создать задание
           </Button>
 
           <p className="text-small text-fg-faint">
-            Деньги «в эскроу» — пока имитируются (реальный ончейн-эскроу позже).
+            Деньги блокируются в ончейн-эскроу: выполнит — уйдут стримеру (97%), не успеет — вернутся
+            тебе полностью.
           </p>
+
+          {/* Подтверждение с разбивкой — как у обычного доната (donate.tsx), но копирайт честный для
+              эскроу: деньги НЕ финальны стримеру сразу, при no-show возвращаются донору без комиссии (§6). */}
+          <Dialog
+            open={confirmOpen}
+            onOpenChange={(o) => {
+              if (!pending) setConfirmOpen(o); // не даём закрыть во время подписи/финализации
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Подтверждение</DialogTitle>
+                <DialogDescription>
+                  Деньги замораживаются в эскроу. Стримеру — если выполнит; тебе полностью — если не
+                  успеет в срок.
+                </DialogDescription>
+              </DialogHeader>
+              {amountValid ? <FeeSplit amount={toMicro(num)} /> : null}
+              <p className="text-small text-fg-muted">
+                {pending
+                  ? "Подпиши в кошельке и подожди финализации в сети (~15–30с) — задание появится, когда эскроу подтвердится."
+                  : "Разбивка — если стример выполнит. Не успеет в срок — вернём всю сумму без комиссии."}
+              </p>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="ghost" disabled={pending}>
+                    Отмена
+                  </Button>
+                </DialogClose>
+                <Button variant="money" loading={pending} onClick={confirmCreate}>
+                  {pending ? "Финализируем…" : "Подтвердить и подписать"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
