@@ -220,16 +220,11 @@
 @media (min-width: 1024px) {
   .rail-pinned-right {
     position: sticky;
-    /* точка прилипания = стартовая позиция (header-h + верхний отступ страницы pt-4) → постоянный отступ
-       под хедером И без «проезда» до прилипания. */
+    /* точка прилипания = стартовая позиция (header-h + верхний отступ pt-4) → постоянный отступ под хедером,
+       без «проезда» до прилипания. БЕЗ max-height/overflow: липкий блок не клипает выпадашку селекта и не
+       делает карточку внутренним скролл-контейнером (иначе высокая форма задания давала скролл + обрезала дроп). */
     top: calc(var(--header-h) + var(--space-4));
     align-self: start;
-    max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
-    overflow-y: auto;
-    scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
-  }
-  .rail-pinned-right::-webkit-scrollbar {
-    display: none;
   }
 }
 @media (min-width: 768px) {
