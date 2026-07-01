@@ -109,12 +109,7 @@ export function accept(task: EscrowTask, nowMs: number): EscrowTask {
 export function reject(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
     throw new GameBusError("NOT_OPEN", "Отклонить можно только до «Готово».");
-  // Отклонено → деньги донору (стример не заберёт их «потом») + текст не публикуем: нельзя отклонить текст в
-  // модерации и всё равно спрофитить с задания. resolution=to_donor делает claim стримером невозможным.
-  return {
-    ...applyResolution(task, { outcome: "to_donor", reason: "rejected" }, nowMs),
-    textState: "HIDDEN",
-  };
+  return applyResolution(task, { outcome: "to_donor", reason: "rejected" }, nowMs);
 }
 
 export function cancel(task: EscrowTask, nowMs: number): EscrowTask {

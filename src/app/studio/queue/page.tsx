@@ -60,17 +60,13 @@ export default function ModerationQueuePage() {
     );
   }
 
-  // Задание: «Показать» → текст публикуется; «Отклонить» → reject (возврат донору) + текст скрыт, стример
-  // деньги уже не заберёт (resolution=to_donor). Модерация текста для заданий влияет на деньги (в отличие от
-  // донатов, где деньги финальны) — это осознанное правило продукта для эскроу-заданий.
-  function taskAct(taskId: string, kind: "show" | "reject") {
+  // Модерация ТОЛЬКО текста задания (деньги не трогаем): «Показать» публикует, «Отклонить» прячет текст.
+  // Отклонил и не выполняешь → эскроу сам вернётся донору по таймеру (no-show), не «за счёт стримера».
+  function taskAct(taskId: string, state: "SHOWN" | "HIDDEN") {
     taskAction.mutate(
-      kind === "show"
-        ? { op: "setTextState", payload: { taskId, state: "SHOWN" } }
-        : { op: "reject", payload: { taskId } },
+      { op: "setTextState", payload: { taskId, state } },
       {
-        onSuccess: () =>
-          toast({ title: kind === "show" ? "Показано" : "Отклонено — возврат донору" }),
+        onSuccess: () => toast({ title: state === "SHOWN" ? "Показано" : "Скрыто" }),
         onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
       },
     );
@@ -90,8 +86,8 @@ export default function ModerationQueuePage() {
             ) : null}
           </div>
           <p className="text-fg-muted">
-            Текст приватен до показа. Донаты: деньги/standing уже зачтены, решаешь судьбу текста. Задания:
-            «Отклонить» вернёт эскроу донору — стример его уже не заберёт.
+            Текст приватен до показа — решаешь только его судьбу. Деньги отдельно: у донатов уже зачтены;
+            эскроу задания вернётся донору сам по таймеру, если не выполнить.
           </p>
         </div>
         {channels.length > 1 ? (
@@ -171,7 +167,7 @@ export default function ModerationQueuePage() {
                         size="sm"
                         variant="secondary"
                         disabled={taskAction.isPending}
-                        onClick={() => taskAct(t.id, "show")}
+                        onClick={() => taskAct(t.id, "SHOWN")}
                       >
                         Показать
                       </Button>
@@ -179,9 +175,9 @@ export default function ModerationQueuePage() {
                         size="sm"
                         variant="ghost"
                         disabled={taskAction.isPending}
-                        onClick={() => taskAct(t.id, "reject")}
+                        onClick={() => taskAct(t.id, "HIDDEN")}
                       >
-                        Отклонить (возврат донору)
+                        Отклонить
                       </Button>
                     </div>
                   </div>
