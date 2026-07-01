@@ -69,10 +69,9 @@ export function GameActionRail({
           ))}
         </div>
       ) : (
-        // Форма выбранного действия в ОДНОЙ карточке: сверху слева «другие игры» (всегда — и для доната по
-        // умолчанию, и для любой игры; одна кнопка, одна сторона), ниже сама форма. Собственную рамку/фон/
-        // паддинг формы гасим — карточку даёт этот контейнер (форму не переписываем). Клик → список игр.
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
+        // «другие игры» — НАД самой карточкой (не внутри, не над репутацией): одна кнопка, слева, для доната
+        // по умолчанию и для любой игры. Клик → список игр. Сама форма рендерится со своей карточкой, как была.
+        <>
           <button
             type="button"
             onClick={() => setPicking(true)}
@@ -81,10 +80,8 @@ export function GameActionRail({
             другие игры
             <ChevronRightIcon className="h-4 w-4" />
           </button>
-          <div className="[&>*]:!rounded-none [&>*]:!border-0 [&>*]:!bg-transparent [&>*]:!p-0">
-            <current.Form ctx={ctx} />
-          </div>
-        </div>
+          <current.Form ctx={ctx} />
+        </>
       )}
 
       <Dialog open={!!rulesFor} onOpenChange={(o) => (o ? null : setRulesFor(null))}>
