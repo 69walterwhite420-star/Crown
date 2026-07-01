@@ -249,10 +249,10 @@ describe("report (жалоба зрителя на текст задания)", 
   it("порог REPORT_HIDE_THRESHOLD разных жалобщиков → авто-скрытие текста (деньги не трогаем)", () => {
     let t = newTask();
     for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) t = report(t, `V${i}`, undefined, T0);
-    expect(t.textHidden ?? false).toBe(false);
+    expect(t.textState).not.toBe("HIDDEN");
     t = report(t, `V${REPORT_HIDE_THRESHOLD - 1}`, undefined, T0);
     expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD);
-    expect(t.textHidden).toBe(true);
+    expect(t.textState).toBe("HIDDEN");
     expect(t.status).toBe("PENDING"); // жалоба на текст не двигает стадию/деньги
   });
 });

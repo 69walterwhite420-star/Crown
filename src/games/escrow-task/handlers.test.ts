@@ -19,6 +19,7 @@ function harness(
   rep: Record<string, number> = {},
   channelPayout: string | null = "Payout1",
   escrowOutcome?: GameContext["escrowOutcome"],
+  textShowMode?: GameContext["textShowMode"],
 ) {
   let slice: unknown;
   let counter = 0;
@@ -41,6 +42,7 @@ function harness(
     bankLedger: (entries) => ledger.push(...entries),
     moderate: async (text) => (/убей|укради/i.test(text) ? "HARD_BLOCK" : "CLEAR"),
     verifyEscrow: async () => true,
+    textShowMode,
   });
   const run = (identity: string | null, t: number, op: string, payload?: unknown) =>
     dispatchGame(
@@ -294,5 +296,28 @@ describe("disputeVotes — постранично, фильтр по сторо�
     const h = harness();
     const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
     expect(((await h.query("disputeVotes", { taskId: t.id })) as Result).found).toBe(false);
+  });
+});
+
+describe("очередь модерации текста задания (textState)", () => {
+  it("по умолчанию (не auto_if_clean) → HELD; стример «Показать» → SHOWN; чужой → FORBIDDEN", async () => {
+    const h = harness();
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
+    expect(t.textState).toBe("HELD"); // в очередь, не на страницу
+    await expect(
+      h.run("NotOwner", T0, "setTextState", { taskId: t.id, state: "SHOWN" }),
+    ).rejects.toThrow(); // только владелец
+    const shown = (await h.run(STREAMER, T0, "setTextState", {
+      taskId: t.id,
+      state: "SHOWN",
+    })) as EscrowTask;
+    expect(shown.textState).toBe("SHOWN");
+    expect(shown.status).toBe("PENDING"); // модерация текста не двигает деньги/статус (§7)
+  });
+
+  it("auto_if_clean + чистый текст → сразу SHOWN (без очереди)", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean");
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
+    expect(t.textState).toBe("SHOWN");
   });
 });

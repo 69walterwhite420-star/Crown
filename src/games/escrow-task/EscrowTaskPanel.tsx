@@ -27,7 +27,7 @@ import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { collapseWhitespace, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
-import { dueResolution, WINDOWS } from "./machine";
+import { dueResolution, isTextPublic, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
 
 // Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
@@ -452,6 +452,8 @@ export function TaskFeedRow({
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
+  // В публичной ленте текст виден только SHOWN; владелец/автор видят всегда.
+  const canSeeText = isTextPublic(task) || !!manageChannelId || viewer === task.donor;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
       <div className="flex items-center justify-between gap-2">
@@ -471,10 +473,12 @@ export function TaskFeedRow({
         </div>
         <Amount micro={BigInt(task.amount)} />
       </div>
-      {task.textHidden ? (
-        <p className="break-words text-body italic text-fg-faint">[скрыто по жалобам]</p>
-      ) : (
+      {canSeeText ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      ) : (
+        <p className="break-words text-body italic text-fg-faint">
+          {task.textState === "HIDDEN" ? "[скрыто по жалобам]" : "[на модерации]"}
+        </p>
       )}
       {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
       {task.dispute ? (
@@ -539,6 +543,8 @@ function TaskCard({
   const alreadyVoted = !!viewer && (task.dispute?.votes.some((v) => v.voter === viewer) ?? false);
   const winner = effective?.outcome === "to_streamer" ? ownerAddress : task.donor;
   const canClaim = !!effective && !final?.claimed && viewer === winner;
+  // Стример/автор видят текст всегда; остальным — только SHOWN (иначе плашка «на модерации»/«скрыто»).
+  const canSeeText = isTextPublic(task) || isStreamer || isDonor;
 
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
@@ -562,10 +568,12 @@ function TaskCard({
         <Amount micro={BigInt(task.amount)} />
       </div>
 
-      {task.textHidden ? (
-        <p className="break-words text-body italic text-fg-faint">[скрыто по жалобам]</p>
-      ) : (
+      {canSeeText ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      ) : (
+        <p className="break-words text-body italic text-fg-faint">
+          {task.textState === "HIDDEN" ? "[скрыто по жалобам]" : "[на модерации]"}
+        </p>
       )}
 
       {task.dispute ? (
@@ -606,6 +614,26 @@ function TaskCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* Очередь модерации текста: стример показывает HELD/скрытый текст в ленте (или снова скрывает). §7. */}
+        {isStreamer && !isTextPublic(task) ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Текст показан")}
+          >
+            Показать текст
+          </Button>
+        ) : isStreamer ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Текст скрыт")}
+          >
+            Скрыть текст
+          </Button>
+        ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (
           <>
             <Button

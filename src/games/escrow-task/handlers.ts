@@ -113,12 +113,17 @@ export const escrowTaskHandlers: GameHandlers = {
         throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
       const text = typeof p.text === "string" ? p.text.trim() : "";
       if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
-      // Модерация текста задания: нелегальное/опасное («убей того», «укради» и т.п.) не создаётся вовсе.
-      if ((await ctx.moderate(text)) === "HARD_BLOCK")
+      // Модерация текста задания: нелегальное/опасное не создаётся вовсе. Иначе видимость текста в ПУБЛИЧНОЙ
+      // ленте решаем той же политикой, что донат-сообщения (textShowMode): чистый + auto_if_clean → сразу
+      // SHOWN; иначе → HELD (очередь модерации стримера до «Показать»). Деньги/эскроу от этого не зависят (§7).
+      const verdict = await ctx.moderate(text);
+      if (verdict === "HARD_BLOCK")
         throw new GameBusError(
           "ILLEGAL_TASK",
           "Задание не прошло модерацию: запрещён нелегальный/опасный контент.",
         );
+      const textState: "SHOWN" | "HELD" =
+        ctx.textShowMode === "auto_if_clean" && verdict === "CLEAR" ? "SHOWN" : "HELD";
       // Трастлесс-сверка ончейн-эскроу (chain-режим): задание без подтверждённого эскроу (нет аккаунта,
       // чужой донор/сумма/mint) не записываем — сервер не верит клиенту (ADR 0017). В mock/api — всегда ок.
       const escrowTaskId = typeof p.escrowTaskId === "string" ? p.escrowTaskId : undefined;
@@ -145,6 +150,7 @@ export const escrowTaskHandlers: GameHandlers = {
           donor,
           amount,
           text,
+          textState,
           executionMs: typeof p.executionMs === "number" ? p.executionMs : undefined,
         },
         nowMs(ctx),
@@ -211,7 +217,20 @@ export const escrowTaskHandlers: GameHandlers = {
         nowMs(ctx),
       );
       commit(ctx, tasks, updated);
-      return { reports: updated.reports?.length ?? 0, hidden: !!updated.textHidden };
+      return { reports: updated.reports?.length ?? 0, hidden: updated.textState === "HIDDEN" };
+    },
+
+    // Стример: показать/скрыть текст задания в ПУБЛИЧНОЙ ленте (очередь модерации). Деньги/эскроу — не трогаем (§7).
+    setTextState: (ctx, payload) => {
+      requireOwner(ctx);
+      const p = (payload ?? {}) as { state?: unknown };
+      const state = p.state === "SHOWN" ? "SHOWN" : "HIDDEN";
+      const tasks = loadTasks(ctx);
+      return commit(
+        ctx,
+        tasks,
+        M.setTextState(findTask(tasks, idOf(payload), ctx.channelId), state),
+      );
     },
 
     // Квалифицированный зритель поднимает спор (не стример; репутация ≥ порога).

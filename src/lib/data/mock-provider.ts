@@ -1323,6 +1323,7 @@ export class MockDataProvider implements DataProvider {
         reputationAsOf: (address, asOf) =>
           computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
         moderate: (text) => classifyTaskText(text),
+        textShowMode: cfg.textShowMode, // та же политика публикации, что у донат-сообщений (очередь/авто)
         // Серверные хуки сверки эскроу (ADR 0017/ESC-12) ИНЖЕКТЯТСЯ из store.ts (сервер) — так серверный DB/
         // web3.js-граф (`@/server/escrow-verify` → store-db → PGlite/node:path) НЕ попадает в клиентский бандл
         // mock-провайдера. В браузере/mock хуки не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).

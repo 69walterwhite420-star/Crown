@@ -49,6 +49,8 @@ export interface GameContext {
   bankLedger: (entries: GameLedgerEntry[]) => void;
   /** Модерация текста (UGC игры): вердикт. HARD_BLOCK → запрещённый/опасный контент, не пропускаем. */
   moderate: (text: string) => Promise<"CLEAR" | "FLAG" | "HARD_BLOCK">;
+  /** Политика публикации текста канала (как у донат-сообщений): auto_if_clean → чистый текст сразу SHOWN. */
+  textShowMode?: "manual" | "auto_if_clean";
   /**
    * Трастлесс-сверка ончейн-эскроу (chain-режим, ADR 0017): аккаунт существует, владелец = программа,
    * донор/сумма совпадают. Закрывает доверие к клиенту (нельзя записать задание без реального эскроу или с

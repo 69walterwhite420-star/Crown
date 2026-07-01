@@ -66,6 +66,7 @@ export interface CreateTaskInput {
   donor: string;
   amount: string; // micro-USDC строкой
   text: string;
+  textState?: "SHOWN" | "HELD" | "HIDDEN"; // видимость текста в публичной ленте (решает обработчик по textShowMode)
   executionMs?: number; // предложенный донором срок выполнения (в пределах окна)
 }
 
@@ -92,6 +93,7 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
     // в cancel/markDone. Задаётся один раз при создании, accept не сбрасывает.
     graceUntil: iso(nowMs + WINDOWS.grace),
     status: "PENDING",
+    textState: input.textState, // undefined = SHOWN (совместимость)
   };
 }
 
@@ -281,7 +283,7 @@ const REASON_MAX = 500;
 
 /**
  * Жалоба зрителя на текст задания. Дедуп по reporter; на своё задание жаловаться нельзя. При достижении
- * порога текст авто-скрывается (`textHidden`) — деньги/эскроу НЕ трогаем (§7 «скрытие текста ≠ решение о деньгах»).
+ * порога текст авто-скрывается (textState=HIDDEN) — деньги/эскроу НЕ трогаем (§7 «скрытие текста ≠ деньги»).
  */
 export function report(
   task: EscrowTask,
@@ -301,6 +303,17 @@ export function report(
   return {
     ...task,
     reports: next,
-    textHidden: task.textHidden || next.length >= REPORT_HIDE_THRESHOLD,
+    // Порог жалоб → авто-скрытие текста (HIDDEN). Ниже порога состояние не трогаем.
+    textState: next.length >= REPORT_HIDE_THRESHOLD ? "HIDDEN" : task.textState,
   };
+}
+
+/** Стример показывает/скрывает текст задания в публичной ленте (модерация публикации; деньги/эскроу — §7). */
+export function setTextState(task: EscrowTask, state: "SHOWN" | "HIDDEN"): EscrowTask {
+  return { ...task, textState: state };
+}
+
+/** Виден ли текст задания в ПУБЛИЧНОЙ ленте (без учёта роли смотрящего). Пусто = SHOWN (совместимость). */
+export function isTextPublic(task: EscrowTask): boolean {
+  return (task.textState ?? "SHOWN") === "SHOWN";
 }
