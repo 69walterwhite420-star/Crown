@@ -22,7 +22,7 @@ import type { EscrowTask, TaskDispute } from "./types";
 // Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
 const PRESETS = [5, 10, 25, 100];
 
-// Срок на выполнение донор вписывает вручную (число + единица), от 1 минуты до 3 месяцев (см. WINDOWS).
+// Срок на выполнение донор вписывает вручную (число + единица); границы — из WINDOWS (executionMin..executionMax).
 const H = 3_600_000;
 const MIN = H / 60;
 const DAY = 24 * H;
@@ -135,8 +135,12 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     Number.isInteger(dlNum) &&
     deadlineMs >= WINDOWS.executionMin &&
     deadlineMs <= WINDOWS.executionMax;
+  // Пол берём из WINDOWS.executionMin (ESC-17: > grace), чтобы подсказка не расходилась с валидацией:
+  // fast-test = 2 мин, прод = 5 мин. Потолок executionMax = 90 дней ≈ 3 месяца.
   const deadlineError =
-    dlValue !== "" && !deadlineValid ? "Срок: от 1 минуты до 3 месяцев" : undefined;
+    dlValue !== "" && !deadlineValid
+      ? `Срок: от ${Math.round(WINDOWS.executionMin / MIN)} минут до 3 месяцев`
+      : undefined;
   const valid = amountValid && text.trim().length > 0 && deadlineValid;
 
   function create() {
