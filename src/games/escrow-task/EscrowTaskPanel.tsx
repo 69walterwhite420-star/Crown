@@ -388,6 +388,55 @@ function EscrowTaskRules() {
 
 // ───────────────────────── переиспользуемые части ─────────────────────────
 
+/**
+ * Read-only строка задания для ОБЩЕЙ ленты донатов канала (ChannelFeed): историческая запись — донор,
+ * метка «Задание» + статус/исход, сумма, текст, время, ссылка на эскроу. Без действий/таймера (управление —
+ * во вкладке «Игры»). Тот же ряд-скелет, что DonationCard variant="row" → единый вид с обычными донатами.
+ */
+export function TaskFeedRow({ task }: { task: EscrowTask }) {
+  const final = task.resolution ?? null;
+  const status = final
+    ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
+    : STATUS_LABEL[task.status];
+  return (
+    <div className="flex flex-col gap-2 border-b border-border py-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href={`/u/${task.donor}`}
+            className="truncate text-small text-fg transition-colors hover:text-status"
+          >
+            {shortAddress(task.donor)}
+          </Link>
+          <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
+            Задание
+          </span>
+          <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
+            {status}
+          </span>
+        </div>
+        <Amount micro={BigInt(task.amount)} />
+      </div>
+      <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
+        <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
+        {task.fundTx ? (
+          <a
+            href={explorerTxUrl(task.fundTx)}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+            title="Эскроу в блокчейн-эксплорере"
+            aria-label="Эскроу в блокчейн-эксплорере"
+          >
+            <ExternalLinkIcon className="h-4 w-4" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function TaskCard({
   task,
   viewer,

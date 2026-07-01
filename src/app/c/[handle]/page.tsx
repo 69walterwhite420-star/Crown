@@ -2,11 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { ChannelFeed } from "@/components/domain/channel-feed";
 import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
-import { DonationHistory } from "@/components/domain/donation-history";
 import { TierLadder } from "@/components/domain/standing";
 import { ChannelGames, ChannelGameRail, DONATE_OPTION } from "@/games/ChannelGames";
+import { useEscrowTasks } from "@/games/escrow-task/hooks";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,8 +35,12 @@ export default function ChannelPage() {
   // чтобы правый рейл мог меняться под выбранную игру. tabState=null → дефолт (games при наличии игр).
   const enabledGames = configQ.data?.enabledGames ?? [];
   const hasGames = enabledGames.length > 0;
+  // Донаты-с-заданиями (игра escrow-task) вливаем в общую ленту «Донаты». Запрос активен только если игра
+  // включена (иначе хук отключён). Будущие игры добавят свои записи сюда же.
+  const escrowTasks =
+    useEscrowTasks(enabledGames.includes("escrow-task") ? channel?.id : undefined).data?.tasks ?? [];
   const [tabState, setTabState] = useState<string | null>(null);
-  const activeTab = tabState ?? (hasGames ? "games" : "feed");
+  const activeTab = tabState ?? (hasGames ? "games" : "donations");
   const [selGame, setSelGame] = useState<string | null>(null);
   const selectedGame = selGame ?? enabledGames[0] ?? null;
   // На вкладке «Игры» рейл = действие игры, КРОМЕ случая «Обычный донат» (тогда показываем донат-виджет).
@@ -118,7 +123,6 @@ export default function ChannelPage() {
               <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-1">
                 <TabsList className="w-full">
                   {hasGames ? <TabsTrigger value="games">Игры</TabsTrigger> : null}
-                  <TabsTrigger value="feed">Лента</TabsTrigger>
                   <TabsTrigger value="donations">Донаты</TabsTrigger>
                   <TabsTrigger value="tiers">Тиры</TabsTrigger>
                 </TabsList>
@@ -136,29 +140,14 @@ export default function ChannelPage() {
                   </TabsContent>
                 ) : null}
 
-                <TabsContent value="feed">
-                  {donationsQ.isLoading ? (
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                  ) : (
-                    <DonationHistory
-                      donations={(donationsQ.data?.items ?? []).filter(
-                        (d) => d.message?.state === "SHOWN",
-                      )}
-                      title="Показанные сообщения"
-                      reportable
-                      plain
-                      manageChannelId={canManage ? channel.id : undefined}
-                    />
-                  )}
-                </TabsContent>
-
                 <TabsContent value="donations">
                   {donationsQ.isLoading ? (
                     <Skeleton className="h-24 w-full rounded-lg" />
                   ) : (
-                    <DonationHistory
+                    <ChannelFeed
                       donations={donationsQ.data?.items ?? []}
-                      collapsible={false}
+                      tasks={escrowTasks}
+                      reportable
                       manageChannelId={canManage ? channel.id : undefined}
                     />
                   )}
