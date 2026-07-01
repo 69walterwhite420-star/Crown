@@ -320,7 +320,6 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <EscrowTaskRules />
       <section className="flex flex-col gap-3">
         <div className="text-caption uppercase tracking-wide text-fg-faint">
           Активные задания · {tasks.length}
@@ -354,9 +353,10 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
   );
 }
 
-function EscrowTaskRules() {
+/** Правила игры — показываются в модалке «i» пикера игр (GameActionRail). Внешний контейнер даёт модалка. */
+export function EscrowTaskRules() {
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <h3 className="text-h3 text-fg">Как работает</h3>
         <ol className="text-small flex list-inside list-decimal flex-col gap-1 text-fg-muted">

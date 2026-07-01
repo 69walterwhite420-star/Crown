@@ -4,9 +4,9 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ChannelFeed } from "@/components/domain/channel-feed";
 import { ChannelHeader } from "@/components/domain/channel-header";
-import { DonateWidget } from "@/components/domain/donate";
 import { TierLadder } from "@/components/domain/standing";
-import { ChannelGames, ChannelGameRail, DONATE_OPTION } from "@/games/ChannelGames";
+import { ChannelGames } from "@/games/ChannelGames";
+import { GameActionRail } from "@/games/GameActionRail";
 import { useEscrowTasks } from "@/games/escrow-task/hooks";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -31,8 +31,8 @@ export default function ChannelPage() {
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
 
-  // Игры на канале: «Игры» — первая вкладка и активна ПО УМОЛЧАНИЮ (если включены). Контролируемые табы,
-  // чтобы правый рейл мог меняться под выбранную игру. tabState=null → дефолт (games при наличии игр).
+  // Игры на канале: таб «Активные» (активные партии) — первый при наличии игр. Выбор игры/донат перенесён в
+  // правый рейл (GameActionRail), поэтому табы больше не управляют рейлом. tabState=null → дефолт.
   const enabledGames = configQ.data?.enabledGames ?? [];
   const hasGames = enabledGames.length > 0;
   // Донаты-с-заданиями (игра escrow-task) вливаем в общую ленту «Донаты». Запрос активен только если игра
@@ -41,11 +41,6 @@ export default function ChannelPage() {
     useEscrowTasks(enabledGames.includes("escrow-task") ? channel?.id : undefined).data?.tasks ?? [];
   const [tabState, setTabState] = useState<string | null>(null);
   const activeTab = tabState ?? (hasGames ? "games" : "donations");
-  const [selGame, setSelGame] = useState<string | null>(null);
-  const selectedGame = selGame ?? enabledGames[0] ?? null;
-  // На вкладке «Игры» рейл = действие игры, КРОМЕ случая «Обычный донат» (тогда показываем донат-виджет).
-  const gameRail =
-    activeTab === "games" && hasGames && !!selectedGame && selectedGame !== DONATE_OPTION;
 
   // Владелец, смотрящий свой канал → в ленте доступна кнопка «Забанить» (модераторы банят из студии/очереди).
   const canManage = !!address && channel?.ownerAddress === address;
@@ -96,21 +91,16 @@ export default function ChannelPage() {
             {/* Донат + моё standing. На мобиле — СРАЗУ под шапкой (в потоке вторым). На lg — правая колонка,
                 ФИКСИРОВАНА при скролле (rail-pinned-right), занимает обе строки правого трека (row-span-2). */}
             <aside className="rail-pinned-right flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-              {gameRail && selectedGame ? (
-                // На вкладке «Игры» рейл — действие выбранной игры (морфинг под игру).
-                <ChannelGameRail
-                  gameId={selectedGame}
-                  channelId={channel.id}
-                  ownerAddress={channel.ownerAddress}
-                  handle={handle}
-                />
-              ) : configQ.data && sessionQ.data ? (
-                <DonateWidget
+              {configQ.data && sessionQ.data ? (
+                // Рейл действия: по умолчанию форма доната; «другие игры» → пикер → форма выбранной игры.
+                <GameActionRail
                   channel={channel}
                   config={configQ.data}
                   session={sessionQ.data}
                   standing={standingQ.data}
                   standingLoading={standingQ.isLoading}
+                  handle={handle}
+                  enabledGames={enabledGames}
                 />
               ) : (
                 <Skeleton className="h-72 w-full rounded-lg" />
@@ -122,7 +112,7 @@ export default function ChannelPage() {
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
               <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-1">
                 <TabsList className="w-full">
-                  {hasGames ? <TabsTrigger value="games">Игры</TabsTrigger> : null}
+                  {hasGames ? <TabsTrigger value="games">Активные</TabsTrigger> : null}
                   <TabsTrigger value="donations">Донаты</TabsTrigger>
                   <TabsTrigger value="tiers">Тиры</TabsTrigger>
                 </TabsList>
@@ -134,8 +124,6 @@ export default function ChannelPage() {
                       ownerAddress={channel.ownerAddress}
                       handle={handle}
                       enabledGames={enabledGames}
-                      selectedGame={selectedGame}
-                      onSelect={setSelGame}
                     />
                   </TabsContent>
                 ) : null}

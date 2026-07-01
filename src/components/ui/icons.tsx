@@ -170,3 +170,26 @@ export function MoreIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** «i» в круге — правила/справка. */
+export function InfoIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
+  );
+}
+
+/** Подарок — обычный донат. */
+export function GiftIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M20 12v8H4v-8" />
+      <path d="M2 8h20v4H2z" />
+      <path d="M12 8v12" />
+      <path d="M12 8S10.5 4 8 4a2 2 0 0 0 0 4h4Zm0 0s1.5-4 4-4a2 2 0 0 1 0 4h-4Z" />
+    </svg>
+  );
+}
