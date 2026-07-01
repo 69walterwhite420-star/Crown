@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
+import { OpenCycles } from "./open-cycles";
 import { TierBadge } from "./standing";
 import { CumulativeAreaChart, RangeTabs, type ChartRange } from "./area-chart";
 import { Button } from "@/components/ui/button";
@@ -425,6 +426,8 @@ function DonorDashboard({
 
   return (
     <div className="flex flex-col gap-8">
+      {/* ADR 0018: на СВОём профиле сверху — открытые циклы («требует тебя»); профиль = личная база. */}
+      {editable ? <OpenCycles /> : null}
       {/* Личность + график — две карточки в ряд, одинаковой высоты (stretch), в тёмном тоне (bg --bg). */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Карточка личности — по образцу шапки канала (лейбл + крупное имя + мета со счётчиками). */}
