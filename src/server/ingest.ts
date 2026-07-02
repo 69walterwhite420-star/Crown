@@ -7,6 +7,7 @@ import {
   mintPubkey,
   treasuryPubkey,
 } from "@/lib/chain/config";
+import { verifyPayoutAttestation } from "@/lib/chain/attestation";
 import { extractActivation, extractDonation } from "@/lib/chain/indexer";
 import { hashContent } from "@/lib/data/moderation";
 import { CHAIN_MODE } from "@/server/runtime";
@@ -52,6 +53,17 @@ export async function ingestSignature(
   ).toBase58();
   if (indexed.streamerAta !== expectedStreamerAta) {
     return { ok: false, reason: "97%-нога ушла не на payout канала" };
+  }
+
+  // H1 (второй рубеж после клиентской проверки в chain-provider): зачитываем донат только каналу, чей
+  // payout закреплён ed25519-подписью владельца. Подмена payout в БД без ключа владельца даёт невалидную
+  // подпись → зачёта нет (деньги при этом ушли туда, куда донор реально подписал — п.1 держит клиент).
+  if (
+    CHAIN_MODE &&
+    (!channel.payoutAttestation ||
+      !verifyPayoutAttestation(channel.ownerAddress, channel.payoutAddress, channel.payoutAttestation))
+  ) {
+    return { ok: false, reason: "payout канала не подтверждён подписью владельца (attestPayout)" };
   }
 
   const cfg = await store.getChannelConfig(channelId);

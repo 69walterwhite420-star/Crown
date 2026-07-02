@@ -27,6 +27,7 @@ import {
   escrowPda,
 } from "../chain/escrow-tx";
 import { WINDOWS } from "@/games/escrow-task/machine";
+import { buildPayoutAttestationMessage, verifyPayoutAttestation } from "../chain/attestation";
 import { resolveTier } from "../reputation";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
@@ -288,6 +289,7 @@ export class ChainDataProvider implements DataProvider {
     const card = list.items.find((c) => c.channelId === input.channelId);
     const channel = card ? await this.api.getChannel(card.handle) : null;
     if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+    this.assertPayoutAttested(channel); // H1: payout валиден только с подписью владельца — сервер не истина
 
     const amountMicro = toMicro(input.amountUSDC);
     const { fee, net } = splitAmount(amountMicro);
@@ -379,8 +381,39 @@ export class ChainDataProvider implements DataProvider {
   getChannelConfig(id: string): Result<ChannelConfig> {
     return this.api.getChannelConfig(id);
   }
-  createChannel(i: CreateChannelInput): Result<Channel> {
-    return this.api.createChannel(i);
+  /**
+   * H1: создание канала в chain-режиме сразу закрепляет payout ed25519-подписью кошелька владельца.
+   * С этого момента сервер не источник истины по адресу выплат: подпись проверяет клиент каждого донора
+   * (assertPayoutAttested) и ingest при зачёте. Кошелёк покажет читаемый текст сообщения (не транзакция).
+   */
+  async createChannel(i: CreateChannelInput): Result<Channel> {
+    const payoutAttestation = await this.signPayoutAttestation(i.payoutAddress);
+    return this.api.createChannel({ ...i, payoutAttestation });
+  }
+  /** H1: дозакрепить payout существующего канала (создан до аттестаций) — подписываем и шлём на сервер. */
+  async attestPayout(channelId: string): Result<Channel> {
+    const mine = await this.api.getMyChannel();
+    if (!mine || mine.id !== channelId)
+      throw new DataError("NOT_OWNER", "Подписать адрес выплат может только владелец канала.");
+    return this.api.attestPayout(channelId, await this.signPayoutAttestation(mine.payoutAddress));
+  }
+  private async signPayoutAttestation(payout: string): Promise<string> {
+    const w = this.wallet;
+    if (!w?.publicKey || !w.signMessage)
+      throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+    const msg = buildPayoutAttestationMessage(w.publicKey.toBase58(), payout);
+    return toBase64(await w.signMessage(new TextEncoder().encode(msg)));
+  }
+  /** Клиентская проверка H1: не собираем денежную tx на payout, не подписанный ключом владельца канала. */
+  private assertPayoutAttested(channel: Channel): void {
+    if (
+      !channel.payoutAttestation ||
+      !verifyPayoutAttestation(channel.ownerAddress, channel.payoutAddress, channel.payoutAttestation)
+    )
+      throw new DataError(
+        "PAYOUT_UNATTESTED",
+        "Канал не подтвердил адрес выплат подписью владельца — отправка денег заблокирована (защита от подмены адреса).",
+      );
   }
   /**
    * Активация канала = ончейн-сбор (~$2 USDC владелец→трежери) + memo `{act}`. Сервер сам достаёт tx
@@ -554,6 +587,7 @@ export class ChainDataProvider implements DataProvider {
         const card = list.items.find((c) => c.channelId === req.channelId);
         const channel = card ? await this.api.getChannel(card.handle) : null;
         if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+        this.assertPayoutAttested(channel); // H1: эскроу-fund — тоже деньги на payout, та же проверка
         const rawMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
         // Клампим окно сдачи к executionMin (тот же пол, что и machine.createTask; executionMin > grace, ESC-17)
         // — иначе fund ревертит на ончейн require, а офчейн-дедлайн разошёлся бы с ончейн done_deadline. То же

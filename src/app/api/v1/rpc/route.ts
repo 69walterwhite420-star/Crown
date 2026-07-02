@@ -20,6 +20,7 @@ const CHAIN_FORBIDDEN = new Set<string>(["createDonation", "activateChannel"]);
 const MUTATING = new Set<string>([
   "createChannel",
   "activateChannel",
+  "attestPayout",
   "updateChannelConfig",
   "createDonation",
   "updateProfile",
@@ -49,6 +50,7 @@ const ALLOWED = new Set<string>([
   "getChannelConfig",
   "createChannel",
   "activateChannel",
+  "attestPayout",
   "updateChannelConfig",
   "hideDonorMessages",
   "getStanding",

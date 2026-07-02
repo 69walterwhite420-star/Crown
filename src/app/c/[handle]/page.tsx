@@ -151,6 +151,20 @@ export default function ChannelPage() {
                   )}
                 </TabsContent>
               </Tabs>
+
+              {/* Перевычислимость (§4.4) как кнопка: журнал + конфиг канала можно скачать и пересчитать
+                  локально (scripts/verify-export.ts) — цифра репутации не «решение сервера». */}
+              <p className="mt-4 text-small text-fg-faint">
+                Репутация здесь — открытая формула от журнала донатов.{" "}
+                <a
+                  href={`/api/v1/export/channel/${handle}`}
+                  className="text-info hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Скачать журнал и пересчитать
+                </a>
+              </p>
             </div>
           </div>
         )}

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 import { useDonate, useMyBlock } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { cn, formatPoints, plural, toMicro } from "@/lib/utils";
@@ -133,6 +134,20 @@ export function DonateWidget({
             description: e instanceof Error ? e.message : String(e),
           }),
       },
+    );
+  }
+
+  // H1: канал без подписи payout — в chain-режиме провайдер откажется собирать tx (PAYOUT_UNATTESTED),
+  // поэтому вместо формы честный disabled-state с объяснением (никаких заглушек-обманок, CLAUDE.md §7).
+  if (IS_CHAIN && !channel.payoutAttestation) {
+    return (
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
+        <h3 className="text-h3 text-fg">Задонатить</h3>
+        <p className="text-small text-fg-muted">
+          Донаты приостановлены: канал ещё не подтвердил адрес выплат подписью кошелька владельца
+          (защита от подмены адреса). Стример включает донаты одной подписью в настройках студии.
+        </p>
+      </div>
     );
   }
 

@@ -49,6 +49,7 @@ async function ensureSchema(db: PGlite): Promise<void> {
       id             text PRIMARY KEY,
       owner_address  text NOT NULL,
       payout_address text NOT NULL,
+      payout_attestation text,
       handle         text NOT NULL UNIQUE,
       status         text NOT NULL DEFAULT 'BASIC',
       activated_at   timestamptz,
@@ -58,6 +59,8 @@ async function ensureSchema(db: PGlite): Promise<void> {
     -- Один канал на кошелёк (ADR 0002): уникален среди не-забаненных.
     CREATE UNIQUE INDEX IF NOT EXISTS channels_owner_active_uq
       ON channels (owner_address) WHERE status <> 'BANNED';
+    -- H1: ed25519-подпись владельца над payout (lib/chain/attestation.ts); NULL = канал до аттестаций.
+    ALTER TABLE channels ADD COLUMN IF NOT EXISTS payout_attestation text;
 
     CREATE TABLE IF NOT EXISTS channel_configs (
       channel_id             text NOT NULL,

@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 import { CHANNEL_DESC_MAX } from "@/lib/channel-links";
-import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
+import { useAttestPayout, useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
 import { fromMicro, isLikelyBase58Address, toMicro } from "@/lib/utils";
-import type { ChannelConfig, ConfigPatch, ModeratorRef, Tier } from "@/lib/data/types";
+import type { Channel, ChannelConfig, ConfigPatch, ModeratorRef, Tier } from "@/lib/data/types";
 
 interface Draft {
   description: string;
@@ -125,6 +126,8 @@ export default function ChannelSettingsPage() {
     <div className="flex flex-col gap-8 pb-24">
       <h1 className="text-display-l text-fg">Настройки канала</h1>
 
+      {IS_CHAIN && myChannelQ.data ? <PayoutAttestationSection channel={myChannelQ.data} /> : null}
+
       <Section title="Описание канала">
         <p className="text-small text-fg-muted">
           Имя канала и ссылки берутся из твоего{" "}
@@ -218,6 +221,56 @@ export default function ChannelSettingsPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * H1: payout-адрес считается доверенным только с ed25519-подписью владельца — её проверяет кошелёк
+ * каждого донора перед отправкой денег (сервер не источник истины). Без подписи донаты на канал
+ * приостановлены (см. DonateWidget), поэтому секция стоит первой и просит одну подпись (без газа).
+ */
+function PayoutAttestationSection({ channel }: { channel: Channel }) {
+  const attest = useAttestPayout();
+  const attested = Boolean(channel.payoutAttestation);
+  return (
+    <Section title="Адрес выплат">
+      <div className="flex flex-col gap-3">
+        <p className="text-small text-fg-muted">
+          Донаты идут напрямую на этот адрес. Подпись кошелька закрепляет его за тобой: донор проверяет
+          её перед отправкой, и никто (включая площадку) не может тихо подменить адрес.
+        </p>
+        <span className="mono text-small text-fg">{channel.payoutAddress}</span>
+        {attested ? (
+          <p className="text-small text-success">Подтверждён подписью владельца — донаты открыты.</p>
+        ) : (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-small text-danger">
+              Не подтверждён — донаты на канал приостановлены, пока адрес не закреплён подписью.
+            </p>
+            <Button
+              variant="money"
+              loading={attest.isPending}
+              onClick={() =>
+                attest.mutate(channel.id, {
+                  onSuccess: () => toast({ variant: "success", title: "Адрес выплат подтверждён" }),
+                  onError: (e) =>
+                    toast({
+                      variant: "error",
+                      title: "Подпись не принята",
+                      description: e instanceof Error ? e.message : String(e),
+                    }),
+                })
+              }
+            >
+              Подписать адрес выплат
+            </Button>
+            <p className="text-small text-fg-faint">
+              Это подпись сообщения, не транзакция: деньги не двигаются, газ не списывается.
+            </p>
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 

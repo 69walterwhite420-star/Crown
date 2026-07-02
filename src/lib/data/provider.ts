@@ -55,6 +55,9 @@ export interface DataProvider {
   getChannelConfig(channelId: string): Result<ChannelConfig>;
   createChannel(input: CreateChannelInput): Result<Channel>; // один канал на кошелёк (ADR 0002)
   activateChannel(channelId: string): Result<Channel>; // сбор ~$2 → BASIC→ACTIVE
+  // H1: закрепить payout существующего канала ed25519-подписью владельца (каналы, созданные до
+  // аттестаций). chain-провайдер подписывает кошельком сам (параметр игнорирует); mock/api требуют подпись.
+  attestPayout(channelId: string, signatureB64?: string): Result<Channel>;
   updateChannelConfig(channelId: string, patch: ConfigPatch): Result<ChannelConfig>;
 
   // — Репутация / статус —

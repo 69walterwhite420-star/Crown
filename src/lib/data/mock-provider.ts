@@ -1,4 +1,5 @@
 import { OPERATOR_ADDRESS, splitAmount } from "../chain/addresses";
+import { verifyPayoutAttestation } from "../chain/attestation";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
@@ -129,6 +130,10 @@ export class MockDataProvider implements DataProvider {
   // не трогает (§4.1/§4.2 некастодиальность) — только видимость и офчейн-действия платформы.
   private operatorBlockedContent = new Set<string>();
   private bannedWallets = new Set<Address>();
+
+  // H1: в chain-режиме канал без валидной подписи payout не создаётся (fail-closed). Флаг выставляет
+  // server/store.ts по CHAIN_MODE (серверный env) — сам класс изоморфен и серверных флагов не знает.
+  requirePayoutAttestation = false;
 
   private sessionAddress: Address | null = null;
   // H3: на сервере личность инжектится резолвером (per-request AsyncLocalStorage, см. server/store.ts);
@@ -498,11 +503,23 @@ export class MockDataProvider implements DataProvider {
     if (this.handleToId.has(handle)) {
       throw new DataError("HANDLE_TAKEN", `Handle @${handle} уже занят.`);
     }
+    // H1: payout закрепляется ed25519-подписью владельца — сервер перестаёт быть источником истины по
+    // адресу выплат (клиент донора проверяет подпись сам до сборки tx). Присланная подпись обязана быть
+    // валидной в любом режиме; в chain-режиме её отсутствие — отказ (fail-closed).
+    const attestation = input.payoutAttestation;
+    if (attestation !== undefined && !verifyPayoutAttestation(addr, input.payoutAddress, attestation))
+      throw new DataError("BAD_ATTESTATION", "Подпись адреса выплат не прошла проверку.");
+    if (this.requirePayoutAttestation && !attestation)
+      throw new DataError(
+        "PAYOUT_UNATTESTED",
+        "Нужна подпись адреса выплат кошельком владельца (attestPayout).",
+      );
     const id = this.nextId("ch");
     const channel: Channel = {
       id,
       ownerAddress: addr,
       payoutAddress: input.payoutAddress,
+      payoutAttestation: attestation,
       handle,
       status: "BASIC",
       configVersion: 1,
@@ -529,6 +546,16 @@ export class MockDataProvider implements DataProvider {
     if (!ch) return null;
     if (ch.status === "ACTIVE") return ch;
     const updated: Channel = { ...ch, status: "ACTIVE", activatedAt: this.now() };
+    this.channelsById.set(channelId, updated);
+    return updated;
+  }
+  /** H1: дозакрепить payout СУЩЕСТВУЮЩЕГО канала подписью владельца (каналы, созданные до аттестаций). */
+  async attestPayout(channelId: string, signatureB64?: string): Result<Channel> {
+    await this.gate("attestPayout");
+    const ch = this.requireChannelOwner(channelId);
+    if (!signatureB64 || !verifyPayoutAttestation(ch.ownerAddress, ch.payoutAddress, signatureB64))
+      throw new DataError("BAD_ATTESTATION", "Подпись адреса выплат не прошла проверку.");
+    const updated: Channel = { ...ch, payoutAttestation: signatureB64 };
     this.channelsById.set(channelId, updated);
     return updated;
   }
@@ -1344,6 +1371,49 @@ export class MockDataProvider implements DataProvider {
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
+  // — Публичный экспорт (перевычислимость §4.4; НЕ в RPC-вайтлисте — отдаётся GET-роутами /api/v1/export) —
+
+  /**
+   * Экспорт одного канала для независимого пересчёта: канал (с payout-аттестацией) + все версии конфига +
+   * журнал репутации + текущий лидерборд как сверяемая цифра. Только публичные данные: журнал не содержит
+   * текстов (§4.6), конфиг и лидерборд и так читаются публичными методами.
+   */
+  exportChannelData(handle: string): {
+    channel: Channel;
+    configs: ChannelConfig[];
+    ledger: LedgerEvent[];
+    leaderboard: LeaderboardEntry[];
+  } | null {
+    const id = this.handleToId.get(handle.trim().toLowerCase());
+    const channel = id ? this.channelsById.get(id) : undefined;
+    if (!id || !channel) return null;
+    return {
+      channel,
+      configs: this.configsByChannel.get(id) ?? [],
+      ledger: this.ledger.filter((e) => e.creator === id),
+      leaderboard: this.computeLeaderboard(id, "all_time"),
+    };
+  }
+
+  /**
+   * Срезы состояния под пруф-якорь (server/anchor.ts): полный журнал + все версии конфигов (публичные) и
+   * лог модерации (инциденты + операторские действия — содержат приватный текст, наружу уходят ТОЛЬКО их
+   * хэши). Дайджесты этих срезов периодически публикуются ончейн-якорем — тихо переписать прошлое нельзя.
+   */
+  exportAnchorData(): {
+    ledger: LedgerEvent[];
+    configs: ChannelConfig[];
+    incidents: IncidentLog[];
+    operatorActions: OperatorAction[];
+  } {
+    return {
+      ledger: this.ledger,
+      configs: [...this.configsByChannel.values()].flat(),
+      incidents: this.incidents,
+      operatorActions: this.operatorActions,
+    };
+  }
+
   // Серверные хуки сверки эскроу (chain). Инжектятся из store.ts (сервер), чтобы серверный граф
   // (`@/server/escrow-verify` → store-db → PGlite/node:path) не попадал в клиентский бандл. В браузере/mock
   // не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).

@@ -3,6 +3,7 @@ import { readEscrowOutcome, readEscrowState, verifyEscrowOnChain } from "@/serve
 import { scanEscrowClaimsNow, startIndexer } from "@/server/indexer-service";
 import { readSnapshot } from "@/server/persist";
 import { currentIdentity } from "@/server/request-context";
+import { CHAIN_MODE } from "@/server/runtime";
 import { loadStore, saveStore } from "@/server/store-db";
 
 /**
@@ -31,6 +32,9 @@ async function init(): Promise<MockDataProvider> {
   const store = new MockDataProvider();
   // H3: личность запроса — из per-request AsyncLocalStorage (request-context), а не из мутируемого поля.
   store.__setIdentityResolver(() => currentIdentity() ?? null);
+  // H1: в chain-режиме payout принимается только с ed25519-подписью владельца (fail-closed) — сервер
+  // перестаёт быть источником истины по адресу выплат (клиент донора проверяет подпись сам).
+  store.requirePayoutAttestation = CHAIN_MODE;
   // Серверные хуки сверки эскроу (ADR 0017/ESC-12): инжектим ТОЛЬКО здесь (store.ts — серверный модуль), чтобы
   // `@/server/escrow-verify` → store-db → PGlite/node:path не утягивались в клиентский бандл mock-провайдера.
   store.verifyEscrowHook = (id, expect) => verifyEscrowOnChain(id, expect);

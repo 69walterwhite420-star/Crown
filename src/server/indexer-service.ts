@@ -5,6 +5,7 @@ import { DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
 import { decodeEscrowClaims } from "@/lib/chain/escrow-tx";
 import { fetchNewProgramSignatures, fetchNewTreasurySignatures } from "@/lib/chain/indexer";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
+import { maybeAnchor } from "@/server/anchor";
 import { ESCROW_OUTCOME_META_PREFIX } from "@/server/escrow-verify";
 import { ingestActivation, ingestSignature } from "@/server/ingest";
 import { getMeta, setMeta } from "@/server/store-db";
@@ -134,6 +135,15 @@ async function runLoop(store: MockDataProvider, persist: () => void): Promise<vo
       if (settledAny) persist();
     } catch (e) {
       console.error("[settler] ошибка:", e instanceof Error ? e.message : e);
+    }
+
+    // Пруф-якорь: дайджесты журнала/конфигов/лога модерации → memo-tx (прозрачность централизованного
+    // слоя, см. server/anchor.ts). Без ключа ANCHOR_SIGNER_KEYPAIR тихо выключен; сбой не рушит цикл.
+    // Свою запись (meta) якорь сохраняет сам через setMeta — persist стора не нужен.
+    try {
+      await maybeAnchor(store);
+    } catch (e) {
+      console.error("[anchor] ошибка:", e instanceof Error ? e.message : e);
     }
 
     await new Promise((r) => setTimeout(r, POLL_MS));

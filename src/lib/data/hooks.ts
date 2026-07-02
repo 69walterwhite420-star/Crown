@@ -245,6 +245,18 @@ export function useActivateChannel() {
     },
   });
 }
+/** H1: закрепить payout-адрес канала подписью кошелька владельца (chain-провайдер подписывает сам). */
+export function useAttestPayout() {
+  const data = useData();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => data.attestPayout(channelId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["channel"] }); // страница канала видит аттестацию → донат открывается
+      qc.invalidateQueries({ queryKey: qk.myChannel() });
+    },
+  });
+}
 export function useCreateChannel() {
   const data = useData();
   const qc = useQueryClient();

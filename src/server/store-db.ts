@@ -36,14 +36,15 @@ const asJson = <T>(v: unknown, fallback: T): T =>
 export async function saveChannels(db: PGlite, channels: Channel[]): Promise<void> {
   for (const c of channels) {
     await db.query(
-      `INSERT INTO channels (id, owner_address, payout_address, handle, status, activated_at, config_version, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO channels (id, owner_address, payout_address, payout_attestation, handle, status, activated_at, config_version, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (id) DO UPDATE SET
-         owner_address=$2, payout_address=$3, handle=$4, status=$5, activated_at=$6, config_version=$7, created_at=$8`,
+         owner_address=$2, payout_address=$3, payout_attestation=$4, handle=$5, status=$6, activated_at=$7, config_version=$8, created_at=$9`,
       [
         c.id,
         c.ownerAddress,
         c.payoutAddress,
+        c.payoutAttestation ?? null,
         c.handle,
         c.status,
         c.activatedAt ?? null,
@@ -60,6 +61,7 @@ export async function loadChannels(db: PGlite): Promise<Channel[]> {
     id: row.id as string,
     ownerAddress: row.owner_address as string,
     payoutAddress: row.payout_address as string,
+    payoutAttestation: (row.payout_attestation as string | null) ?? undefined,
     handle: row.handle as string,
     status: row.status as Channel["status"],
     activatedAt: row.activated_at ? toIso(row.activated_at) : undefined,

@@ -154,6 +154,9 @@ export class ApiDataProvider implements DataProvider {
   updateChannelConfig(channelId: string, patch: ConfigPatch): Result<ChannelConfig> {
     return this.rpc("updateChannelConfig", [channelId, patch]);
   }
+  attestPayout(channelId: string, signatureB64?: string): Result<Channel> {
+    return this.rpc("attestPayout", [channelId, signatureB64]);
+  }
 
   // — Репутация / статус —
   getStanding(channelId: string, donor: Address): Result<ViewerStanding | null> {

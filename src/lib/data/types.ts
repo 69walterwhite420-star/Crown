@@ -29,6 +29,11 @@ export interface Channel {
   id: string; // creator_id
   ownerAddress: Address; // логин-адрес владельца (один канал на кошелёк — ADR 0002)
   payoutAddress: Address; // куда идут донаты (может != ownerAddress)
+  /** ed25519-подпись владельца (base64) над каноническим сообщением «payout канала — этот адрес»
+   *  (lib/chain/attestation.ts). Замок H1: сервер не источник истины по адресу выплат — клиент донора
+   *  проверяет подпись ДО сборки tx, ingest — при зачёте. Каналы до аттестации закрепляют адрес через
+   *  attestPayout (кнопка в настройках студии). */
+  payoutAttestation?: string;
   handle: string; // публичный slug
   status: ChannelStatus; // BASIC до уплаты сбора активации
   activatedAt?: Iso;
@@ -266,6 +271,9 @@ export interface ChannelCard {
 export interface CreateChannelInput {
   handle: string;
   payoutAddress: Address;
+  /** ed25519-подпись владельца над payout (H1, lib/chain/attestation.ts). В chain-режиме обязательна —
+   *  chain-провайдер подписывает кошельком прозрачно при создании канала. */
+  payoutAttestation?: string;
 }
 
 // — Мини-игры: запрос через общий game-bus (ADR 0016). gameId/op — строки; ядро про конкретные игры не
