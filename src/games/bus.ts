@@ -37,6 +37,13 @@ export interface GameContext {
   channelOwner: string | null;
   /** Payout-адрес канала (получатель денег на цепочке). Нужен, чтобы привязать эскроу к каналу (ESC-6). */
   channelPayout: string | null;
+  /** Вызывающий — менеджер канала (владелец или модератор из конфига): видит приватный текст задания (§4.6). */
+  isChannelManager: boolean;
+  /** Минимум суммы задания-доната, micro-USDC строкой: задание = донат с текстом, действует бóльший из
+   *  minDonation/minDonationWithText канала (спека §10 — рычаг стримера). Проверяется в create (BELOW_MIN). */
+  minTaskAmountMicro: string;
+  /** Канальный лимит длины текста (messageMaxLen) — к тексту задания, как у донат-сообщений (TOO_LONG, B4). */
+  textMaxLen: number;
   /** ISO-таймстамп «сейчас» от стора (детерминируемо в тестах через подмену). */
   now: () => string;
   /** Новый уникальный id (для создаваемых сущностей игры). */

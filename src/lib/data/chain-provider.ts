@@ -525,9 +525,18 @@ export class ChainDataProvider implements DataProvider {
         const amountStr = String(p.amount ?? "");
         if (!/^\d+$/.test(amountStr) || BigInt(amountStr) <= 0n)
           throw new DataError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
+        // Рычаги канала ДО подписи/отправки (паритет с серверным create): эскроу необратим — BELOW_MIN/
+        // TOO_LONG после fund заморозили бы деньги до таймаута возврата. Сервер проверит ещё раз (истина там).
+        const text = typeof p.text === "string" ? p.text.trim() : "";
+        const cfg = await this.api.getChannelConfig(req.channelId);
+        const minTask =
+          cfg.minDonationWithText > cfg.minDonation ? cfg.minDonationWithText : cfg.minDonation;
+        if (BigInt(amountStr) < minTask)
+          throw new DataError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
+        if (text.length > cfg.messageMaxLen)
+          throw new DataError("TOO_LONG", "Текст задания превышает лимит канала.");
         // Модерация ДО подписи/отправки: деньги ончейн необратимы — запрещёнку ловим заранее, иначе
         // эскроу был бы профинансирован под задание, которое оффчейн-create потом отклонит.
-        const text = typeof p.text === "string" ? p.text.trim() : "";
         if (text) {
           // kind: "task" → префлайт судит ТОЙ ЖЕ строгой политикой, что серверный create (ADR 0017): деньги
           // ончейн необратимы, поэтому нелегальное задание должно отсекаться ДО фандинга, а не после.

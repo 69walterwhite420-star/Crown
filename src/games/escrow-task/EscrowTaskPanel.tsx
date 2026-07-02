@@ -142,6 +142,17 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
   const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // предпросмотр прибавки очков
+  // Минимум канала для задания = бóльший из minDonation/minDonationWithText (задание — донат с текстом;
+  // тот же расчёт на сервере в create → BELOW_MIN). Валидируем до подписи — не жечь газ об отказ.
+  const minTaskMicro = config
+    ? config.minDonationWithText > config.minDonation
+      ? config.minDonationWithText
+      : config.minDonation
+    : null;
+  const belowMin = amountValid && minTaskMicro !== null && toMicro(num) < minTaskMicro;
+  const amountError = belowMin
+    ? `Минимум канала для заданий — ${Number(minTaskMicro) / 1_000_000} USDC`
+    : undefined;
 
   const dlNum = Number(dlValue);
   const deadlineMs = dlNum * UNIT_MS[dlUnit];
@@ -156,7 +167,10 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     dlValue !== "" && !deadlineValid
       ? `Срок: от ${Math.round(WINDOWS.executionMin / MIN)} минут до 3 месяцев`
       : undefined;
-  const valid = amountValid && text.trim().length > 0 && deadlineValid;
+  // Долгий срок = долгая заморозка: при игноре стримера возврат приходит только по ИСТЕЧЕНИИ срока сдачи
+  // (эскроу, no-show/expired) — отдельного 72ч-окна принятия ончейн нет. Предупреждаем от 7 дней (коридор v1.1).
+  const longDeadline = deadlineValid && deadlineMs > 7 * DAY;
+  const valid = amountValid && !belowMin && text.trim().length > 0 && deadlineValid;
 
   function confirmCreate() {
     if (!valid) return;
@@ -202,6 +216,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               placeholder="0.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(",", "."))}
+              error={amountError}
               className="bg-[var(--bg)]"
             />
             <div className="grid grid-cols-4 gap-2">
@@ -252,6 +267,14 @@ export function EscrowTaskRail({ channelId }: GameProps) {
                 <option value="d">дней</option>
               </Select>
             </div>
+            {longDeadline ? (
+              <p className="text-small text-warn">
+                Долгий срок — долгая заморозка: если стример просто проигнорирует задание, деньги
+                пролежат в эскроу до {Math.round(deadlineMs / DAY)} дней и вернутся только по
+                истечении срока. Отменить можно лишь в первые ~
+                {Math.round(WINDOWS.grace / MIN)} мин после создания.
+              </p>
+            ) : null}
           </div>
 
           <Button
@@ -285,6 +308,12 @@ export function EscrowTaskRail({ channelId }: GameProps) {
                   ? "Подпиши в кошельке и подожди финализации в сети (~15–30с) — задание появится, когда эскроу подтвердится."
                   : "Разбивка — если стример выполнит. Не успеет в срок — вернём всю сумму без комиссии."}
               </p>
+              {!pending && longDeadline ? (
+                <p className="text-small text-warn">
+                  Срок {Math.round(deadlineMs / DAY)} дней: если стример проигнорирует задание,
+                  возврат придёт только после его истечения — забрать деньги раньше нельзя.
+                </p>
+              ) : null}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="ghost" disabled={pending}>

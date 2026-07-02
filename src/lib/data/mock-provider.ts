@@ -1420,6 +1420,13 @@ export class MockDataProvider implements DataProvider {
         channelId: req.channelId,
         channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
         channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
+        isChannelManager: this.isChannelManager(req.channelId),
+        // Рычаги канала для create (спека §10): задание = донат с текстом → бóльший из двух минимумов.
+        minTaskAmountMicro: (cfg.minDonationWithText > cfg.minDonation
+          ? cfg.minDonationWithText
+          : cfg.minDonation
+        ).toString(),
+        textMaxLen: cfg.messageMaxLen,
         now: () => this.now(),
         newId: () => this.nextId("game"),
         state: {

@@ -24,6 +24,7 @@ function harness(
   textShowMode: GameContext["textShowMode"] = "auto_if_clean",
   escrowState?: GameContext["escrowState"], // ESC-19: сырое ончейн-состояние (для теста раскрытия по accept)
   isContentBlocked?: GameContext["isContentBlocked"], // операторский тейкдаун (модерация платформы)
+  minTaskAmountMicro = "0", // минимум канала для заданий (рычаг §10; тест BELOW_MIN передаёт свой)
 ) {
   let slice: unknown;
   let counter = 0;
@@ -33,6 +34,9 @@ function harness(
     channelId: "ch-1",
     channelOwner: STREAMER,
     channelPayout,
+    isChannelManager: identity === STREAMER, // менеджер = владелец (модераторов в харнессе нет)
+    minTaskAmountMicro,
+    textMaxLen: 200, // дефолт фикстур ядра (messageMaxLen)
     escrowOutcome,
     now: () => new Date(t).toISOString(),
     newId: () => `task-${++counter}`,
@@ -68,7 +72,17 @@ function harness(
       ctx(null, T0),
       payload,
     );
-  return { run, query, ledger };
+  // Запрос от имени конкретного вызывающего — для тестов серверной редакции приватного текста (§4.6).
+  const queryAs = (identity: string | null, op: string, payload?: unknown) =>
+    dispatchGame(
+      { "escrow-task": escrowTaskHandlers },
+      "escrow-task",
+      "query",
+      op,
+      ctx(identity, T0),
+      payload,
+    );
+  return { run, query, queryAs, ledger };
 }
 
 describe("happy-path: создал → принял → готово → (окно прошло) → claim стримером", () => {
@@ -420,5 +434,57 @@ describe("hide («Отклонить» = скрыть без ончейна/ре
     expect(hidden.hidden).toBe(true);
     expect(hidden.status).toBe("PENDING"); // не резолвим — эскроу вернётся донору сам по таймеру
     expect(hidden.resolution).toBeUndefined();
+  });
+});
+
+describe("рычаги канала на create (спека §10, паритет с createDonation)", () => {
+  it("BELOW_MIN: сумма ниже минимума канала для заданий", async () => {
+    // минимум 10 USDC, донат 5 USDC (AMOUNT) → отказ ДО записи
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", undefined, undefined, "10000000");
+    await expect(
+      h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" }),
+    ).rejects.toMatchObject({ code: "BELOW_MIN" });
+    expect(((await h.query("list")) as { tasks: EscrowTask[] }).tasks).toHaveLength(0);
+  });
+
+  it("TOO_LONG: текст задания длиннее лимита канала (messageMaxLen)", async () => {
+    const h = harness();
+    await expect(
+      h.run("Donor", T0, "create", { amount: AMOUNT, text: "х".repeat(201) }),
+    ).rejects.toMatchObject({ code: "TOO_LONG" });
+  });
+});
+
+describe("серверная редакция приватного текста задания (§4.6, паритет с redactDonation)", () => {
+  it("HELD-текст видят донор и менеджер канала; посторонний и аноним — нет", async () => {
+    const h = harness({}, "Payout1", undefined, "manual"); // manual → задание создаётся HELD
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "секрет" })) as EscrowTask;
+    expect(t.textState).toBe("HELD");
+
+    const anon = (await h.queryAs(null, "get", { taskId: t.id })) as EscrowTask;
+    expect(anon.text).toBe(""); // аноним — текст вырезан сервером
+    const stranger = (await h.queryAs("Stranger", "get", { taskId: t.id })) as EscrowTask;
+    expect(stranger.text).toBe(""); // посторонний — вырезан
+    const donor = (await h.queryAs("Donor", "get", { taskId: t.id })) as EscrowTask;
+    expect(donor.text).toBe("секрет"); // автор видит своё
+    const manager = (await h.queryAs(STREAMER, "get", { taskId: t.id })) as EscrowTask;
+    expect(manager.text).toBe("секрет"); // менеджер канала видит очередь
+
+    const list = (await h.queryAs("Stranger", "list")) as { tasks: EscrowTask[] };
+    expect(list.tasks[0]!.text).toBe(""); // list редактируется той же логикой
+  });
+
+  it("операторский тейкдаун прячет текст ото ВСЕХ, включая менеджера (перебивает роль)", async () => {
+    const blocked = new Set<string>();
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", undefined, (id) =>
+      blocked.has(id),
+    );
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "нехорошее" })) as EscrowTask;
+    blocked.add(t.id);
+    const manager = (await h.queryAs(STREAMER, "get", { taskId: t.id })) as EscrowTask;
+    expect(manager.operatorBlocked).toBe(true);
+    expect(manager.text).toBe(""); // снятое оператором не видит даже менеджер
+    const donor = (await h.queryAs("Donor", "get", { taskId: t.id })) as EscrowTask;
+    expect(donor.text).toBe("");
   });
 });

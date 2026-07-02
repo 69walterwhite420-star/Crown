@@ -108,6 +108,17 @@ function withOperatorBlock(ctx: GameContext, task: EscrowTask): EscrowTask {
   return ctx.isContentBlocked?.(task.id) ? { ...task, operatorBlocked: true } : task;
 }
 
+/** Серверная редакция приватного текста задания (инвариант §4.6, паритет с `redactDonation` ядра):
+ * HELD/HIDDEN-текст видят только менеджеры канала (владелец/модератор) и сам донор; операторский тейкдаун
+ * прячет текст ото ВСЕХ, включая менеджеров (перебивает роль). Клиентский `canSeeText` остаётся презентацией —
+ * истина здесь: сырой приватный текст не покидает сервер. Применять ПОСЛЕ `withOperatorBlock`. */
+function redactTask(ctx: GameContext, task: EscrowTask): EscrowTask {
+  if (task.operatorBlocked) return { ...task, text: "" };
+  if (M.isTextPublic(task)) return task;
+  if (ctx.identity && (ctx.identity === task.donor || ctx.isChannelManager)) return task;
+  return { ...task, text: "" };
+}
+
 async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   // Операторский тейкдаун перебивает авто-раскрытие: снятое оператором задание индексер НЕ возвращает на свет
   // (нелегальщина остаётся снятой, даже если эскроу принят/оплачен ончейн). Оператор > цепочка > модерация.
@@ -152,6 +163,12 @@ export const escrowTaskHandlers: GameHandlers = {
         throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
       const text = typeof p.text === "string" ? p.text.trim() : "";
       if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
+      // Рычаги канала (спека §10, паритет с createDonation ядра): лимит длины (B4 — DoS/амплификация
+      // модерации) и минимум суммы (задание = донат с текстом → бóльший из двух минимумов канала).
+      if (text.length > ctx.textMaxLen)
+        throw new GameBusError("TOO_LONG", "Текст задания превышает лимит канала.");
+      if (BigInt(amount) < BigInt(ctx.minTaskAmountMicro))
+        throw new GameBusError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
       // Модерация текста задания: нелегальное/опасное не создаётся вовсе. Иначе видимость текста в ПУБЛИЧНОЙ
       // ленте решаем той же политикой, что донат-сообщения (textShowMode): чистый + auto_if_clean → сразу
       // SHOWN; иначе → HELD (очередь модерации стримера до «Показать»). Деньги/эскроу от этого не зависят (§7).
@@ -361,17 +378,18 @@ export const escrowTaskHandlers: GameHandlers = {
   },
 
   queries: {
-    // Задания этого канала (сырые; «ожидаемый исход» по времени UI считает машиной сам). Аннотируем
-    // operatorBlocked из операторского override-набора — единый источник истины про тейкдаун (не в слайсе).
+    // Задания этого канала («ожидаемый исход» по времени UI считает машиной сам). Аннотируем operatorBlocked
+    // из операторского override-набора — единый источник истины про тейкдаун (не в слайсе) — и редактируем
+    // приватный текст по роли вызывающего (§4.6): сырой HELD/HIDDEN-текст не уходит посторонним.
     list: (ctx) => ({
       tasks: loadTasks(ctx)
         .filter((t) => t.channelId === ctx.channelId)
-        .map((t) => withOperatorBlock(ctx, t)),
+        .map((t) => redactTask(ctx, withOperatorBlock(ctx, t))),
     }),
     get: (ctx, payload) => {
       const id = idOf(payload);
       const t = loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId);
-      return t ? withOperatorBlock(ctx, t) : null;
+      return t ? redactTask(ctx, withOperatorBlock(ctx, t)) : null;
     },
     // Голоса спора — ПОСТРАНИЧНО + фильтр по стороне + поиск по адресу + сортировка. Так страница спора
     // масштабируется на тысячи голосующих (не грузим всё разом). Агрегат (tally) считается по ВСЕМ голосам.
@@ -384,9 +402,12 @@ export const escrowTaskHandlers: GameHandlers = {
         sort?: unknown;
         q?: unknown;
       };
-      const task = loadTasks(ctx).find((t) => t.id === p.taskId && t.channelId === ctx.channelId);
-      if (!task || !task.dispute) return { found: false };
-      const d = task.dispute;
+      const raw = loadTasks(ctx).find((t) => t.id === p.taskId && t.channelId === ctx.channelId);
+      if (!raw || !raw.dispute) return { found: false };
+      // Та же редакция текста, что в list/get (§4.6): спор возможен только после accept (текст SHOWN),
+      // но операторский тейкдаун мог снять его позже — не возвращаем снятый текст.
+      const task = redactTask(ctx, withOperatorBlock(ctx, raw));
+      const d = raw.dispute;
 
       let completed = 0;
       let not = 0;
