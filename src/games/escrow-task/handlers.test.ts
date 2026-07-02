@@ -343,6 +343,22 @@ describe("очередь модерации текста задания (textSta
     expect(accepted.textState).toBe("SHOWN"); // принятие публикует текст
   });
 
+  it("ESC-19: после accept «скрыть» текст запрещено (TEXT_LOCKED) — деньги ⟹ текст на виду", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean");
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
+    // До accept скрыть можно (денег к стримеру ещё нет).
+    const hidden = (await h.run(STREAMER, T0, "setTextState", {
+      taskId: t.id,
+      state: "HIDDEN",
+    })) as EscrowTask;
+    expect(hidden.textState).toBe("HIDDEN");
+    // Принимаем — текст снова публичен; теперь скрыть уже нельзя.
+    await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
+    await expect(
+      h.run(STREAMER, T0 + 2, "setTextState", { taskId: t.id, state: "HIDDEN" }),
+    ).rejects.toMatchObject({ code: "TEXT_LOCKED" });
+  });
+
   it("ESC-19: ончейн-accept (escrowState=Accepted) → settleDue раскрывает текст МИМО UI", async () => {
     const h = harness({}, "Payout1", undefined, "manual", async () => 1); // 1 = Accepted на цепочке
     const t = (await h.run("Donor", T0, "create", {

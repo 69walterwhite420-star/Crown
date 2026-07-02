@@ -262,9 +262,18 @@ export const escrowTaskHandlers: GameHandlers = {
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);
       // «Показать» можно только пока задание живо: таймер не истёк и оно не разрешено. Истекло → уходит в
-      // возврат донору сам, публиковать текст поздно. «Скрыть» доступно всегда (ретракт).
+      // возврат донору сам, публиковать текст поздно.
       if (state === "SHOWN" && (task.status === "RESOLVED" || M.dueResolution(task, nowMs(ctx))))
         throw new GameBusError("TEXT_LOCKED", "Срок задания истёк — текст уже нельзя показать.");
+      // ESC-19: «скрыть» можно только ДО принятия (PENDING) — пока к стримеру не может уйти ни рубля.
+      // После accept деньги могут утечь стримеру, поэтому текст обязан оставаться на виду у комьюнити
+      // (иначе спрятал текст → молча забрал → никто не знает, за что голосовали). Индексер всё равно
+      // раскрывает такой текст обратно по ончейн-состоянию — прятать его после accept и бессмысленно.
+      if (state === "HIDDEN" && task.status !== "PENDING")
+        throw new GameBusError(
+          "TEXT_LOCKED",
+          "Задание принято — текст уже нельзя скрыть: его видит комьюнити.",
+        );
       return commit(ctx, tasks, M.setTextState(task, state));
     },
 

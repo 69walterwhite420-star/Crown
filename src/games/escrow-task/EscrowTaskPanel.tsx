@@ -611,8 +611,9 @@ function TaskCard({
 
       <div className="flex flex-wrap items-center gap-2">
         {/* Очередь модерации текста: «Показать» — только пока задание живо (таймер не истёк, не разрешено),
-            иначе публиковать поздно (уходит в возврат донору). «Скрыть» публичного текста — всегда. §7. */}
-        {isStreamer && isTextPublic(task) ? (
+            иначе публиковать поздно (уходит в возврат донору). «Скрыть» — только ДО принятия (PENDING): после
+            accept деньги могут уйти стримеру, поэтому текст обязан оставаться на виду у комьюнити (ESC-19). */}
+        {isStreamer && isTextPublic(task) && task.status === "PENDING" ? (
           <Button
             size="sm"
             variant="ghost"
@@ -621,7 +622,7 @@ function TaskCard({
           >
             Скрыть текст
           </Button>
-        ) : isStreamer && !due && !final ? (
+        ) : isStreamer && !isTextPublic(task) && !due && !final ? (
           <Button
             size="sm"
             variant="secondary"
