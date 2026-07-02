@@ -9,7 +9,7 @@
  *  1) H1: payout-адрес канала подписан ключом владельца (ed25519, lib/chain/attestation.ts).
  *  2) §4.4: репутация каждого донора лидерборда = свёртка журнала общим движком (lib/reputation.ts);
  *     каждая DONATION-дельта = pointsForAmount(суммы) — «переписанные» дельты не пройдут.
- *  3) Пруф-якорь: дайджесты журнала/конфигов/лога модерации пересчитываются из /api/v1/export/anchor
+ *  3) Пруф-якорь: дайджесты журнала/конфигов/операторского лога пересчитываются из /api/v1/export/anchor
  *     и сверяются с сохранённым якорем; --chain дополнительно читает memo якорной tx ИЗ ЦЕПОЧКИ.
  *  4) --chain --deep N: последние N DONATION-событий сверяются с реальными транзакциями devnet
  *     (разбор пары 97/3 + memo тем же чистым extractDonation, что у индексера).
@@ -43,14 +43,14 @@ interface ChannelExport {
 
 interface AnchorExport {
   format: string;
-  digests: { ledger: string; configs: string; moderation: string };
+  digests: { ledger: string; configs: string; operatorLog: string };
   ledgerCount: number;
   lastAnchor: {
     signature: string;
     ts: string;
     ledger: string;
     configs: string;
-    moderation: string;
+    operatorLog: string;
     ledgerCount: number;
   } | null;
   ledger: LedgerEvent[];
@@ -166,12 +166,12 @@ async function verifyAnchor(): Promise<void> {
   // (3) Дайджесты пересчитываются локально из прообраза — сервер не может отдать «дайджест от другого».
   const ledgerDigest = await sha256Hex(stableStringify(ex.ledger));
   const configsDigest = await sha256Hex(stableStringify(ex.configs));
-  const moderationDigest = await sha256Hex(
+  const operatorLogDigest = await sha256Hex(
     stableStringify({ incidents: ex.incidentHashes, actions: ex.actionHashes }),
   );
   check("дайджест журнала совпал с пересчётом", ledgerDigest === ex.digests.ledger);
   check("дайджест конфигов совпал с пересчётом", configsDigest === ex.digests.configs);
-  check("дайджест лога модерации совпал с пересчётом", moderationDigest === ex.digests.moderation);
+  check("дайджест операторского лога совпал с пересчётом", operatorLogDigest === ex.digests.operatorLog);
 
   if (!ex.lastAnchor) {
     info("якорь ещё не публиковался (ANCHOR_SIGNER_KEYPAIR не задан или изменений не было)");
@@ -193,7 +193,7 @@ async function verifyAnchor(): Promise<void> {
     const memoRaw = tx?.transaction.message.instructions
       .map((ix) => ("parsed" in ix && ix.program === "spl-memo" ? (ix.parsed as string) : null))
       .find(Boolean);
-    let memo: { std?: string; j?: string; c?: string; m?: string } | null = null;
+    let memo: { std?: string; j?: string; c?: string; o?: string } | null = null;
     try {
       memo = memoRaw ? (JSON.parse(memoRaw) as typeof memo) : null;
     } catch {
@@ -205,7 +205,7 @@ async function verifyAnchor(): Promise<void> {
         memo!.std === "standing-anchor/1" &&
         memo!.j === ex.lastAnchor.ledger &&
         memo!.c === ex.lastAnchor.configs &&
-        memo!.m === ex.lastAnchor.moderation,
+        memo!.o === ex.lastAnchor.operatorLog,
       ex.lastAnchor.signature.slice(0, 12) + "…",
     );
   }

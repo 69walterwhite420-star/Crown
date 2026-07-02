@@ -8,7 +8,8 @@ import { getMeta, setMeta } from "@/server/store-db";
 
 /**
  * Пруф-якорь: периодическая memo-транзакция с дайджестами оффчейн-состояния (журнал репутации, версии
- * конфигов, лог модерации). Цель — прозрачность централизованного слоя: модерация и конфиги остаются
+ * конфигов, операторский лог: инцидент-лог + действия оператора). Цель — прозрачность
+ * централизованного слоя: операторский T&S и конфиги остаются
  * управляемыми (это фича, §5 architecture.md), но каждое состояние получает несмываемый ончейн-отпечаток
  * с меткой времени. Тихо переписать прошлое (журнал, версию конфига, «этого тейкдауна не было») нельзя —
  * третья сторона пересчитывает дайджесты из /api/v1/export/anchor и сверяет с memo в цепочке
@@ -28,7 +29,9 @@ const MIN_INTERVAL_MS = Number(process.env.ANCHOR_INTERVAL_MS ?? 60 * 60_000);
 export interface AnchorDigests {
   ledger: string; // sha256(stableStringify(все события журнала))
   configs: string; // sha256(stableStringify(все версии конфигов всех каналов))
-  moderation: string; // sha256({incidents: [хэши записей], actions: [хэши записей]}) — контент не публикуется
+  // Операторский лог (инцидент-лог + действия оператора /ops) — НЕ решения канальных модераторов
+  // стримера (те живут в состоянии сообщений). Контент приватен → sha256({incidents: [...], actions: [...]}).
+  operatorLog: string;
 }
 
 export interface AnchorBundle {
@@ -46,7 +49,7 @@ export interface AnchorRecord extends AnchorDigests {
 }
 
 /**
- * Дайджесты текущего состояния. Лог модерации содержит приватный текст (§4.6) — в дайджест и наружу идут
+ * Дайджесты текущего состояния. Операторский лог содержит приватный текст (§4.6) — в дайджест и наружу идут
  * ТОЛЬКО пер-записные хэши: целостность и полнота проверяемы, содержимое не раскрывается.
  */
 export async function computeAnchorBundle(store: MockDataProvider): Promise<AnchorBundle> {
@@ -57,7 +60,7 @@ export async function computeAnchorBundle(store: MockDataProvider): Promise<Anch
     digests: {
       ledger: await sha256Hex(stableStringify(ledger)),
       configs: await sha256Hex(stableStringify(configs)),
-      moderation: await sha256Hex(
+      operatorLog: await sha256Hex(
         stableStringify({ incidents: incidentHashes, actions: actionHashes }),
       ),
     },
@@ -102,7 +105,7 @@ export async function maybeAnchor(store: MockDataProvider): Promise<boolean> {
     last &&
     last.ledger === digests.ledger &&
     last.configs === digests.configs &&
-    last.moderation === digests.moderation
+    last.operatorLog === digests.operatorLog
   )
     return false; // состояние не менялось — якорить нечего
   if (last && Date.now() - Date.parse(last.ts) < MIN_INTERVAL_MS) return false; // подождём интервал
@@ -123,7 +126,7 @@ export async function maybeAnchor(store: MockDataProvider): Promise<boolean> {
     n: ledgerCount,
     j: digests.ledger,
     c: digests.configs,
-    m: digests.moderation,
+    o: digests.operatorLog,
   });
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const tx = new Transaction().add(buildMemoInstruction(memo));

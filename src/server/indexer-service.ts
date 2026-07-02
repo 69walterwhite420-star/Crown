@@ -137,7 +137,7 @@ async function runLoop(store: MockDataProvider, persist: () => void): Promise<vo
       console.error("[settler] ошибка:", e instanceof Error ? e.message : e);
     }
 
-    // Пруф-якорь: дайджесты журнала/конфигов/лога модерации → memo-tx (прозрачность централизованного
+    // Пруф-якорь: дайджесты журнала/конфигов/операторского лога → memo-tx (прозрачность централизованного
     // слоя, см. server/anchor.ts). Без ключа ANCHOR_SIGNER_KEYPAIR тихо выключен; сбой не рушит цикл.
     // Свою запись (meta) якорь сохраняет сам через setMeta — persist стора не нужен.
     try {
