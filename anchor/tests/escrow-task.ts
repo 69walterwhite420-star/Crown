@@ -64,7 +64,8 @@ describe("escrow-task (G3a, после аудита)", () => {
       .accounts({ donor: provider.wallet.publicKey, donorToken: donorAta, mint, streamer: streamer.publicKey })
       .rpc();
     await program.methods.reject().accounts({ streamer: streamer.publicKey }).signers([streamer]).rpc();
-    await program.methods.claimDonor().accounts({ donor: provider.wallet.publicKey, mint }).rpc();
+    // claim_donor не берёт mint (аккаунты: donor, escrow, vault, donor_token, token_program — mint не нужен).
+    await program.methods.claimDonor().accounts({ donor: provider.wallet.publicKey }).rpc();
     assert.equal((await getAccount(conn, donorAta)).amount, before, "донору вернулось 100%");
   });
 
