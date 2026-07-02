@@ -13,13 +13,18 @@ export const POINTS_PER_USDC = 1;
 const MICRO_PER_POINT = 1_000_000n / BigInt(POINTS_PER_USDC);
 
 /**
- * Очки за донат: сумма в USDC, округлённая до целого очка (1 USDC = 1 очко). Считаем ЦЕЛОЧИСЛЕННО в bigint
- * (не через float), иначе на больших суммах Number(micro) теряет точность и независимый пересчёт не
- * сойдётся (инвариант §4.4 — детерминизм; R1/ADR 0012). Округление к ближайшему: (micro + полшага) / шаг.
+ * Очки за донат: сумма в USDC, ОКРУГЛЁННАЯ ВНИЗ до целого очка (1 USDC = 1 очко). Считаем ЦЕЛОЧИСЛЕННО в
+ * bigint (не через float), иначе на больших суммах Number(micro) теряет точность и независимый пересчёт не
+ * сойдётся (инвариант §4.4 — детерминизм; R1/ADR 0012).
+ *
+ * Именно floor, а не «к ближайшему»: округление вверх СУПЕРаддитивно (round(0.5)+round(0.5)=2 > round(1)=1,
+ * и так на ЛЮБОЙ границе .5) — дроблением доната на куски по 0.5 донор удваивал репутацию за те же деньги.
+ * floor субаддитивен (floor(a)+floor(b) ≤ floor(a+b)) → дробление НИКОГДА не даёт лишних очков, ставка
+ * ограничена сверху 1 очком/USDC. Порог показа текста живёт отдельно (minDonationWithText).
  */
 export function pointsForAmount(amountMicro: MicroUSDC): Points {
   if (amountMicro <= 0n) return 0;
-  return Number((amountMicro + MICRO_PER_POINT / 2n) / MICRO_PER_POINT);
+  return Number(amountMicro / MICRO_PER_POINT);
 }
 
 /**

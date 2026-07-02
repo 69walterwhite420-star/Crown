@@ -50,12 +50,23 @@ describe("pointsForAmount — курс 1 USDC = 1 очко (ADR 0007)", () => {
     expect(pointsForAmount(-5n)).toBe(0);
   });
 
-  it("округляет к ближайшему целому очку (полшага вверх)", () => {
+  it("округляет ВНИЗ (floor) — дробная часть очков не даёт", () => {
     expect(pointsForAmount(400_000n)).toBe(0); // 0.4 → 0
-    expect(pointsForAmount(500_000n)).toBe(1); // 0.5 → 1 (граница вверх)
-    expect(pointsForAmount(600_000n)).toBe(1); // 0.6 → 1
-    expect(pointsForAmount(1_499_999n)).toBe(1); // 1.499999 → 1
-    expect(pointsForAmount(1_500_000n)).toBe(2); // 1.5 → 2
+    expect(pointsForAmount(500_000n)).toBe(0); // 0.5 → 0 (floor, не «к ближайшему»)
+    expect(pointsForAmount(999_999n)).toBe(0); // 0.999999 → 0
+    expect(pointsForAmount(1_500_000n)).toBe(1); // 1.5 → 1
+    expect(pointsForAmount(1_999_999n)).toBe(1); // 1.999999 → 1
+    expect(pointsForAmount(2_000_000n)).toBe(2); // 2.0 → 2
+  });
+
+  it("дробление доната НЕ инфлирует репутацию (floor субаддитивен)", () => {
+    // Было (round-half-up): 0.5+0.5 = 2 очка > round(1.0)=1 → 2× за те же деньги. Теперь floor:
+    const split = pointsForAmount(500_000n) + pointsForAmount(500_000n); // 0 + 0
+    expect(split).toBe(0);
+    expect(split).toBeLessThanOrEqual(pointsForAmount(1_000_000n)); // ≤ floor(1.0)=1
+    // Любое дробление 1.5 USDC не превышает целого доната:
+    const parts = pointsForAmount(700_000n) + pointsForAmount(800_000n); // 0 + 0
+    expect(parts).toBeLessThanOrEqual(pointsForAmount(1_500_000n)); // ≤ 1
   });
 
   it("детерминизм и точность на больших суммах (bigint, без float-дрейфа)", () => {

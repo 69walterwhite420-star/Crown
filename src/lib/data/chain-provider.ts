@@ -294,6 +294,7 @@ export class ChainDataProvider implements DataProvider {
     const donationId = `d-${this.address()}-${list.items.length}`;
     // Текст приватен и оффчейн; в memo кладём ТОЛЬКО его хэш — сервер потом сверит присланный текст с ним
     // (трастлесс-привязка, см. server/ingest.ts). Без текста m = null.
+    const msgRef = text ? await hashContent(text) : null;
     const ix = await buildDonationInstructions(this.connection, {
       donor: w.publicKey,
       payout: new PublicKey(channel.payoutAddress),
@@ -302,7 +303,7 @@ export class ChainDataProvider implements DataProvider {
       amountMicro,
       creatorId: input.channelId,
       donationId,
-      msgRef: text ? hashContent(text) : null,
+      msgRef,
     });
     const tx = new Transaction().add(...ix);
     tx.feePayer = w.publicKey;

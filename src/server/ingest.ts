@@ -63,12 +63,13 @@ export async function ingestSignature(
   // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш совпал
   // с ончейн-memo (донор подписал именно его), длина в пределах лимита канала (R5/ADR 0012) И сумма ≥
   // minDonationWithText (как off-chain — текст требует порога). Иначе текст игнорируем — деньги/репутация не зависят.
+  const textHash = text ? await hashContent(text) : null;
   const verifiedText =
     text &&
     text.length <= cfg.messageMaxLen &&
     indexed.amountMicro >= cfg.minDonationWithText &&
     indexed.memo.m &&
-    hashContent(text) === indexed.memo.m
+    textHash === indexed.memo.m
       ? text
       : undefined;
 

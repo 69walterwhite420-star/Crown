@@ -220,7 +220,7 @@ export async function classifyTaskText(text: string): Promise<ModerationVerdict>
   const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
   if (!key) return "CLEAR"; // без ключа умного судьи нет (mock-клиент / прод без ключа)
 
-  const h = hashContent(text);
+  const h = await hashContent(text);
   const cached = taskVerdictCache.get(h);
   if (cached && Date.now() - cached.at < TASK_VERDICT_TTL_MS) return cached.verdict;
 
@@ -257,15 +257,18 @@ function detectLang(text: string): string {
   return "en";
 }
 
-/** Стабильный хэш нормализованного контента (FNV-1a) — для дедупа карантина и опц. ончейн-якоря. */
-export function hashContent(text: string): string {
+/**
+ * Криптостойкий хэш нормализованного контента (SHA-256, полный) — ончейн-якорь текста (memo.m) и ключ
+ * дедупа/кэша модерации. Крипто ОБЯЗАТЕЛЬНО: memo.m — коммитмент «донор подписал именно этот текст», и по
+ * нему сервер привязывает присланный текст к чужому донату (ingest). Прежний FNV-1a (32 бита) давал
+ * мгновенный второй прообраз → к любому вредоносному тексту подбирался хвост под чужой memo.m (подмена
+ * текста под адресом жертвы) и коллизия с закэшированным CLEAR (обход авто-модерации). Async: Web Crypto
+ * (globalThis.crypto.subtle) — единый и в браузере (chain-provider), и на сервере (ingest/модерация).
+ */
+export async function hashContent(text: string): Promise<string> {
   const norm = text.trim().toLowerCase().replace(/\s+/g, " ");
-  let h = 0x811c9dc5;
-  for (let i = 0; i < norm.length; i++) {
-    h ^= norm.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0");
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export interface ModerationOutcome {
@@ -285,7 +288,7 @@ export async function runPipeline(
   cache: Map<string, ModerationVerdict>,
   opts?: { scope?: string; auto?: AutoModerator },
 ): Promise<ModerationOutcome> {
-  const contentHash = hashContent(text);
+  const contentHash = await hashContent(text);
   const lang = detectLang(text);
   const key = opts?.scope ? `${opts.scope}:${contentHash}` : contentHash;
   const cached = cache.get(key);
