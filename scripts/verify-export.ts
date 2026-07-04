@@ -4,6 +4,7 @@
  * (движок репутации, подпись payout, дайджесты), а с флагом --chain — сверяется с цепочкой (истина денег).
  *
  *   npx tsx scripts/verify-export.ts --channel <handle> [--url http://localhost:3000] [--chain] [--deep N]
+ *                                    [--canister <base-url>]
  *
  * Проверки:
  *  1) H1: payout-адрес канала подписан ключом владельца (ed25519, lib/chain/attestation.ts).
@@ -13,6 +14,10 @@
  *     и сверяются с сохранённым якорем; --chain дополнительно читает memo якорной tx ИЗ ЦЕПОЧКИ.
  *  4) --chain --deep N: последние N DONATION-событий сверяются с реальными транзакциями devnet
  *     (разбор пары 97/3 + memo тем же чистым extractDonation, что у индексера).
+ *  5) --canister <url>: сверка ТРЁХ источников (миграция M0, ADR 0021) — журнал core-канистры ICP
+ *     (она сама пересобирает его из цепочки) сверяется с журналом сервера донат-в-донат.
+ *     URL — raw-домен HTTP-экспорта канистры, локально:
+ *     http://<canister-id>.raw.localhost:4943 (см. docs/runbook.md «Канистры ICP»).
  *
  * Честное ограничение: экспорт показывает ТЕКУЩЕЕ состояние. Ловля переписанного ПРОШЛОГО требует либо
  * --chain (якоря в цепочке неизменяемы), либо сохранённых копий прежних экспортов.
@@ -25,12 +30,7 @@ import { extractDonation } from "../src/lib/chain/indexer";
 import { sha256Hex, stableStringify } from "../src/lib/data/canonical";
 import { decode } from "../src/lib/data/codec";
 import { computePoints, pointsForAmount } from "../src/lib/reputation";
-import type {
-  Channel,
-  ChannelConfig,
-  LeaderboardEntry,
-  LedgerEvent,
-} from "../src/lib/data/types";
+import type { Channel, ChannelConfig, LeaderboardEntry, LedgerEvent } from "../src/lib/data/types";
 
 interface ChannelExport {
   format: string;
@@ -67,6 +67,7 @@ const URL_BASE = arg("url") ?? "http://localhost:3000";
 const HANDLE = arg("channel");
 const CHAIN = process.argv.includes("--chain");
 const DEEP = Number(arg("deep") ?? (CHAIN ? 10 : 0));
+const CANISTER = arg("canister"); // base-URL HTTP-экспорта core-канистры (raw-домен)
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: string) {
@@ -83,7 +84,7 @@ async function fetchExport<T>(path: string): Promise<T> {
   return decode<T>(await res.text());
 }
 
-async function verifyChannel(handle: string): Promise<void> {
+async function verifyChannel(handle: string): Promise<ChannelExport> {
   console.log(`\n— Канал @${handle} (${URL_BASE}) —`);
   const ex = await fetchExport<ChannelExport>(`/api/v1/export/channel/${handle}`);
   const ch = ex.channel;
@@ -115,7 +116,11 @@ async function verifyChannel(handle: string): Promise<void> {
         deltaMismatch.map((e) => e.id).join(", "),
     );
   } else {
-    check("каждая DONATION-дельта = pointsForAmount(суммы) текущей формулой", true, `${ex.ledger.length} событий`);
+    check(
+      "каждая DONATION-дельта = pointsForAmount(суммы) текущей формулой",
+      true,
+      `${ex.ledger.length} событий`,
+    );
   }
 
   let recomputedOk = true;
@@ -157,6 +162,123 @@ async function verifyChannel(handle: string): Promise<void> {
       await new Promise((r) => setTimeout(r, 250)); // бережём бесплатный RPC
     }
   }
+  return ex;
+}
+
+// ─────────── (5) сверка трёх источников: Solana ↔ канистра ↔ сервер (M0, ADR 0021) ───────────
+
+interface CanisterEntry {
+  seq: number;
+  kind: "DONATION" | "ACTIVATION";
+  signature: string;
+  channelId: string;
+  actor: string;
+  amountMicro: string;
+  pointsDeltaMicro: string;
+  blockTime: number | null;
+}
+
+interface CanisterExport {
+  source: string;
+  version: string;
+  journalLen: number;
+  cursor: string | null;
+  txUnavailable: number;
+  entries: CanisterEntry[];
+}
+
+async function verifyCanister(base: string, ex: ChannelExport): Promise<void> {
+  console.log(`\n— Канистра (${base}) — журнал из первоисточника —`);
+  const res = await fetch(`${base}/export?channel=${encodeURIComponent(ex.channel.id)}`);
+  if (!res.ok) throw new Error(`GET ${base}/export → HTTP ${res.status}`);
+  const cx = (await res.json()) as CanisterExport;
+  info(
+    `${cx.source} v${cx.version}: журнал ${cx.journalLen} записей всего, ` +
+      `канал ${ex.channel.id}: ${cx.entries.length}; курсор ${cx.cursor?.slice(0, 12) ?? "—"}…`,
+  );
+  // Дыры retention RPC — канистра не смогла перечитать старую tx: журнал в этом месте неполон.
+  check("канистра перечитала цепочку без дыр (txUnavailable = 0)", cx.txUnavailable === 0);
+
+  const canisterBySig = new Map(
+    cx.entries.filter((e) => e.kind === "DONATION").map((e) => [e.signature, e]),
+  );
+  const serverDon = ex.ledger.filter((e) => e.type === "DONATION");
+  const serverBySig = new Map(
+    serverDon.filter((e) => e.txSignature).map((e) => [e.txSignature!, e]),
+  );
+
+  let mismatches = 0;
+  const legacyBanked: string[] = [];
+  for (const [sig, c] of canisterBySig) {
+    const s = serverBySig.get(sig);
+    if (!s) {
+      check(
+        `сервер знает донат ${sig.slice(0, 12)}…`,
+        false,
+        "есть в цепочке и канистре, НЕТ на сервере",
+      );
+      mismatches++;
+      continue;
+    }
+    if (s.donor !== c.actor || s.amount !== BigInt(c.amountMicro)) {
+      check(
+        `донат ${sig.slice(0, 12)}… совпадает`,
+        false,
+        `сервер ${s.donor.slice(0, 8)}…/${s.amount}μ ≠ канистра ${c.actor.slice(0, 8)}…/${c.amountMicro}μ`,
+      );
+      mismatches++;
+      continue;
+    }
+    if (Math.round(s.pointsDelta * 1e6) !== Number(c.pointsDeltaMicro)) {
+      // Механически распознаваемый класс: сервер забанковал дельту СТАРОЙ формулой (§4.4 банкинг,
+      // дельты истории не переписываются), канистра считает из первоисточника ТЕКУЩЕЙ (ADR 0007).
+      // Канистра при этом обязана совпадать с текущей формулой — иначе это настоящий провал.
+      const serverIsLegacy = s.pointsDelta !== pointsForAmount(s.amount);
+      const canisterIsCurrent =
+        Number(c.pointsDeltaMicro) === Math.round(pointsForAmount(BigInt(c.amountMicro)) * 1e6);
+      if (serverIsLegacy && canisterIsCurrent) {
+        legacyBanked.push(sig);
+      } else {
+        check(
+          `донат ${sig.slice(0, 12)}…: очки совпадают`,
+          false,
+          `сервер ${s.pointsDelta} ≠ канистра ${c.pointsDeltaMicro}μ-очков (и это НЕ легаси-банкинг)`,
+        );
+        mismatches++;
+      }
+    }
+  }
+  if (legacyBanked.length) {
+    info(
+      `${legacyBanked.length} донатов: дельта сервера банкована старой формулой (§4.4), канистра — текущей ` +
+        `(ADR 0007). Решение о каноне — на переключении M1 (migration-plan §3): ` +
+        legacyBanked.map((s) => s.slice(0, 12) + "…").join(", "),
+    );
+  }
+  for (const sig of serverBySig.keys()) {
+    if (!canisterBySig.has(sig)) {
+      check(`канистра знает донат ${sig.slice(0, 12)}…`, false, "есть на сервере, НЕТ в канистре");
+      mismatches++;
+    }
+  }
+  if (!mismatches)
+    check(
+      "журнал канистры == журнал сервера (ончейн-донаты, донат-в-донат)",
+      true,
+      `${canisterBySig.size} записей совпали по подписи/донору/сумме/очкам`,
+    );
+
+  // Честные границы M0-сверки — что сервер знает, а канистра ещё нет (не провал, а скоуп фазы):
+  const offchain = serverDon.filter((e) => !e.txSignature).length;
+  if (offchain) info(`${offchain} DONATION без tx-подписи (mock/api-эпоха) — вне ончейн-сверки`);
+  const other = ex.ledger.filter((e) => e.type !== "DONATION");
+  if (other.length)
+    info(
+      `${other.length} не-донатных событий (${[...new Set(other.map((e) => e.type))].join(", ")}) — ` +
+        `оффчейн-слой (эскроу-игра/споры), в канистру переезжают на M2`,
+    );
+  const act = cx.entries.find((e) => e.kind === "ACTIVATION");
+  if (act) info(`канистра видит активацию канала из цепочки: ${act.signature.slice(0, 12)}…`);
 }
 
 async function verifyAnchor(): Promise<void> {
@@ -171,7 +293,10 @@ async function verifyAnchor(): Promise<void> {
   );
   check("дайджест журнала совпал с пересчётом", ledgerDigest === ex.digests.ledger);
   check("дайджест конфигов совпал с пересчётом", configsDigest === ex.digests.configs);
-  check("дайджест операторского лога совпал с пересчётом", operatorLogDigest === ex.digests.operatorLog);
+  check(
+    "дайджест операторского лога совпал с пересчётом",
+    operatorLogDigest === ex.digests.operatorLog,
+  );
 
   if (!ex.lastAnchor) {
     info("якорь ещё не публиковался (ANCHOR_SIGNER_KEYPAIR не задан или изменений не было)");
@@ -214,11 +339,12 @@ async function verifyAnchor(): Promise<void> {
 async function main() {
   if (!HANDLE) {
     console.log(
-      "Использование: npx tsx scripts/verify-export.ts --channel <handle> [--url http://localhost:3000] [--chain] [--deep N]",
+      "Использование: npx tsx scripts/verify-export.ts --channel <handle> [--url http://localhost:3000] [--chain] [--deep N] [--canister <base-url>]",
     );
     process.exit(2);
   }
-  await verifyChannel(HANDLE);
+  const ex = await verifyChannel(HANDLE);
+  if (CANISTER) await verifyCanister(CANISTER, ex);
   await verifyAnchor();
   console.log(failures ? `\n❌ Проверок провалено: ${failures}` : "\n✅ Все проверки сошлись");
   process.exit(failures ? 1 : 0);

@@ -1,0 +1,111 @@
+// Публичный candid-контракт core-канистры (аналог IDL).
+// M0 «канистра-наблюдатель»: индексер devnet + журнал + query-API + HTTP-экспорт.
+// M2 добавит: open_dispute / cast_vote / табло / финализация.
+
+type Config = record {
+  rpc_url : text;
+  treasury_ata : text;
+  usdc_mint : text;
+  poll_secs : nat64;
+  // Имя тресхолд-ключа schnorr: null → "dfx_test_key" (локальная реплика); mainnet — "key_1".
+  schnorr_key_name : opt text;
+};
+
+type EntryKind = variant { Donation; Activation };
+
+type JournalEntry = record {
+  seq : nat64;
+  kind : EntryKind;
+  signature : text;
+  channel_id : text;
+  actor : text;
+  amount_micro : nat64;
+  fee_micro : nat64;
+  net_micro : nat64;
+  points_delta_micro : nat64;
+  donation_id : opt text;
+  msg_ref : opt text;
+  block_time : opt int64;
+};
+
+type Status = record {
+  journal_len : nat64;
+  cursor : opt text;
+  polls : nat64;
+  last_batch_appended : nat64;
+  last_error : opt text;
+  tx_unavailable : nat64;
+  last_poll_ok_ns : nat64;
+  last_test_tx : opt text;
+  config : Config;
+};
+
+type TextResult = variant { Ok : text; Err : text };
+
+type HttpRequest = record {
+  method : text;
+  url : text;
+  headers : vec record { text; text };
+  body : blob;
+};
+
+type HttpResponse = record {
+  status_code : nat16;
+  headers : vec record { text; text };
+  body : blob;
+  // true → шлюз повторяет запрос как update-вызов http_request_update (путь записи POST).
+  upgrade : opt bool;
+};
+
+// Governance-параметры споров канала (M1; спека голосования §7). Запись — ТОЛЬКО подписью
+// владельца (ed25519, канон владения — плательщик активации из журнала), вступление с таймлоком.
+type DisputeParams = record {
+  min_reputation_to_dispute_micro : nat64;
+  min_weight_to_vote_micro : nat64;
+  quorum_coefficient_milli : nat64;
+  dispute_window_secs : nat64;
+  voting_window_secs : nat64;
+  d_max_micro : nat64;
+};
+
+type PendingChange = record {
+  params : DisputeParams;
+  effective_at_ns : nat64;
+  version : nat64;
+};
+
+type ChannelParamsState = record {
+  effective : opt DisputeParams;
+  pending : opt PendingChange;
+  version : nat64;
+};
+
+type HttpHeader = record { name : text; value : text };
+type HttpRequestResult = record { status : nat; headers : vec HttpHeader; body : blob };
+type TransformArgs = record { response : HttpRequestResult; context : blob };
+
+service : (Config) -> {
+  // Светофор «канистра жива» + версия для ADR-лога апгрейдов.
+  version : () -> (text) query;
+  // Диагностика индексера: длина журнала, курсор, последняя ошибка, дыры retention.
+  status : () -> (Status) query;
+  // Репутация донора на канале (micro-очки) — свёртка журнала на лету (§4.4).
+  standing : (text, text) -> (nat64) query;
+  // Лидерборд канала: (адрес, micro-очки) по убыванию.
+  leaderboard : (text, nat32) -> (vec record { text; nat64 }) query;
+  journal : (nat64, nat32) -> (vec JournalEntry) query;
+  journal_len : () -> (nat64) query;
+  // Публичный JSON-экспорт через шлюз: /export, /export?channel=<id>, /status.
+  http_request : (HttpRequest) -> (HttpResponse) query;
+  // Служебный транформ HTTPS-outcall'ов (консенсус реплик по телу ответа).
+  transform_http : (TransformArgs) -> (HttpRequestResult) query;
+  // Тресхолд-Ed25519 (M0 → резолвер M2): Solana-адрес канистры (ключа целиком не существует).
+  solana_address : () -> (TextResult);
+  // M0-светофор контура подписи: живая memo-tx в devnet. Только контроллеры (тест-рычаг).
+  test_sign_and_send : (text) -> (TextResult);
+  // Governance-параметры споров канала: (действующие сейчас, полное состояние с pending).
+  dispute_params : (text) -> (DisputeParams, ChannelParamsState) query;
+  // Запись параметров: POST /dispute-params через шлюз (тело: channelId/owner/version/params/
+  // signature base58) — авторизация подписью владельца, не caller'ом.
+  http_request_update : (HttpRequest) -> (HttpResponse);
+}

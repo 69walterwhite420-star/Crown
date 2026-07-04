@@ -1,0 +1,1454 @@
+{
+  "_readme": "Эталон разбора ончейн-транзакций (extractDonation/extractActivation). tx — минимальный срез ParsedTransactionWithMeta (только читаемые парсером поля). Деньги — десятичными строками micro-USDC. См. testdata/golden/README.md",
+  "constants": {
+    "USDC_DECIMALS": 6,
+    "FEE_BPS": 300,
+    "ACTIVATION_FEE_MICRO": "2000000",
+    "splitRule": "fee = floor(amount * FEE_BPS / 10000); net = amount - fee"
+  },
+  "addresses": {
+    "MINT": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    "TREASURY_ATA": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    "DONOR": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    "STREAMER_ATA": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    "OTHER": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    "DONOR_ATA": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    "WRONG_MINT": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx"
+  },
+  "donations": [
+    {
+      "name": "valid-100usdc",
+      "signature": "golden-don-001",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-001",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "100000000",
+        "feeMicro": "3000000",
+        "netMicro": "97000000",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-fractional-floor",
+      "note": "fee = floor(amount*300/10000): 1000001 → fee 30000, net 970001",
+      "signature": "golden-don-002",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "970001",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "30000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-002",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "1000001",
+        "feeMicro": "30000",
+        "netMicro": "970001",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-small-fee-zero",
+      "note": "33 micro → fee 0 (целочисленный floor), нога комиссии с amount=0 легитимна",
+      "signature": "golden-don-003",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "33",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "0",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-003",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "33",
+        "feeMicro": "0",
+        "netMicro": "33",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-msg-ref",
+      "signature": "golden-don-004",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "4850000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "150000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":\"msg-42\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-004",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "5000000",
+        "feeMicro": "150000",
+        "netMicro": "4850000",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": "msg-42"
+        },
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-with-noise",
+      "note": "лишние инструкции (raw без parsed, чужой mint, не-transferChecked) игнорируются",
+      "signature": "golden-don-005",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "programId": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+                "accounts": [],
+                "data": "3Bxs4h24hBtQy9rw"
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "mint": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "999",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transfer",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "999",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "9700000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "300000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-005",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "10000000",
+        "feeMicro": "300000",
+        "netMicro": "9700000",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-null-blocktime",
+      "signature": "golden-don-006",
+      "tx": {
+        "blockTime": null,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "1940000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "60000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-006",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "2000000",
+        "feeMicro": "60000",
+        "netMicro": "1940000",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": null
+      }
+    },
+    {
+      "name": "null-tx",
+      "signature": "golden-don-007",
+      "tx": null,
+      "expected": null
+    },
+    {
+      "name": "failed-tx",
+      "signature": "golden-don-008",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": {
+            "InstructionError": [
+              0,
+              "Custom"
+            ]
+          }
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "no-memo",
+      "signature": "golden-don-009",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "memo-not-json",
+      "signature": "golden-don-010",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "memo-missing-d",
+      "signature": "golden-don-011",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "memo-activation-shape",
+      "signature": "golden-don-012",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "one-leg",
+      "signature": "golden-don-013",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "three-legs",
+      "signature": "golden-don-014",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "1",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "no-treasury-leg",
+      "signature": "golden-don-015",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "both-legs-to-treasury",
+      "signature": "golden-don-016",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "authority-mismatch",
+      "signature": "golden-don-017",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "97000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "wrong-split",
+      "note": "fee на 1 micro больше эталона → сырой перевод, не донат",
+      "signature": "golden-don-018",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "96999999",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "3000001",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "zero-amount",
+      "note": "текущее поведение парсера: пара ног 0/0 проходит самоконтроль (порог — забота ingest)",
+      "signature": "golden-don-019",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "0",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "0",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-don-019",
+        "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+        "amountMicro": "0",
+        "feeMicro": "0",
+        "netMicro": "0",
+        "streamerAta": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+        "memo": {
+          "c": "chan-1",
+          "d": "don-1",
+          "m": null
+        },
+        "blockTime": 1767225600
+      }
+    }
+  ],
+  "activations": [
+    {
+      "name": "valid-activation",
+      "signature": "golden-act-001",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-act-001",
+        "payer": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "amountMicro": "2000000",
+        "channelId": "chan-1",
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-below-threshold",
+      "note": "сумму парсер НЕ валидирует (порог ACTIVATION_FEE_MICRO проверяет ingest)",
+      "signature": "golden-act-002",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "1",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-act-002",
+        "payer": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "amountMicro": "1",
+        "channelId": "chan-1",
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "valid-last-memo-wins",
+      "note": "невалидный memo раньше валидного не сбрасывает act (`?? act`)",
+      "signature": "golden-act-003",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-memo",
+                "parsed": "junk"
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "signature": "golden-act-003",
+        "payer": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "amountMicro": "2000000",
+        "channelId": "chan-1",
+        "blockTime": 1767225600
+      }
+    },
+    {
+      "name": "null-tx",
+      "signature": "golden-act-004",
+      "tx": null,
+      "expected": null
+    },
+    {
+      "name": "failed-tx",
+      "signature": "golden-act-005",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": {}
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "no-memo",
+      "signature": "golden-act-006",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "donation-memo-instead",
+      "signature": "golden-act-007",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"c\":\"chan-1\",\"d\":\"don-1\",\"m\":null}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "two-legs",
+      "signature": "golden-act-008",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "1000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "1000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "leg-not-to-treasury",
+      "signature": "golden-act-009",
+      "tx": {
+        "blockTime": 1767225600,
+        "meta": {
+          "err": null
+        },
+        "transaction": {
+          "message": {
+            "instructions": [
+              {
+                "program": "spl-token",
+                "parsed": {
+                  "type": "transferChecked",
+                  "info": {
+                    "authority": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                    "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+                    "mint": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+                    "source": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+                    "tokenAmount": {
+                      "amount": "2000000",
+                      "decimals": 6
+                    }
+                  }
+                }
+              },
+              {
+                "program": "spl-memo",
+                "parsed": "{\"act\":\"chan-1\"}"
+              }
+            ]
+          }
+        }
+      },
+      "expected": null
+    }
+  ]
+}

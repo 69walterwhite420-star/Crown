@@ -1,0 +1,3113 @@
+{
+  "_readme": "Эталон машины споров (tally + сценарии переходов). Канон весов/дельт — целые micro (weightMicro/pointsDeltaMicro). expected.error — код GameBusError, состояние не меняется. См. testdata/golden/README.md",
+  "constants": {
+    "WINDOWS": {
+      "grace": 60000,
+      "executionDefault": 120000,
+      "executionMin": 120000,
+      "executionMax": 7776000000,
+      "disputeWindow": 120000,
+      "voting": 120000
+    },
+    "DISPUTE_WIN_BONUS": 10,
+    "DISPUTE_LOSS_PENALTY": 50
+  },
+  "tally": [
+    {
+      "name": "no-votes-quorum1",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 1,
+        "quorumMicro": 1000000,
+        "votes": []
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "no_quorum"
+      }
+    },
+    {
+      "name": "no-votes-quorum0",
+      "note": "сумма 0 НЕ меньше кворума 0 → сравнение голосов → ничья → стримеру",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 0,
+        "quorumMicro": 0,
+        "votes": []
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "tie"
+      }
+    },
+    {
+      "name": "below-quorum",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 13,
+        "quorumMicro": 13000000,
+        "votes": [
+          {
+            "voter": "voter-1",
+            "choice": "not_completed",
+            "weight": 10,
+            "weightMicro": 10000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-2",
+            "choice": "completed",
+            "weight": 2,
+            "weightMicro": 2000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "no_quorum"
+      }
+    },
+    {
+      "name": "exact-quorum-counts",
+      "note": "кворум по сумме весов ВКЛЮЧИТЕЛЬНО: 10+3 == 13 → голоса считаются",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 13,
+        "quorumMicro": 13000000,
+        "votes": [
+          {
+            "voter": "voter-3",
+            "choice": "completed",
+            "weight": 10,
+            "weightMicro": 10000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-4",
+            "choice": "not_completed",
+            "weight": 3,
+            "weightMicro": 3000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "vote_completed"
+      }
+    },
+    {
+      "name": "completed-wins",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 5,
+        "quorumMicro": 5000000,
+        "votes": [
+          {
+            "voter": "voter-5",
+            "choice": "completed",
+            "weight": 10,
+            "weightMicro": 10000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-6",
+            "choice": "not_completed",
+            "weight": 3,
+            "weightMicro": 3000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "vote_completed"
+      }
+    },
+    {
+      "name": "not-completed-wins",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 5,
+        "quorumMicro": 5000000,
+        "votes": [
+          {
+            "voter": "voter-7",
+            "choice": "not_completed",
+            "weight": 10,
+            "weightMicro": 10000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-8",
+            "choice": "completed",
+            "weight": 3,
+            "weightMicro": 3000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_donor",
+        "reason": "vote_not_completed"
+      }
+    },
+    {
+      "name": "tie-to-streamer",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 5,
+        "quorumMicro": 5000000,
+        "votes": [
+          {
+            "voter": "voter-9",
+            "choice": "completed",
+            "weight": 7,
+            "weightMicro": 7000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-10",
+            "choice": "not_completed",
+            "weight": 7,
+            "weightMicro": 7000000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_streamer",
+        "reason": "tie"
+      }
+    },
+    {
+      "name": "fractional-weights",
+      "note": "веса дробные (репутация с копейками); домен — кратные 1e-6",
+      "dispute": {
+        "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+        "openedAt": "2026-01-01T00:00:00.000Z",
+        "votingEndsAt": "2026-01-01T00:02:00.000Z",
+        "quorum": 1,
+        "quorumMicro": 1000000,
+        "votes": [
+          {
+            "voter": "voter-11",
+            "choice": "completed",
+            "weight": 2.5,
+            "weightMicro": 2500000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-12",
+            "choice": "not_completed",
+            "weight": 2.25,
+            "weightMicro": 2250000,
+            "at": "2026-01-01T00:00:00.000Z"
+          },
+          {
+            "voter": "voter-13",
+            "choice": "not_completed",
+            "weight": 0.5,
+            "weightMicro": 500000,
+            "at": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "to_donor",
+        "reason": "vote_not_completed"
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "happy-path-completed",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-happy-path-completed",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-happy-path-completed",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-happy-path-completed",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-happy-path-completed",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "dueResolution",
+          "atMs": 1767225790000,
+          "at": "2026-01-01T00:03:10.000Z",
+          "note": "ровно на границе окна спора → ещё null (строгое >)",
+          "expected": {
+            "due": null
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225790001,
+          "at": "2026-01-01T00:03:10.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "completed"
+            },
+            "task": {
+              "id": "golden-task-happy-path-completed",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "completed",
+                "resolvedAt": "2026-01-01T00:03:10.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 5,
+                "amount": "5000000",
+                "pointsDeltaMicro": 5000000
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-happy-path-completed",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "completed",
+            "resolvedAt": "2026-01-01T00:03:10.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 5,
+            "amount": "5000000",
+            "pointsDeltaMicro": 5000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "pending-expired",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-pending-expired",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-pending-expired",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "dueResolution",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "note": "ровно на дедлайне → null (строгое >)",
+          "expected": {
+            "due": null
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225720001,
+          "at": "2026-01-01T00:02:00.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_donor",
+              "reason": "expired"
+            },
+            "task": {
+              "id": "golden-task-pending-expired",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "resolution": {
+                "outcome": "to_donor",
+                "reason": "expired",
+                "resolvedAt": "2026-01-01T00:02:00.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": []
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-pending-expired",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "resolution": {
+            "outcome": "to_donor",
+            "reason": "expired",
+            "resolvedAt": "2026-01-01T00:02:00.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": []
+      }
+    },
+    {
+      "name": "accepted-no-show",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-accepted-no-show",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-accepted-no-show",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-accepted-no-show",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225720001,
+          "at": "2026-01-01T00:02:00.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_donor",
+              "reason": "no_show"
+            },
+            "task": {
+              "id": "golden-task-accepted-no-show",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "resolution": {
+                "outcome": "to_donor",
+                "reason": "no_show",
+                "resolvedAt": "2026-01-01T00:02:00.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": []
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-accepted-no-show",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "resolution": {
+            "outcome": "to_donor",
+            "reason": "no_show",
+            "resolvedAt": "2026-01-01T00:02:00.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": []
+      }
+    },
+    {
+      "name": "reject-to-donor",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-reject-to-donor",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-reject-to-donor",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "reject",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-reject-to-donor",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "resolution": {
+                "outcome": "to_donor",
+                "reason": "rejected",
+                "resolvedAt": "2026-01-01T00:00:10.000Z",
+                "claimed": false
+              }
+            }
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-reject-to-donor",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "resolution": {
+            "outcome": "to_donor",
+            "reason": "rejected",
+            "resolvedAt": "2026-01-01T00:00:10.000Z",
+            "claimed": false
+          }
+        },
+        "repEffects": []
+      }
+    },
+    {
+      "name": "cancel-at-grace-edge",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-cancel-at-grace-edge",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-cancel-at-grace-edge",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-cancel-at-grace-edge",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "cancel",
+          "atMs": 1767225660000,
+          "at": "2026-01-01T00:01:00.000Z",
+          "note": "ровно конец грейса — ещё можно (строгое >)",
+          "expected": {
+            "task": {
+              "id": "golden-task-cancel-at-grace-edge",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "resolution": {
+                "outcome": "to_donor",
+                "reason": "canceled",
+                "resolvedAt": "2026-01-01T00:01:00.000Z",
+                "claimed": false
+              }
+            }
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-cancel-at-grace-edge",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "resolution": {
+            "outcome": "to_donor",
+            "reason": "canceled",
+            "resolvedAt": "2026-01-01T00:01:00.000Z",
+            "claimed": false
+          }
+        },
+        "repEffects": []
+      }
+    },
+    {
+      "name": "cancel-after-grace-error",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-cancel-after-grace-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-cancel-after-grace-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "cancel",
+          "atMs": 1767225660001,
+          "at": "2026-01-01T00:01:00.001Z",
+          "expected": {
+            "error": "GRACE_OVER"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-cancel-after-grace-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "markdone-grace-boundaries",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-markdone-grace-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-markdone-grace-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225605000,
+          "at": "2026-01-01T00:00:05.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-markdone-grace-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225660000,
+          "at": "2026-01-01T00:01:00.000Z",
+          "note": "ровно конец грейса — ещё нельзя (нестрогое <=)",
+          "expected": {
+            "error": "GRACE_ACTIVE"
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225660001,
+          "at": "2026-01-01T00:01:00.001Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-markdone-grace-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:00.001Z"
+            }
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-markdone-grace-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "DONE",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:00.001Z"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "accept-deadline-boundaries",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-accept-deadline-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-accept-deadline-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "note": "ровно на дедлайне — ещё можно (строгое >)",
+          "expected": {
+            "task": {
+              "id": "golden-task-accept-deadline-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-accept-deadline-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "ACCEPTED",
+          "textState": "SHOWN"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "accept-expired-error",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-accept-expired-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-accept-expired-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225720001,
+          "at": "2026-01-01T00:02:00.001Z",
+          "expected": {
+            "error": "ACCEPT_EXPIRED"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-accept-expired-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "dispute-won-by-initiator",
+      "note": "исход vote_not_completed: деньги донору, инициатору DISPUTE_WON +10",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-won-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-won-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225700000,
+          "at": "2026-01-01T00:01:40.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 5,
+            "quorumMicro": 5000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": []
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225710000,
+          "at": "2026-01-01T00:01:50.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "not_completed",
+              "weight": 10,
+              "at": "2026-01-01T00:01:50.000Z",
+              "weightMicro": 10000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-b",
+              "choice": "completed",
+              "weight": 3,
+              "at": "2026-01-01T00:02:00.000Z",
+              "weightMicro": 3000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "completed",
+                    "weight": 3,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "dueResolution",
+          "atMs": 1767225820000,
+          "at": "2026-01-01T00:03:40.000Z",
+          "note": "ровно конец голосования → null",
+          "expected": {
+            "due": null
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225820001,
+          "at": "2026-01-01T00:03:40.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_donor",
+              "reason": "vote_not_completed"
+            },
+            "task": {
+              "id": "golden-task-dispute-won-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "completed",
+                    "weight": 3,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              },
+              "resolution": {
+                "outcome": "to_donor",
+                "reason": "vote_not_completed",
+                "resolvedAt": "2026-01-01T00:03:40.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "type": "DISPUTE_WON",
+                "pointsDelta": 10,
+                "pointsDeltaMicro": 10000000
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-won-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:01:40.000Z",
+            "votingEndsAt": "2026-01-01T00:03:40.000Z",
+            "quorum": 5,
+            "votes": [
+              {
+                "voter": "juror-a",
+                "choice": "not_completed",
+                "weight": 10,
+                "at": "2026-01-01T00:01:50.000Z"
+              },
+              {
+                "voter": "juror-b",
+                "choice": "completed",
+                "weight": 3,
+                "at": "2026-01-01T00:02:00.000Z"
+              }
+            ]
+          },
+          "resolution": {
+            "outcome": "to_donor",
+            "reason": "vote_not_completed",
+            "resolvedAt": "2026-01-01T00:03:40.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "type": "DISPUTE_WON",
+            "pointsDelta": 10,
+            "pointsDeltaMicro": 10000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "dispute-lost-by-initiator",
+      "note": "исход vote_completed: деньги стримеру (DONATION донору), инициатору DISPUTE_LOST −50",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-lost-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-lost-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225700000,
+          "at": "2026-01-01T00:01:40.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 5,
+            "quorumMicro": 5000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": []
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225710000,
+          "at": "2026-01-01T00:01:50.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "completed",
+              "weight": 10,
+              "at": "2026-01-01T00:01:50.000Z",
+              "weightMicro": 10000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-b",
+              "choice": "not_completed",
+              "weight": 3,
+              "at": "2026-01-01T00:02:00.000Z",
+              "weightMicro": 3000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "not_completed",
+                    "weight": 3,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225820001,
+          "at": "2026-01-01T00:03:40.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "vote_completed"
+            },
+            "task": {
+              "id": "golden-task-dispute-lost-by-initiator",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "not_completed",
+                    "weight": 3,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              },
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "vote_completed",
+                "resolvedAt": "2026-01-01T00:03:40.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 5,
+                "amount": "5000000",
+                "pointsDeltaMicro": 5000000
+              },
+              {
+                "address": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "type": "DISPUTE_LOST",
+                "pointsDelta": -50,
+                "pointsDeltaMicro": -50000000
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-lost-by-initiator",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:01:40.000Z",
+            "votingEndsAt": "2026-01-01T00:03:40.000Z",
+            "quorum": 5,
+            "votes": [
+              {
+                "voter": "juror-a",
+                "choice": "completed",
+                "weight": 10,
+                "at": "2026-01-01T00:01:50.000Z"
+              },
+              {
+                "voter": "juror-b",
+                "choice": "not_completed",
+                "weight": 3,
+                "at": "2026-01-01T00:02:00.000Z"
+              }
+            ]
+          },
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "vote_completed",
+            "resolvedAt": "2026-01-01T00:03:40.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 5,
+            "amount": "5000000",
+            "pointsDeltaMicro": 5000000
+          },
+          {
+            "address": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "type": "DISPUTE_LOST",
+            "pointsDelta": -50,
+            "pointsDeltaMicro": -50000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "dispute-no-quorum",
+      "note": "нет кворума → стримеру, инициатор НЕ наказан (наказание только за активный проигрыш)",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-no-quorum",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-no-quorum",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-no-quorum",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-no-quorum",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225700000,
+          "at": "2026-01-01T00:01:40.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 100,
+            "quorumMicro": 100000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-no-quorum",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 100,
+                "votes": []
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225710000,
+          "at": "2026-01-01T00:01:50.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "not_completed",
+              "weight": 5,
+              "at": "2026-01-01T00:01:50.000Z",
+              "weightMicro": 5000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-no-quorum",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 100,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 5,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225820001,
+          "at": "2026-01-01T00:03:40.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "no_quorum"
+            },
+            "task": {
+              "id": "golden-task-dispute-no-quorum",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 100,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 5,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              },
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "no_quorum",
+                "resolvedAt": "2026-01-01T00:03:40.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 5,
+                "amount": "5000000",
+                "pointsDeltaMicro": 5000000
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-no-quorum",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:01:40.000Z",
+            "votingEndsAt": "2026-01-01T00:03:40.000Z",
+            "quorum": 100,
+            "votes": [
+              {
+                "voter": "juror-a",
+                "choice": "not_completed",
+                "weight": 5,
+                "at": "2026-01-01T00:01:50.000Z"
+              }
+            ]
+          },
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "no_quorum",
+            "resolvedAt": "2026-01-01T00:03:40.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 5,
+            "amount": "5000000",
+            "pointsDeltaMicro": 5000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "dispute-tie",
+      "note": "ничья → стримеру (презумпция), инициатор не наказан",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-tie",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-tie",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225700000,
+          "at": "2026-01-01T00:01:40.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 5,
+            "quorumMicro": 5000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": []
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225710000,
+          "at": "2026-01-01T00:01:50.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "completed",
+              "weight": 7,
+              "at": "2026-01-01T00:01:50.000Z",
+              "weightMicro": 7000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 7,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-b",
+              "choice": "not_completed",
+              "weight": 7,
+              "at": "2026-01-01T00:02:00.000Z",
+              "weightMicro": 7000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 7,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "not_completed",
+                    "weight": 7,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225820001,
+          "at": "2026-01-01T00:03:40.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "tie"
+            },
+            "task": {
+              "id": "golden-task-dispute-tie",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "completed",
+                    "weight": 7,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "not_completed",
+                    "weight": 7,
+                    "at": "2026-01-01T00:02:00.000Z"
+                  }
+                ]
+              },
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "tie",
+                "resolvedAt": "2026-01-01T00:03:40.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 5,
+                "amount": "5000000",
+                "pointsDeltaMicro": 5000000
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-tie",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:01:40.000Z",
+            "votingEndsAt": "2026-01-01T00:03:40.000Z",
+            "quorum": 5,
+            "votes": [
+              {
+                "voter": "juror-a",
+                "choice": "completed",
+                "weight": 7,
+                "at": "2026-01-01T00:01:50.000Z"
+              },
+              {
+                "voter": "juror-b",
+                "choice": "not_completed",
+                "weight": 7,
+                "at": "2026-01-01T00:02:00.000Z"
+              }
+            ]
+          },
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "tie",
+            "resolvedAt": "2026-01-01T00:03:40.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 5,
+            "amount": "5000000",
+            "pointsDeltaMicro": 5000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "vote-guards",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-vote-guards",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-vote-guards",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "castVote",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "note": "голос вне спора",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "completed",
+              "weight": 1,
+              "at": "2026-01-01T00:00:10.000Z",
+              "weightMicro": 1000000
+            }
+          },
+          "expected": {
+            "error": "NOT_DISPUTED"
+          }
+        },
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-vote-guards",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-vote-guards",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225700000,
+          "at": "2026-01-01T00:01:40.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 5,
+            "quorumMicro": 5000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-vote-guards",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": []
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225710000,
+          "at": "2026-01-01T00:01:50.000Z",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "not_completed",
+              "weight": 10,
+              "at": "2026-01-01T00:01:50.000Z",
+              "weightMicro": 10000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-vote-guards",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225720000,
+          "at": "2026-01-01T00:02:00.000Z",
+          "note": "повторный голос того же адреса",
+          "args": {
+            "vote": {
+              "voter": "juror-a",
+              "choice": "completed",
+              "weight": 10,
+              "at": "2026-01-01T00:02:00.000Z",
+              "weightMicro": 10000000
+            }
+          },
+          "expected": {
+            "error": "ALREADY_VOTED"
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225820000,
+          "at": "2026-01-01T00:03:40.000Z",
+          "note": "ровно конец окна — ещё можно (строгое >)",
+          "args": {
+            "vote": {
+              "voter": "juror-b",
+              "choice": "completed",
+              "weight": 1,
+              "at": "2026-01-01T00:03:40.000Z",
+              "weightMicro": 1000000
+            }
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-vote-guards",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:01:40.000Z",
+                "votingEndsAt": "2026-01-01T00:03:40.000Z",
+                "quorum": 5,
+                "votes": [
+                  {
+                    "voter": "juror-a",
+                    "choice": "not_completed",
+                    "weight": 10,
+                    "at": "2026-01-01T00:01:50.000Z"
+                  },
+                  {
+                    "voter": "juror-b",
+                    "choice": "completed",
+                    "weight": 1,
+                    "at": "2026-01-01T00:03:40.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "castVote",
+          "atMs": 1767225820001,
+          "at": "2026-01-01T00:03:40.001Z",
+          "args": {
+            "vote": {
+              "voter": "juror-c",
+              "choice": "completed",
+              "weight": 1,
+              "at": "2026-01-01T00:03:40.001Z",
+              "weightMicro": 1000000
+            }
+          },
+          "expected": {
+            "error": "VOTING_OVER"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-vote-guards",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "DISPUTED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:01:40.000Z",
+            "votingEndsAt": "2026-01-01T00:03:40.000Z",
+            "quorum": 5,
+            "votes": [
+              {
+                "voter": "juror-a",
+                "choice": "not_completed",
+                "weight": 10,
+                "at": "2026-01-01T00:01:50.000Z"
+              },
+              {
+                "voter": "juror-b",
+                "choice": "completed",
+                "weight": 1,
+                "at": "2026-01-01T00:03:40.000Z"
+              }
+            ]
+          }
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "dispute-window-boundaries",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-window-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-window-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-window-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-window-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225790000,
+          "at": "2026-01-01T00:03:10.000Z",
+          "note": "ровно конец окна спора — ещё можно (строгое >)",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 1,
+            "quorumMicro": 1000000
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-window-boundaries",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DISPUTED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "dispute": {
+                "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+                "openedAt": "2026-01-01T00:03:10.000Z",
+                "votingEndsAt": "2026-01-01T00:05:10.000Z",
+                "quorum": 1,
+                "votes": []
+              }
+            }
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-window-boundaries",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "DISPUTED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "dispute": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "openedAt": "2026-01-01T00:03:10.000Z",
+            "votingEndsAt": "2026-01-01T00:05:10.000Z",
+            "quorum": 1,
+            "votes": []
+          }
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "dispute-window-over-error",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-window-over-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-window-over-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-window-over-error",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-dispute-window-over-error",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225790001,
+          "at": "2026-01-01T00:03:10.001Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 1,
+            "quorumMicro": 1000000
+          },
+          "expected": {
+            "error": "DISPUTE_WINDOW_OVER"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-window-over-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "DONE",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "dispute-before-done-error",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-dispute-before-done-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-dispute-before-done-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "raiseDispute",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "args": {
+            "by": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+            "quorum": 1,
+            "quorumMicro": 1000000
+          },
+          "expected": {
+            "error": "NOT_DONE"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-dispute-before-done-error",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "claim-flow",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-claim-flow",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-claim-flow",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-claim-flow",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-claim-flow",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "claim",
+          "atMs": 1767225671000,
+          "at": "2026-01-01T00:01:11.000Z",
+          "note": "до разрешения забирать нечего",
+          "args": {
+            "by": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+            "streamerAddress": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq"
+          },
+          "expected": {
+            "error": "NOT_RESOLVED"
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225790001,
+          "at": "2026-01-01T00:03:10.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "completed"
+            },
+            "task": {
+              "id": "golden-task-claim-flow",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "completed",
+                "resolvedAt": "2026-01-01T00:03:10.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 5,
+                "amount": "5000000",
+                "pointsDeltaMicro": 5000000
+              }
+            ]
+          }
+        },
+        {
+          "op": "claim",
+          "atMs": 1767225792000,
+          "at": "2026-01-01T00:03:12.000Z",
+          "note": "не получатель (to_streamer)",
+          "args": {
+            "by": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "streamerAddress": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq"
+          },
+          "expected": {
+            "error": "NOT_WINNER"
+          }
+        },
+        {
+          "op": "claim",
+          "atMs": 1767225793000,
+          "at": "2026-01-01T00:03:13.000Z",
+          "args": {
+            "by": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+            "streamerAddress": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq"
+          },
+          "expected": {
+            "task": {
+              "id": "golden-task-claim-flow",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "5000000",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "completed",
+                "resolvedAt": "2026-01-01T00:03:10.001Z",
+                "claimed": true
+              }
+            }
+          }
+        },
+        {
+          "op": "claim",
+          "atMs": 1767225794000,
+          "at": "2026-01-01T00:03:14.000Z",
+          "note": "повторный клейм",
+          "args": {
+            "by": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+            "streamerAddress": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq"
+          },
+          "expected": {
+            "error": "ALREADY_CLAIMED"
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-claim-flow",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "completed",
+            "resolvedAt": "2026-01-01T00:03:10.001Z",
+            "claimed": true
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 5,
+            "amount": "5000000",
+            "pointsDeltaMicro": 5000000
+          }
+        ]
+      }
+    },
+    {
+      "name": "execution-clamp-min",
+      "note": "срок < минимума → кламп к max(executionMin, grace+1)",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-execution-clamp-min",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "executionMs": 1000
+        },
+        "expected": {
+          "id": "golden-task-execution-clamp-min",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [],
+      "final": {
+        "task": {
+          "id": "golden-task-execution-clamp-min",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "execution-clamp-max",
+      "note": "срок > 90 дней → кламп к executionMax",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-execution-clamp-max",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "executionMs": 8640000000
+        },
+        "expected": {
+          "id": "golden-task-execution-clamp-max",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-04-01T00:00:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [],
+      "final": {
+        "task": {
+          "id": "golden-task-execution-clamp-max",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "5000000",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-04-01T00:00:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        },
+        "repEffects": null
+      }
+    },
+    {
+      "name": "fractional-amount-effects",
+      "note": "дробные очки в DONATION-эффекте: 2.500001",
+      "t0Ms": 1767225600000,
+      "t0": "2026-01-01T00:00:00.000Z",
+      "create": {
+        "input": {
+          "id": "golden-task-fractional-amount-effects",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "2500001",
+          "text": "golden task"
+        },
+        "expected": {
+          "id": "golden-task-fractional-amount-effects",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "2500001",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "PENDING"
+        }
+      },
+      "steps": [
+        {
+          "op": "accept",
+          "atMs": 1767225610000,
+          "at": "2026-01-01T00:00:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-fractional-amount-effects",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "2500001",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "ACCEPTED",
+              "textState": "SHOWN"
+            }
+          }
+        },
+        {
+          "op": "markDone",
+          "atMs": 1767225670000,
+          "at": "2026-01-01T00:01:10.000Z",
+          "expected": {
+            "task": {
+              "id": "golden-task-fractional-amount-effects",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "2500001",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "DONE",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z"
+            }
+          }
+        },
+        {
+          "op": "applyDue",
+          "atMs": 1767225790001,
+          "at": "2026-01-01T00:03:10.001Z",
+          "expected": {
+            "due": {
+              "outcome": "to_streamer",
+              "reason": "completed"
+            },
+            "task": {
+              "id": "golden-task-fractional-amount-effects",
+              "channelId": "chan-1",
+              "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+              "amount": "2500001",
+              "text": "golden task",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "executionDeadline": "2026-01-01T00:02:00.000Z",
+              "graceUntil": "2026-01-01T00:01:00.000Z",
+              "status": "RESOLVED",
+              "textState": "SHOWN",
+              "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+              "resolution": {
+                "outcome": "to_streamer",
+                "reason": "completed",
+                "resolvedAt": "2026-01-01T00:03:10.001Z",
+                "claimed": false
+              }
+            },
+            "repEffects": [
+              {
+                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+                "type": "DONATION",
+                "pointsDelta": 2.500001,
+                "amount": "2500001",
+                "pointsDeltaMicro": 2500001
+              }
+            ]
+          }
+        }
+      ],
+      "final": {
+        "task": {
+          "id": "golden-task-fractional-amount-effects",
+          "channelId": "chan-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "amount": "2500001",
+          "text": "golden task",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "executionDeadline": "2026-01-01T00:02:00.000Z",
+          "graceUntil": "2026-01-01T00:01:00.000Z",
+          "status": "RESOLVED",
+          "textState": "SHOWN",
+          "disputeWindowEndsAt": "2026-01-01T00:03:10.000Z",
+          "resolution": {
+            "outcome": "to_streamer",
+            "reason": "completed",
+            "resolvedAt": "2026-01-01T00:03:10.001Z",
+            "claimed": false
+          }
+        },
+        "repEffects": [
+          {
+            "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+            "type": "DONATION",
+            "pointsDelta": 2.500001,
+            "amount": "2500001",
+            "pointsDeltaMicro": 2500001
+          }
+        ]
+      }
+    }
+  ]
+}

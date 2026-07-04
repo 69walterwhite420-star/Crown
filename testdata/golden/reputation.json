@@ -1,0 +1,647 @@
+{
+  "_readme": "Эталон движка репутации. КАНОН — целые micro-очки (pointsDeltaMicro/expectedMicroPoints); дробные поля — производные для UI. См. testdata/golden/README.md",
+  "constants": {
+    "POINTS_PER_USDC": 1,
+    "MICRO_PER_POINT": 1000000,
+    "DISPUTE_WIN_BONUS": 10,
+    "DISPUTE_LOSS_PENALTY": 50
+  },
+  "pointsForAmount": [
+    {
+      "amountMicro": "0",
+      "expectedPoints": 0,
+      "expectedMicroPoints": 0
+    },
+    {
+      "amountMicro": "1",
+      "expectedPoints": 0.000001,
+      "expectedMicroPoints": 1
+    },
+    {
+      "amountMicro": "33",
+      "expectedPoints": 0.000033,
+      "expectedMicroPoints": 33
+    },
+    {
+      "amountMicro": "500000",
+      "expectedPoints": 0.5,
+      "expectedMicroPoints": 500000
+    },
+    {
+      "amountMicro": "1000000",
+      "expectedPoints": 1,
+      "expectedMicroPoints": 1000000
+    },
+    {
+      "amountMicro": "2500000",
+      "expectedPoints": 2.5,
+      "expectedMicroPoints": 2500000
+    },
+    {
+      "amountMicro": "4850000",
+      "expectedPoints": 4.85,
+      "expectedMicroPoints": 4850000
+    },
+    {
+      "amountMicro": "100000000",
+      "expectedPoints": 100,
+      "expectedMicroPoints": 100000000
+    },
+    {
+      "amountMicro": "9000000000000000",
+      "expectedPoints": 9000000000,
+      "expectedMicroPoints": 9000000000000000
+    }
+  ],
+  "computePoints": [
+    {
+      "name": "empty",
+      "events": [],
+      "expectedPoints": 0,
+      "expectedMicroPoints": 0
+    },
+    {
+      "name": "single-2.5usdc",
+      "events": [
+        {
+          "id": "golden-ev-1",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "2500000",
+          "pointsDelta": 2.5,
+          "pointsDeltaMicro": 2500000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 2.5,
+      "expectedMicroPoints": 2500000
+    },
+    {
+      "name": "cents-exact",
+      "note": "0.01+0.02+0.07 = ровно 0.10 (свёртка в целых micro)",
+      "events": [
+        {
+          "id": "golden-ev-2",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000",
+          "pointsDelta": 0.01,
+          "pointsDeltaMicro": 10000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-3",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "20000",
+          "pointsDelta": 0.02,
+          "pointsDeltaMicro": 20000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-4",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "70000",
+          "pointsDelta": 0.07,
+          "pointsDeltaMicro": 70000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 0.1,
+      "expectedMicroPoints": 100000
+    },
+    {
+      "name": "float-repr-0.1+0.2",
+      "note": "классика float: в micro-очках ровно 0.3",
+      "events": [
+        {
+          "id": "golden-ev-5",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000",
+          "pointsDelta": 0.1,
+          "pointsDeltaMicro": 100000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-6",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "200000",
+          "pointsDelta": 0.2,
+          "pointsDeltaMicro": 200000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 0.3,
+      "expectedMicroPoints": 300000
+    },
+    {
+      "name": "split-neutrality-half+half",
+      "note": "дробление доната нейтрально: 0.5+0.5 == 1.0",
+      "events": [
+        {
+          "id": "golden-ev-7",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "500000",
+          "pointsDelta": 0.5,
+          "pointsDeltaMicro": 500000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-8",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "500000",
+          "pointsDelta": 0.5,
+          "pointsDeltaMicro": 500000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 1,
+      "expectedMicroPoints": 1000000
+    },
+    {
+      "name": "split-neutrality-whole",
+      "events": [
+        {
+          "id": "golden-ev-9",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "1000000",
+          "pointsDelta": 1,
+          "pointsDeltaMicro": 1000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 1,
+      "expectedMicroPoints": 1000000
+    },
+    {
+      "name": "float-repr-4.85",
+      "note": "4.85*1e6 = 4849999.999… → Math.round → 4850000",
+      "events": [
+        {
+          "id": "golden-ev-10",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "4850000",
+          "pointsDelta": 4.85,
+          "pointsDeltaMicro": 4850000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 4.85,
+      "expectedMicroPoints": 4850000
+    },
+    {
+      "name": "dispute-lost-subtracts",
+      "events": [
+        {
+          "id": "golden-ev-11",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-12",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 50,
+      "expectedMicroPoints": 50000000
+    },
+    {
+      "name": "dispute-won-adds",
+      "events": [
+        {
+          "id": "golden-ev-13",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "1000000",
+          "pointsDelta": 1,
+          "pointsDeltaMicro": 1000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-14",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_WON",
+          "amount": "0",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 11,
+      "expectedMicroPoints": 11000000
+    },
+    {
+      "name": "clamp-to-zero",
+      "note": "итог < 0 → 0 (кламп ОДИН раз в конце свёртки, не по шагам)",
+      "events": [
+        {
+          "id": "golden-ev-15",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "5000000",
+          "pointsDelta": 5,
+          "pointsDeltaMicro": 5000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-16",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-17",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_WON",
+          "amount": "0",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 0,
+      "expectedMicroPoints": 0
+    },
+    {
+      "name": "order-independence-a",
+      "events": [
+        {
+          "id": "golden-ev-18",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-19",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "60000000",
+          "pointsDelta": 60,
+          "pointsDeltaMicro": 60000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 10,
+      "expectedMicroPoints": 10000000
+    },
+    {
+      "name": "order-independence-b",
+      "events": [
+        {
+          "id": "golden-ev-20",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "60000000",
+          "pointsDelta": 60,
+          "pointsDeltaMicro": 60000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-21",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 10,
+      "expectedMicroPoints": 10000000
+    },
+    {
+      "name": "large-sum",
+      "note": "потолок точности Number: 9e9 USDC = 9e15 micro-очков < 2^53",
+      "events": [
+        {
+          "id": "golden-ev-22",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "9000000000000000",
+          "pointsDelta": 9000000000,
+          "pointsDeltaMicro": 9000000000000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        }
+      ],
+      "expectedPoints": 9000000000,
+      "expectedMicroPoints": 9000000000000000
+    }
+  ],
+  "computePointsAsOf": [
+    {
+      "name": "asof-before-all",
+      "events": [
+        {
+          "id": "golden-ev-23",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000000",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-24",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:01:00.000Z",
+          "tsMs": 1767225660000
+        },
+        {
+          "id": "golden-ev-25",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:02:00.000Z",
+          "tsMs": 1767225720000
+        }
+      ],
+      "asOf": "2025-12-31T23:59:59.999Z",
+      "asOfMs": 1767225599999,
+      "expectedPoints": 0,
+      "expectedMicroPoints": 0
+    },
+    {
+      "name": "asof-first-exact",
+      "note": "граница ВКЛЮЧИТЕЛЬНА: ts == asOf входит в срез",
+      "events": [
+        {
+          "id": "golden-ev-23",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000000",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-24",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:01:00.000Z",
+          "tsMs": 1767225660000
+        },
+        {
+          "id": "golden-ev-25",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:02:00.000Z",
+          "tsMs": 1767225720000
+        }
+      ],
+      "asOf": "2026-01-01T00:00:00.000Z",
+      "asOfMs": 1767225600000,
+      "expectedPoints": 10,
+      "expectedMicroPoints": 10000000
+    },
+    {
+      "name": "asof-mid-clamps-slice",
+      "note": "срез до второго события: 10−50 → кламп 0",
+      "events": [
+        {
+          "id": "golden-ev-23",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000000",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-24",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:01:00.000Z",
+          "tsMs": 1767225660000
+        },
+        {
+          "id": "golden-ev-25",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:02:00.000Z",
+          "tsMs": 1767225720000
+        }
+      ],
+      "asOf": "2026-01-01T00:01:00.000Z",
+      "asOfMs": 1767225660000,
+      "expectedPoints": 0,
+      "expectedMicroPoints": 0
+    },
+    {
+      "name": "asof-just-before-second",
+      "events": [
+        {
+          "id": "golden-ev-23",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000000",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-24",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:01:00.000Z",
+          "tsMs": 1767225660000
+        },
+        {
+          "id": "golden-ev-25",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:02:00.000Z",
+          "tsMs": 1767225720000
+        }
+      ],
+      "asOf": "2026-01-01T00:00:59.999Z",
+      "asOfMs": 1767225659999,
+      "expectedPoints": 10,
+      "expectedMicroPoints": 10000000
+    },
+    {
+      "name": "asof-future-full",
+      "events": [
+        {
+          "id": "golden-ev-23",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "10000000",
+          "pointsDelta": 10,
+          "pointsDeltaMicro": 10000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:00:00.000Z",
+          "tsMs": 1767225600000
+        },
+        {
+          "id": "golden-ev-24",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DISPUTE_LOST",
+          "amount": "0",
+          "pointsDelta": -50,
+          "pointsDeltaMicro": -50000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:01:00.000Z",
+          "tsMs": 1767225660000
+        },
+        {
+          "id": "golden-ev-25",
+          "donor": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "creator": "chan-1",
+          "type": "DONATION",
+          "amount": "100000000",
+          "pointsDelta": 100,
+          "pointsDeltaMicro": 100000000,
+          "configVersion": 1,
+          "ts": "2026-01-01T00:02:00.000Z",
+          "tsMs": 1767225720000
+        }
+      ],
+      "asOf": "2026-01-12T13:46:39.999Z",
+      "asOfMs": 1768225599999,
+      "expectedPoints": 60,
+      "expectedMicroPoints": 60000000
+    }
+  ]
+}
