@@ -43,10 +43,12 @@
 UI компоненты  ──►  useData() хук  ──►  DataProvider (интерфейс)
                                           ├─ MockDataProvider   (Фаза 1)  ← пишем сейчас
                                           ├─ ApiDataProvider    (Фаза 2)  ← бэкенд
-                                          └─ ChainDataProvider  (Фаза 3)  ← кошелёк + индексер
+                                          ├─ ChainDataProvider  (Фаза 3)  ← кошелёк + индексер
+                                          └─ IcpDataProvider    (M1, ADR 0021) ← канон чтения
+                                                                  репутации = канистра ICP
 ```
 
-Реализация выбирается через ENV-флаг (`NEXT_PUBLIC_DATA_SOURCE=mock|api|chain`). Переход между
+Реализация выбирается через ENV-флаг (`NEXT_PUBLIC_DATA_SOURCE=mock|api|chain|icp`). Переход между
 фазами = добавить реализацию интерфейса, **не трогая ни один экран**. Если ты ловишь себя на том,
 что зовёшь сеть из компонента — стоп, это нарушение контракта.
 
@@ -110,7 +112,7 @@ standing/
 │   ├── runbook.md            запуск, операционные грабли, ключи (обязателен перед первым `npm run dev`)
 │   ├── manual-testing.md     плейбук ручного тестирования для не-программиста (сценарии + команды-светофоры)
 │   ├── canister-architecture.md  архитектура v3 «две кости и кожа»: миграция трастлесс-слоя
-│   │                         на канистры ICP (ADR 0021; фазы M0–M5) — ЦЕЛЕВАЯ, не реализована
+│   │                         на канистры ICP (ADR 0021; фазы M0–M5) — в работе, M-1 выполнена
 │   ├── migration-plan.md     детальный план миграции M-1…M5: golden-паритет, сверки, откаты
 │   ├── glossary.md           термины
 │   ├── games/escrow-task-spec.md  спека первой мини-игры (v1.1; шов с ядром — ADR 0015)
@@ -125,6 +127,10 @@ standing/
 │   └── mock-data.md          интерфейс DataProvider + фикстуры (TS)
 ├── backend/spec.md           Фаза 2: движок, API, модерация, конфиг
 ├── crypto/spec.md            Фаза 3: кошелёк, транзакция, индексер
+├── canister/                 Rust-workspace канистр ICP (ADR 0021, с M-1): dfx.json, core.did,
+│                             крейт standing-core (порты reputation/donation/tally + golden-тесты)
+├── testdata/golden/          эталон паритета TS↔Rust: порождается ТОЛЬКО `npm run golden`, руками
+│                             не редактируется; светофор — `npm run golden && (cd canister && cargo test)`
 └── decisions/                ADR — записи архитектурных решений
     ├── 0001-frontend-first-with-mock-data.md
     └── 0002-core-v0.1-clarifications.md   создание канала, единицы денег, standing, 1 канал/кошелёк
