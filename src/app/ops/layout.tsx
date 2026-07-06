@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-/** Отдельный admin-хром для консоли оператора (yellow-paper §14). */
+/** Отдельный admin-хром для консоли оператора (frontend/spec.md §2). */
 export default function OpsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -11,9 +11,9 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/" className="text-small text-fg-muted hover:text-fg">
-              На платформу
+              To platform
             </Link>
-            <span className="mono text-caption text-fg-faint">консоль оператора</span>
+            <span className="mono text-caption text-fg-faint">operator console</span>
           </div>
         </div>
       </header>

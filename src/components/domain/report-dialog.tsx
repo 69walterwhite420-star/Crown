@@ -20,25 +20,25 @@ import { useReportMessage } from "@/lib/data/hooks";
 
 // Конкретные причины — чтобы оператор/стример сразу понимали, на что жалоба.
 const REASONS = [
-  "Спам / реклама",
-  "Оскорбления, травля",
-  "Угрозы, насилие",
-  "Запрещённое (CSAM / незаконное)",
-  "Мошенничество, скам",
-  "Другое",
+  "Spam / advertising",
+  "Insults, harassment",
+  "Threats, violence",
+  "Prohibited (CSAM / illegal)",
+  "Fraud, scam",
+  "Other",
 ];
 
 /** Кнопка + диалог жалобы: выбор причины и комментарий. Шлёт reportMessage(messageId, "причина: коммент"). */
 export function ReportDialog({
   messageId,
   channelId,
-  label = "Пожаловаться",
+  label = "Report",
   open: controlledOpen,
   onOpenChange,
   trigger,
   onSubmit,
-  title = "Пожаловаться на сообщение",
-  description = "Выбери причину — жалоба уйдёт стримеру и оператору (T&S). При нескольких жалобах текст авто-скрывается.",
+  title = "Report message",
+  description = "Pick a reason — the report goes to the streamer and the operator (T&S). With multiple reports the text is auto-hidden.",
 }: {
   messageId?: string;
   channelId: string;
@@ -63,11 +63,11 @@ export function ReportDialog({
 
   const ok = (r: { reports?: number; hidden?: boolean }) => {
     toast({
-      title: r.hidden ? "Скрыто по жалобам" : "Жалоба отправлена",
+      title: r.hidden ? "Hidden due to reports" : "Report sent",
       description: r.hidden
-        ? "Текст авто-скрыт до решения стримера/оператора."
+        ? "The text is auto-hidden until the streamer/operator decides."
         : typeof r.reports === "number"
-          ? `Учтено жалоб: ${r.reports}.`
+          ? `Reports counted: ${r.reports}.`
           : undefined,
     });
     setOpen(false);
@@ -76,7 +76,7 @@ export function ReportDialog({
   const fail = (e: unknown) =>
     toast({
       variant: "error",
-      title: "Жалоба не отправлена",
+      title: "Report not sent",
       description: e instanceof Error ? e.message : String(e),
     });
 
@@ -119,7 +119,7 @@ export function ReportDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <Select label="Причина" value={reason} onChange={(e) => setReason(e.target.value)}>
+        <Select label="Reason" value={reason} onChange={(e) => setReason(e.target.value)}>
           {REASONS.map((r) => (
             <option key={r} value={r}>
               {r}
@@ -127,8 +127,8 @@ export function ReportDialog({
           ))}
         </Select>
         <Textarea
-          label="Комментарий (необязательно)"
-          placeholder="Что именно не так…"
+          label="Comment (optional)"
+          placeholder="What exactly is wrong…"
           maxLength={280}
           showCount
           value={comment}
@@ -137,11 +137,11 @@ export function ReportDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="ghost" disabled={report.isPending || busy}>
-              Отмена
+              Cancel
             </Button>
           </DialogClose>
           <Button variant="danger" loading={report.isPending || busy} onClick={submit}>
-            Отправить жалобу
+            Send report
           </Button>
         </DialogFooter>
       </DialogContent>

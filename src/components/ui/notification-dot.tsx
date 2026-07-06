@@ -8,7 +8,7 @@ export function NotificationDot({ className, title }: { className?: string; titl
   return (
     <span
       role="status"
-      aria-label={title ?? "Есть новое"}
+      aria-label={title ?? "New activity"}
       title={title}
       className={cn("inline-block h-2 w-2 shrink-0 rounded-full bg-info", className)}
     />

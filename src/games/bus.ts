@@ -37,6 +37,10 @@ export interface GameContext {
   channelOwner: string | null;
   /** Payout-адрес канала (получатель денег на цепочке). Нужен, чтобы привязать эскроу к каналу (ESC-6). */
   channelPayout: string | null;
+  /** H1: payout канала подтверждён ed25519-подписью владельца (verifyPayoutAttestation прошла). Предвычисляет
+   *  провайдер (как isChannelManager). Chain-эскроу к НЕподтверждённому payout не привязываем — серверный
+   *  fail-closed гвард, зеркало ingest.ts, чтобы деньги задания не ушли на возможно-подменённый адрес. */
+  channelPayoutAttested: boolean;
   /** Вызывающий — менеджер канала (владелец или модератор из конфига): видит приватный текст задания (§4.6). */
   isChannelManager: boolean;
   /** Минимум суммы задания-доната, micro-USDC строкой: задание = донат с текстом, действует бóльший из

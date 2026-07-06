@@ -99,8 +99,32 @@ impl Storable for JournalEntry {
     const BOUND: Bound = Bound::Unbounded;
 }
 
+/// Открытый (профинансированный, ещё не заклеймленный) эскроу — снимок из FUND-инструкции.
+/// Нужен, чтобы на CLAIM_STREAMER (эскроу-аккаунт уже закрыт) восстановить донора/сумму и
+/// забанковать GameDonation донору (эскроу-донат дошёл стримеру). Ключ карты — эскроу-PDA (base58).
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
+pub struct EscrowFund {
+    pub donor: String,
+    /// payout-адрес стримера (== владелец канала, допущение v1 арбитра) — для привязки к каналу.
+    pub streamer: String,
+    pub amount_micro: u64,
+}
+
+impl Storable for EscrowFund {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        candid_bytes(self)
+    }
+    fn into_bytes(self) -> Vec<u8> {
+        Encode!(&self).expect("candid encode")
+    }
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(&bytes, Self).expect("candid decode EscrowFund")
+    }
+    const BOUND: Bound = Bound::Unbounded;
+}
+
 /// Виртуальная память по id — для стейта других модулей (governance и далее).
-/// Занято: 0 config, 1 cursor, 2/3 journal, 4 seen, 5 dispute-params.
+/// Занято: 0 config, 1 cursor, 2/3 journal, 4 seen, 5 dispute-params, 6 escrow-cursor, 7 open-escrows.
 pub fn memory(id: u8) -> Mem {
     MM.with(|m| m.borrow().get(MemoryId::new(id)))
 }
@@ -129,6 +153,18 @@ thread_local! {
     static SEEN: RefCell<StableBTreeMap<String, u64, Mem>> = RefCell::new(StableBTreeMap::init(
         MM.with(|m| m.borrow().get(MemoryId::new(4))),
     ));
+
+    /// Курсор эскроу-индексатора — подпись новейшей обработанной tx эскроу-программы (отдельный
+    /// от трежери-курсора: другая наблюдаемая цель). Пусто = бэкфилл эскроу не начат.
+    static ESCROW_CURSOR: RefCell<StableCell<String, Mem>> = RefCell::new(StableCell::init(
+        MM.with(|m| m.borrow().get(MemoryId::new(6))),
+        String::new(),
+    ));
+
+    /// Открытые эскроу: PDA(base58) → снимок FUND. FUND кладёт, CLAIM забирает (fund раньше claim —
+    /// подписи идут старые→новые). Заклеймленные удаляются → карта мала (только «в полёте»).
+    static OPEN_ESCROWS: RefCell<StableBTreeMap<String, EscrowFund, Mem>> =
+        RefCell::new(StableBTreeMap::init(MM.with(|m| m.borrow().get(MemoryId::new(7)))));
 
     /// Диагностика последних опросов (НЕ stable — обнуляется апгрейдом, это ок).
     pub static STATUS: RefCell<RuntimeStatus> = RefCell::new(RuntimeStatus::default());
@@ -198,4 +234,34 @@ pub fn journal_append(mut entry: JournalEntry) -> u64 {
 
 pub fn seen(signature: &str) -> bool {
     SEEN.with(|s| s.borrow().contains_key(&signature.to_string()))
+}
+
+// ─────────── эскроу-индексатор (M2): курсор + карта открытых эскроу ───────────
+
+pub fn escrow_cursor() -> Option<String> {
+    ESCROW_CURSOR.with(|c| {
+        let v = c.borrow().get().clone();
+        if v.is_empty() {
+            None
+        } else {
+            Some(v)
+        }
+    })
+}
+
+pub fn set_escrow_cursor(sig: &str) {
+    ESCROW_CURSOR.with(|c| {
+        c.borrow_mut().set(sig.to_string());
+    });
+}
+
+/// FUND → запомнить открытый эскроу (идемпотентно: повторный insert перезаписывает тем же).
+pub fn open_escrow_insert(pda: &str, fund: EscrowFund) {
+    OPEN_ESCROWS.with(|m| m.borrow_mut().insert(pda.to_string(), fund));
+}
+
+/// CLAIM → забрать и удалить снимок эскроу по PDA (None — fund не виден: за retention RPC или
+/// эскроу профинансирован до старта наблюдения).
+pub fn open_escrow_take(pda: &str) -> Option<EscrowFund> {
+    OPEN_ESCROWS.with(|m| m.borrow_mut().remove(&pda.to_string()))
 }

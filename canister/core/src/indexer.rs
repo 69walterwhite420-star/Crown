@@ -79,7 +79,12 @@ async fn run_poll() -> Result<u64, String> {
         }
         state::set_cursor(&sig.signature);
     }
-    Ok(appended)
+
+    // Второй проход — эскроу-программа (M2): эскроу-донаты заданий → GameDonation в журнал.
+    // Свой курсор, независим от трежери; сбой не рушит уже записанные ядро-донаты.
+    let escrow_banked = crate::escrow_index::poll_escrow(&cfg).await?;
+
+    Ok(appended + escrow_banked)
 }
 
 /// jsonParsed-транзакция → запись журнала. Не наша транзакция (нет пары 97/3+memo и не

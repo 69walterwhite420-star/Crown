@@ -25,6 +25,7 @@ pub mod test_fixtures {
 }
 pub mod disputes;
 pub mod donation;
+pub mod escrow_index;
 pub mod governance;
 pub mod http;
 pub mod indexer;

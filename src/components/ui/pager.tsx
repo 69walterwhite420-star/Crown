@@ -46,7 +46,7 @@ export function Pager({
   if (total <= sizes[0]!) return null; // мало элементов — пагинация не нужна
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-small text-fg-faint">
-      <span>Всего: {total}</span>
+      <span>Total: {total}</span>
       <div className="flex items-center gap-2">
         <Select
           value={String(pageSize)}
@@ -64,7 +64,7 @@ export function Pager({
         </Select>
         <Button variant="ghost" size="sm" disabled={page <= 0} onClick={() => setPage(page - 1)}>
           <ChevronLeftIcon className="h-4 w-4" />
-          Назад
+          Back
         </Button>
         <span className="mono">
           {page + 1} / {pageCount}
@@ -75,7 +75,7 @@ export function Pager({
           disabled={page >= pageCount - 1}
           onClick={() => setPage(page + 1)}
         >
-          Вперёд
+          Next
           <ChevronRightIcon className="h-4 w-4" />
         </Button>
       </div>

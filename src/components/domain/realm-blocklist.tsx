@@ -11,16 +11,17 @@ import { isLikelyBase58Address, shortAddress, timeAgo } from "@/lib/utils";
 
 // Готовые причины канальной блокировки (почему стример закрыл этому кошельку донаты-с-сообщениями).
 const BLOCK_REASONS = [
-  "Спам / реклама",
-  "Оскорбления, травля",
-  "Угрозы, агрессия",
-  "Мошенничество, скам",
-  "Неуместный контент",
-  "Несоответствие политике канала",
-  "Другое",
+  "Spam / advertising",
+  "Insults, harassment",
+  "Threats, aggression",
+  "Fraud, scam",
+  "Inappropriate content",
+  "Violates realm policy",
+  "Other",
 ];
 
-export default function BlocklistPage() {
+/** Personal Space → My Realm → «Blocklist». Канальный блок-лист (не платформенный бан). */
+export function RealmBlocklist() {
   const myChannelQ = useMyChannel();
   const channelId = myChannelQ.data?.id;
   const listQ = useChannelBlocklist(channelId);
@@ -30,22 +31,22 @@ export default function BlocklistPage() {
   const [reason, setReason] = useState("");
 
   if (myChannelQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
-  if (!channelId) return <EmptyState title="Сначала создай канал" />;
+  if (!channelId) return <EmptyState title="Create a realm first" />;
 
   function submit() {
     if (!isLikelyBase58Address(address.trim())) {
-      toast({ variant: "error", title: "Похоже на неполный адрес" });
+      toast({ variant: "error", title: "That looks like an incomplete address" });
       return;
     }
     add.mutate(
       { address: address.trim(), reason: reason.trim() || undefined },
       {
         onSuccess: () => {
-          toast({ variant: "success", title: "Кошелёк заблокирован на канале" });
+          toast({ variant: "success", title: "Wallet blocked on this realm" });
           setAddress("");
           setReason("");
         },
-        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );
   }
@@ -53,20 +54,20 @@ export default function BlocklistPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-display-l text-fg">Канальные блокировки</h1>
+        <h1 className="text-display-l text-fg">Realm blocks</h1>
         <p className="text-fg-muted">
-          Заблокированные кошельки не шлют донаты-с-текстом на этот канал. Канальный блок ≠ платформенный
-          бан (тот — только у оператора).
+          Blocked wallets can&apos;t send crowns with text to this realm. A realm block is not a
+          platform ban (that one is the operator&apos;s alone).
         </p>
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <Input label="Адрес кошелька" mono value={address} onChange={(e) => setAddress(e.target.value)} />
+          <Input label="Wallet address" mono value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
         <div className="flex-1">
-          <Select label="Причина" value={reason} onChange={(e) => setReason(e.target.value)}>
-            <option value="">Без причины</option>
+          <Select label="Reason" value={reason} onChange={(e) => setReason(e.target.value)}>
+            <option value="">No reason</option>
             {BLOCK_REASONS.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -75,7 +76,7 @@ export default function BlocklistPage() {
           </Select>
         </div>
         <Button onClick={submit} loading={add.isPending}>
-          Заблокировать
+          Block
         </Button>
       </div>
 
@@ -84,7 +85,7 @@ export default function BlocklistPage() {
       ) : listQ.error ? (
         <ErrorState onRetry={() => listQ.refetch()} />
       ) : (listQ.data ?? []).length === 0 ? (
-        <EmptyState title="Блок-лист пуст" description="Заблокированные кошельки появятся здесь." />
+        <EmptyState title="Blocklist is empty" description="Blocked wallets will show up here." />
       ) : (
         <ul className="flex flex-col gap-2">
           {listQ.data!.map((b) => (
@@ -95,7 +96,7 @@ export default function BlocklistPage() {
               <div className="flex min-w-0 flex-col">
                 <span className="mono text-small text-fg">{shortAddress(b.blockedAddress)}</span>
                 <span className="text-small text-fg-faint">
-                  {b.reason ?? "без причины"} · {timeAgo(b.ts)}
+                  {b.reason ?? "no reason"} · {timeAgo(b.ts)}
                 </span>
               </div>
               <Button
@@ -103,11 +104,11 @@ export default function BlocklistPage() {
                 size="sm"
                 onClick={() =>
                   remove.mutate(b.blockedAddress, {
-                    onSuccess: () => toast({ title: "Разблокировано" }),
+                    onSuccess: () => toast({ title: "Unblocked" }),
                   })
                 }
               >
-                Разблокировать
+                Unblock
               </Button>
             </li>
           ))}

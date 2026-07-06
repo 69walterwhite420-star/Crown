@@ -199,6 +199,15 @@ export const escrowTaskHandlers: GameHandlers = {
       const streamer = ctx.channelPayout ?? undefined;
       if (escrowTaskId && !streamer)
         throw new GameBusError("NO_PAYOUT", "У канала нет payout-адреса — эскроу нельзя привязать.");
+      // H1: payout, на который вшиты деньги задания, обязан быть подтверждён подписью владельца канала —
+      // тот же серверный fail-closed гвард, что ingest.ts делает для обычного доната. Иначе эскроу-путь был бы
+      // лазейкой мимо H1: репутация капала бы каналу с возможно-подменённым payout, а клиентская проверка
+      // (chain-provider.assertPayoutAttested) обходится руками собранным клиентом. Держим и на сервере.
+      if (escrowTaskId && !ctx.channelPayoutAttested)
+        throw new GameBusError(
+          "PAYOUT_UNATTESTED",
+          "Payout канала не подтверждён подписью владельца — эскроу-задание привязать нельзя.",
+        );
       if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount, streamer }))) {
         throw new GameBusError(
           "ESCROW_INVALID",

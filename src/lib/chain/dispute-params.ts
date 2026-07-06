@@ -23,6 +23,12 @@ export interface DisputeParamsValues {
   /** МЁРТВОЕ поле (решение владельца M2: экономики от суммы нет — арбитр его не читает).
    * Держится ради стабильности подписанного сообщения; убирать только с бампом `v:`. */
   dMaxMicro: bigint;
+  /** Награда репутации инициатору за ПОДТВЕРЖДЁННЫЙ спор (micro-очки). Параметр канала с v:3 — раньше
+   *  протокольная константа (10 очков). Меняется подписью владельца + таймлок, как кворум/окна. */
+  disputeWinBonusMicro: bigint;
+  /** Списание репутации инициатору за ПРОИГРАННЫЙ ложный спор (micro-очки, хранится положительным).
+   *  Параметр канала с v:3 — раньше константа (50). §4.5 держится: списывает протокол по исходу, не оператор. */
+  disputeLossPenaltyMicro: bigint;
 }
 
 /** Состояние параметров канала в канистре (ответ /dispute-params). */
@@ -60,7 +66,9 @@ export function buildDisputeParamsMessage(
     `disputeWindowSecs: ${p.disputeWindowSecs}`,
     `votingWindowSecs: ${p.votingWindowSecs}`,
     `dMaxMicro: ${p.dMaxMicro}`,
-    "v: 2",
+    `disputeWinBonusMicro: ${p.disputeWinBonusMicro}`,
+    `disputeLossPenaltyMicro: ${p.disputeLossPenaltyMicro}`,
+    "v: 3",
   ].join("\n");
 }
 
@@ -72,6 +80,8 @@ interface RawParams {
   disputeWindowSecs: number | string;
   votingWindowSecs: number | string;
   dMaxMicro: number | string;
+  disputeWinBonusMicro: number | string;
+  disputeLossPenaltyMicro: number | string;
 }
 
 export interface RawDisputeParamsResponse {
@@ -91,6 +101,8 @@ function normalizeValues(raw: RawParams): DisputeParamsValues {
     disputeWindowSecs: Number(raw.disputeWindowSecs),
     votingWindowSecs: Number(raw.votingWindowSecs),
     dMaxMicro: BigInt(raw.dMaxMicro),
+    disputeWinBonusMicro: BigInt(raw.disputeWinBonusMicro),
+    disputeLossPenaltyMicro: BigInt(raw.disputeLossPenaltyMicro),
   };
 }
 

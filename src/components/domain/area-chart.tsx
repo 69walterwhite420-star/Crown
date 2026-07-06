@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 export type ChartRange = "1D" | "1W" | "1M" | "1Y" | "ALL";
 export const CHART_RANGES: ChartRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
 export const RANGE_LABEL: Record<ChartRange, string> = {
-  "1D": "1Д",
-  "1W": "1Н",
-  "1M": "1М",
-  "1Y": "1Г",
-  ALL: "Всё",
+  "1D": "1D",
+  "1W": "1W",
+  "1M": "1M",
+  "1Y": "1Y",
+  ALL: "All",
 };
 const RANGE_MS: Record<ChartRange, number> = {
   "1D": 86_400_000,
@@ -70,7 +70,7 @@ export function CumulativeAreaChart({
   range,
   formatValue,
   color = "var(--money)",
-  emptyHint = "Пока нет данных — график появится после первого события.",
+  emptyHint = "No data yet — the chart appears after the first event.",
 }: {
   events: ChartEvent[];
   range: ChartRange;
@@ -187,6 +187,95 @@ export function CumulativeAreaChart({
             <span className="ml-1.5 text-fg-faint">{chartDate(hover.t)}</span>
           </div>
         </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Дневные бары: НЕ накопительно — сумма значений событий по календарным дням в окне диапазона (пустые дни = 0,
+ * т.е. «0 до запуска»). Альтернатива area-графику для тех же данных. Наведение → значение дня + дата.
+ */
+export function DailyBars({
+  events,
+  range,
+  formatValue,
+  color = "var(--money)",
+  emptyHint = "No data yet — bars appear after the first event.",
+}: {
+  events: ChartEvent[];
+  range: ChartRange;
+  formatValue: (v: number) => string;
+  color?: string;
+  emptyHint?: string;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  const bars = useMemo(() => {
+    const real = events.filter((e) => e.v > 0); // синтетическую нулевую точку не считаем
+    if (real.length === 0) return [] as { t: number; v: number }[];
+    const dayStart = (t: number) => {
+      const d = new Date(t);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const now = Date.now();
+    const firstDay = dayStart(Math.min(...real.map((e) => e.t)));
+    const windowStart = range === "ALL" ? firstDay : Math.max(firstDay, dayStart(now - RANGE_MS[range]));
+    const endDay = dayStart(now);
+    const byDay = new Map<number, number>();
+    for (const e of real) {
+      const d = dayStart(e.t);
+      if (d < windowStart) continue;
+      byDay.set(d, (byDay.get(d) ?? 0) + e.v);
+    }
+    const out: { t: number; v: number }[] = [];
+    for (let d = windowStart; d <= endDay; d += 86_400_000) out.push({ t: d, v: byDay.get(d) ?? 0 });
+    return out;
+  }, [events, range]);
+
+  if (bars.length === 0) {
+    return (
+      <div className="flex h-24 items-center justify-center rounded border border-dashed border-border px-3 text-center text-small text-fg-faint">
+        {emptyHint}
+      </div>
+    );
+  }
+
+  const max = Math.max(1, ...bars.map((b) => b.v));
+  const hovered = hoverIdx != null ? bars[hoverIdx] : null;
+
+  return (
+    <div className="relative h-24 w-full">
+      <div className="flex h-full items-end gap-px" onMouseLeave={() => setHoverIdx(null)}>
+        {bars.map((b, i) => (
+          <div
+            key={b.t}
+            className="flex h-full flex-1 items-end"
+            onMouseEnter={() => setHoverIdx(i)}
+          >
+            <div
+              className="w-full rounded-t-sm transition-opacity"
+              style={{
+                height: b.v > 0 ? `max(2px, ${(b.v / max) * 100}%)` : "0",
+                backgroundColor: color,
+                opacity: hoverIdx === null || hoverIdx === i ? 0.9 : 0.4,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {hovered ? (
+        <div
+          className="pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded border border-border bg-surface-raised px-2 py-1 text-caption shadow-md"
+          style={{ left: `${Math.min(88, Math.max(12, ((hoverIdx! + 0.5) / bars.length) * 100))}%` }}
+        >
+          <span className="mono" style={{ color }}>
+            {formatValue(hovered.v)}
+          </span>
+          <span className="ml-1.5 text-fg-faint">{chartDate(hovered.t)}</span>
+        </div>
       ) : null}
     </div>
   );

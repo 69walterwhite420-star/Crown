@@ -53,13 +53,22 @@ pub struct TxMessage {
     pub instructions: Vec<Instruction>,
 }
 
-/// Инструкция: parsed-вариант несёт `program`+`parsed`; PartiallyDecoded (без `parsed`) игнорируется.
+/// Инструкция jsonParsed. spl-token/memo → `program`+`parsed`. PartiallyDecoded (эскроу-программа
+/// и прочие непарсимые) → `programId`+`accounts`(base58)+`data`(base58) — раньше игнорировались,
+/// с M2 читаются эскроу-индексатором (escrow_index.rs) для fund/claim.
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Instruction {
     #[serde(default)]
     pub program: Option<String>,
     #[serde(default)]
     pub parsed: Option<Value>,
+    #[serde(default)]
+    pub program_id: Option<String>,
+    #[serde(default)]
+    pub accounts: Option<Vec<String>>,
+    #[serde(default)]
+    pub data: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

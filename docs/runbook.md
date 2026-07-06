@@ -27,8 +27,8 @@
 5. **Тестовые окна игры активны** (`FAST_TEST_WINDOWS`: грейс 1 мин, спор/голосование по 2 мин) —
    полный цикл задания прогоняется за минуты. Перед mainnet вернуть прод-набор И константы
    контракта + редеплой (yellow-paper §18.2).
-6. **Новый/старый канал не принимает донаты** → стример не подписал адрес выплат: студия →
-   Настройки → «Подписать адрес выплат» (H1, fail-closed; одна подпись без газа).
+6. **Новый/старый канал не принимает донаты** → стример не подписал адрес выплат: Personal Space →
+   Customization → «Sign payout address» (H1, fail-closed; одна подпись без газа).
 7. **Эскроу-контракт локально НЕ собирается** (нет тулчейна) — канонический прогон против живой
    devnet-программы: `scripts/escrow-smoke.ts`. Правишь `lib.rs` → синхронно правь TS-зеркала
    (`escrow-tx.ts`, `machine.ts`) — единого источника констант нет (yellow-paper §18.2).
@@ -65,8 +65,14 @@
   cd canister && dfx start --background --clean
   dfx deploy core --argument '(record { rpc_url = "https://api.devnet.solana.com";
     treasury_ata = "GzBQqH16CHT5m8v5JWAG6fTPcRohTfZQFvgW8Jx8AoKX";
-    usdc_mint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; poll_secs = 20 : nat64 })'
+    usdc_mint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; poll_secs = 20 : nat64;
+    escrow_program = opt "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4" })'
   ```
+  `escrow_program` включает арбитр споров (M2) И эскроу-индексатор (`escrow_index.rs`): эскроу-донаты
+  заданий (G3a) → `GameDonation` в журнал (иначе icp-профиль их не покажет — yellow-paper §18.5-8a).
+  Всё поднять одной командой из корня — `./up.sh` (после ребута; `./up.sh web` — перезапуск только фронта).
+  Смена init-конфига (добавить `escrow_program`) требует `dfx deploy core --mode reinstall --yes` —
+  post_upgrade конфиг НЕ перечитывает; на локальном стенде reinstall безопасен (журнал пересоберётся).
   Канистра сама бэкфиллит ВСЮ историю трежери с devnet (минута-две) и дальше опрашивает
   каждые 20 с. Смотреть: `http://<canister-id>.raw.localhost:4943/status` и `/export`
   (id печатает deploy; ⚠️ без `.raw.` шлюз требует certified-ответов — их пока нет, хвост M0).
@@ -107,6 +113,11 @@
   `dfx start --background --clean` + redeploy с тем же аргументом. Терять нечего: id канистры
   и её тресхолд-Solana-адрес на свежей локальной сети ДЕТЕРМИНИРОВАНЫ (проверено: адрес
   `EekhckAL…` пережил чистый рестарт, SOL на нём цел), журнал пересобирается из цепочки сам.
+- **Локальная канистра «out of cycles» после нескольких reinstall подряд** (IC0207): каждый
+  reinstall + бэкфилл жжёт циклы (HTTPS-outcalls). Долить локально бесплатно:
+  `dfx ledger fabricate-cycles --canister core --t 50`, затем повторить deploy. На чистом старте
+  (`dfx start --clean` / `./up.sh`) канистра получает свежий баланс — проблема только при частых
+  reinstall на живой реплике.
 - **Кошелёк циклов — ⏸ отложено вместе с мейннетом** (решение владельца 2026-07-04): вся
   разработка M0–M2 идёт на локальной реплике бесплатно. Когда дойдёт до mainnet ICP: ~$25 в
   ICP → циклы (или бесплатный купон DFINITY, Discord #cycles-faucet); freezing threshold =

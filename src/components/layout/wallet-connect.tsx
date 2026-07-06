@@ -2,8 +2,9 @@
 
 import { ConnectWalletButton } from "./connect-wallet-button";
 import { useSession } from "@/lib/data/hooks";
-import { IS_CHAIN } from "@/lib/chain/addresses";
 import { shortAddress } from "@/lib/utils";
+
+const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 
 /** Шапка: auth-aware кнопка кошелька/входа (chain) или адрес сессии (dev mock/api). */
 export function WalletConnectButton() {

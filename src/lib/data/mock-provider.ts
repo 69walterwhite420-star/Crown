@@ -711,21 +711,56 @@ export class MockDataProvider implements DataProvider {
         return donorName ? { ...r, donorName } : r;
       });
 
-    // Журнал очков донора: за что НАЧИСЛИЛИ очки (донаты, рост репутации), новые сверху.
-    // Лента активности донора — только донаты (рост репутации). Оператор репутацию не списывает (CR-1),
-    // а протокольные спор-события (DISPUTE_*) живут в слое игры, не в этой ленте.
-    const pointEvents: DonorPointEvent[] = donations
-      .map((d) => ({
-        id: d.id,
-        channelId: d.channelId,
-        type: "DONATION" as const,
-        pointsDelta: pointsForAmount(d.amount),
-        amount: d.amount,
-        ts: d.ts,
-        txSignature: d.txSignature,
-        message: d.message,
-      }))
-      .sort((a, b) => (a.ts < b.ts ? 1 : -1));
+    // Журнал очков донора: за что НАЧИСЛИЛИ очки (донаты + дошедшие эскроу-задания), новые сверху.
+    // Протокольные спор-события (DISPUTE_*) живут в слое игры, не в этой ленте; операторских списаний нет (CR-1).
+    const donationEvents: DonorPointEvent[] = donations.map((d) => ({
+      id: d.id,
+      channelId: d.channelId,
+      type: "DONATION" as const,
+      pointsDelta: pointsForAmount(d.amount),
+      amount: d.amount,
+      ts: d.ts,
+      txSignature: d.txSignature,
+      message: d.message,
+    }));
+    // Эскроу-задания донора, дошедшие стримеру (to_streamer) — тоже донат (GAME_DONATION, §4.7/repEffects).
+    // Текст задания — кожа: показываем ТОЛЬКО если публичен (SHOWN и не снят оператором), паритет redactDonation.
+    const escrowTasks =
+      (this.gameState.get("escrow-task") as { tasks: EscrowTask[] } | undefined)?.tasks ?? [];
+    const escrowEvents: DonorPointEvent[] = escrowTasks
+      .filter(
+        (t) =>
+          t.donor === address &&
+          t.status === "RESOLVED" &&
+          t.resolution?.outcome === "to_streamer",
+      )
+      .map((t) => {
+        const amount = BigInt(t.amount);
+        const pub = !this.operatorBlockedContent.has(t.id) && (t.textState ?? "SHOWN") === "SHOWN";
+        return {
+          id: `escrow:${t.escrowTaskId ?? t.id}`,
+          channelId: t.channelId,
+          type: "GAME_DONATION" as const,
+          pointsDelta: pointsForAmount(amount),
+          amount,
+          ts: t.resolution?.resolvedAt ?? t.createdAt,
+          escrowTaskId: t.escrowTaskId,
+          message: t.text
+            ? {
+                id: `escrow-msg:${t.id}`,
+                donationId: t.id,
+                channelId: t.channelId,
+                text: pub ? t.text : "",
+                state: pub ? "SHOWN" : (t.textState ?? "HELD"),
+                contentHash: t.escrowTaskId ?? "",
+                createdAt: t.createdAt,
+              }
+            : undefined,
+        };
+      });
+    const pointEvents: DonorPointEvent[] = [...donationEvents, ...escrowEvents].sort((a, b) =>
+      a.ts < b.ts ? 1 : -1,
+    );
 
     const totalDonated = standings.reduce((sum, x) => sum + x.totalDonated, 0n);
     const firstDonationAt = donations.reduce<string | undefined>(
@@ -1475,6 +1510,13 @@ export class MockDataProvider implements DataProvider {
         channelId: req.channelId,
         channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
         channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
+        // H1: payout подтверждён подписью владельца? (мост эскроу-fund в цепочку — та же проверка, что ingest
+        // делает для обычного доната). Предвычисляем здесь, где есть канал; хендлер игры остаётся без крипты.
+        channelPayoutAttested: ((c) =>
+          !!c?.payoutAttestation &&
+          verifyPayoutAttestation(c.ownerAddress, c.payoutAddress, c.payoutAttestation))(
+          this.channelsById.get(req.channelId),
+        ),
         isChannelManager: this.isChannelManager(req.channelId),
         // Рычаги канала для create (спека §10): задание = донат с текстом → бóльший из двух минимумов.
         minTaskAmountMicro: (cfg.minDonationWithText > cfg.minDonation

@@ -33,7 +33,7 @@ export function ChainBalance() {
   return (
     <span
       className="hidden items-center gap-1 rounded border border-border bg-[var(--bg)] px-2.5 py-1.5 text-small sm:inline-flex"
-      title="Баланс USDC (devnet)"
+      title="USDC balance (devnet)"
     >
       <span className="mono text-fg">{isLoading || data == null ? "…" : data.toFixed(2)}</span>
       <span className="text-fg-faint">USDC</span>

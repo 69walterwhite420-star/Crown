@@ -1,0 +1,333 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { ChannelSettingsEditor } from "@/components/domain/channel-settings-editor";
+import { ChannelStatusBanner } from "@/components/domain/channel-status";
+import { CreateChannelForm } from "@/components/domain/create-channel-form";
+import { ModerationQueue } from "@/components/domain/moderation-queue";
+import { PersonalDashboard } from "@/components/domain/personal-dashboard";
+import { ProfileForm } from "@/components/domain/profile-form";
+import { RealmBlocklist } from "@/components/domain/realm-blocklist";
+import { RealmDashboard } from "@/components/domain/realm-dashboard";
+import { RealmGamesSettings } from "@/components/domain/realm-games-settings";
+import { CrownLogo } from "@/components/crown-logo";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
+import { CrownWallet } from "@/components/layout/crown-wallet";
+import { RailToggle, useRailCollapsed } from "@/components/layout/rail-toggle";
+import { Button } from "@/components/ui/button";
+import { EmptyState, Skeleton } from "@/components/ui/feedback";
+import { CheckIcon, CopyIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { toast } from "@/components/ui/toast";
+import { useCopied } from "@/components/ui/use-copied";
+import { explorerAddressUrl, IS_CHAIN } from "@/lib/chain/addresses";
+import { demoAddress } from "@/lib/data/dev-identity";
+import { useDevControls, useMyChannel, useSession } from "@/lib/data/hooks";
+import { cn } from "@/lib/utils";
+
+type SectionKey =
+  | "holdings-dashboard"
+  | "realm-create"
+  | "realm-dashboard"
+  | "realm-queue"
+  | "realm-games"
+  | "realm-customization"
+  | "realm-blocklist"
+  | "settings";
+
+// Пункты «My Realm» зависят от того, есть ли у пользователя свой realm. Сюда переехала вся Студия.
+const REALM_OWNED: { key: SectionKey; label: string }[] = [
+  { key: "realm-dashboard", label: "Dashboard" },
+  { key: "realm-queue", label: "Moderation queue" },
+  { key: "realm-games", label: "Mini-games" },
+  { key: "realm-customization", label: "Customization" },
+  { key: "realm-blocklist", label: "Blocklist" },
+];
+const REALM_NONE: { key: SectionKey; label: string }[] = [{ key: "realm-create", label: "Create realm" }];
+
+// Deep-link алиасы (в т.ч. старые значения ?tab).
+const TAB_ALIAS: Record<string, SectionKey> = {
+  holdings: "holdings-dashboard",
+  "holdings-dashboard": "holdings-dashboard",
+  dashboard: "holdings-dashboard",
+  create: "realm-create",
+  "realm-create": "realm-create",
+  realm: "realm-dashboard",
+  "realm-dashboard": "realm-dashboard",
+  customization: "realm-customization",
+  "realm-customization": "realm-customization",
+  queue: "realm-queue",
+  "realm-queue": "realm-queue",
+  games: "realm-games",
+  "realm-games": "realm-games",
+  blocklist: "realm-blocklist",
+  "realm-blocklist": "realm-blocklist",
+  settings: "settings",
+};
+
+/**
+ * `/space` — личное пространство: My Holdings (сторона патрона), My Realm (сторона владельца) + Settings.
+ * Пока своего realm нет — в My Realm только «Create realm»; после создания появляются Dashboard и
+ * Customization (реактивно через useMyChannel). Вход — «Personal Space» в шапке.
+ */
+export default function SpacePage() {
+  const session = useSession();
+  const dev = useDevControls();
+  const address = session.data?.address ?? null;
+  const myChannelQ = useMyChannel();
+  const hasRealm = !!myChannelQ.data;
+  const realmKnown = !myChannelQ.isLoading;
+  const [section, setSection] = useState<SectionKey>("holdings-dashboard");
+  const { collapsed, toggle } = useRailCollapsed("space-rail");
+
+  // Dev-only: `?as=<label>` логинит засеянную личность (только mock; инертно в api/chain).
+  useEffect(() => {
+    if (address || !dev.available) return;
+    const as = new URLSearchParams(window.location.search).get("as");
+    if (as) dev.setAddress(demoAddress(as));
+  }, [address, dev.available]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link раздела: `?tab=realm-customization` и т.п. (+ алиасы).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && TAB_ALIAS[t]) setSection(TAB_ALIAS[t]);
+  }, []);
+
+  // Держим раздел консистентным с владением realm (после создания/если realm ещё нет).
+  useEffect(() => {
+    if (!address || !realmKnown) return;
+    if (hasRealm && section === "realm-create") setSection("realm-dashboard");
+    else if (!hasRealm && section.startsWith("realm-") && section !== "realm-create")
+      setSection("realm-create");
+  }, [address, realmKnown, hasRealm, section]);
+
+  if (session.isLoading) {
+    return (
+      <div className="mx-auto max-w-content px-4 pt-16">
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+  if (!address) {
+    return (
+      <div className="mx-auto max-w-content px-4 pt-16">
+        <EmptyState
+          title="Wallet not connected"
+          description="Connect wallet to enter your personal space."
+          action={<ConnectWalletButton />}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[100dvh] flex-col md:flex-row">
+      {/* Сайдбар во всю высоту с логотипом сверху и вертикальной границей (как в админке). */}
+      <SpaceSidebar
+        active={section}
+        onSelect={setSection}
+        hasRealm={hasRealm}
+        realmLoading={!realmKnown}
+        collapsed={collapsed}
+      />
+      <RailToggle collapsed={collapsed} onToggle={toggle} width="15rem" />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Тонкая верхняя полоса: контрол кошелька справа. */}
+        <div className="sticky top-0 z-20 flex h-[var(--header-h)] flex-none items-center justify-end gap-2 border-b border-border bg-[var(--bg)] px-4 lg:px-6">
+          {IS_CHAIN ? <ConnectWalletButton /> : <CrownWallet />}
+        </div>
+        <main className="min-w-0 flex-1 px-4 pb-8 pt-6 lg:px-6">
+          {/* Контекстный баннер realm (активация / приостановка) — во всех вкладках My Realm, кроме создания. */}
+          {section.startsWith("realm-") && section !== "realm-create" ? (
+            <div className="mb-5">
+              <ChannelStatusBanner />
+            </div>
+          ) : null}
+          {section === "holdings-dashboard" ? <PersonalDashboard address={address} /> : null}
+          {section === "realm-create" ? <CreateChannelForm /> : null}
+          {section === "realm-dashboard" ? <RealmDashboard /> : null}
+          {section === "realm-queue" ? <ModerationQueue /> : null}
+          {section === "realm-games" ? <RealmGamesSettings /> : null}
+          {section === "realm-customization" ? <ChannelSettingsEditor title="Customization" /> : null}
+          {section === "realm-blocklist" ? <RealmBlocklist /> : null}
+          {section === "settings" ? <SettingsSection address={address} /> : null}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function SpaceSidebar({
+  active,
+  onSelect,
+  hasRealm,
+  realmLoading,
+  collapsed,
+}: {
+  active: SectionKey;
+  onSelect: (k: SectionKey) => void;
+  hasRealm: boolean;
+  realmLoading: boolean;
+  collapsed: boolean;
+}) {
+  const realmItems = hasRealm ? REALM_OWNED : REALM_NONE;
+
+  const item = (it: { key: SectionKey; label: string }, nested: boolean) => {
+    const isCreate = it.key === "realm-create";
+    return (
+      <button
+        key={it.key}
+        type="button"
+        onClick={() => onSelect(it.key)}
+        aria-current={active === it.key ? "page" : undefined}
+        className={cn(
+          "flex w-full items-center rounded px-3 py-2 text-left text-small transition-colors duration-fast ease-ease",
+          nested && "md:pl-5",
+          active === it.key
+            ? "bg-surface-raised text-fg"
+            : isCreate
+              ? "font-medium text-money hover:bg-money-bg"
+              : "text-fg-muted hover:bg-surface-raised hover:text-fg",
+        )}
+      >
+        {isCreate ? <span className="mr-1.5">+</span> : null}
+        {it.label}
+      </button>
+    );
+  };
+
+  return (
+    <aside
+      className={cn(
+        "flex w-full flex-col border-b border-border bg-[var(--bg)] transition-[width] duration-slow ease-ease md:sticky md:top-0 md:h-[100dvh] md:flex-none md:overflow-hidden md:border-b-0 md:border-r",
+        collapsed ? "md:w-14" : "md:w-60",
+      )}
+    >
+      {/* Логотип сверху — остаётся видимым и при сворачивании (в свёрнутом — только знак). */}
+      <Link
+        href="/"
+        aria-label="CROWN — home"
+        className={cn(
+          "flex h-[var(--header-h)] flex-none items-center gap-2.5 px-4",
+          collapsed && "md:justify-center md:px-0",
+        )}
+      >
+        <CrownLogo size={26} className="text-[#c9a24a]" />
+        <span
+          className={cn(
+            "font-display text-lg font-semibold tracking-[0.2em] text-fg",
+            collapsed && "md:hidden",
+          )}
+        >
+          CROWN
+        </span>
+      </Link>
+      <nav
+        className={cn(
+          "flex flex-col gap-0.5 overflow-y-auto px-2 pb-3 [scrollbar-width:none] md:pt-1 [&::-webkit-scrollbar]:hidden",
+          collapsed && "md:hidden",
+        )}
+      >
+        {/* My Holdings */}
+        <div className="mb-2 flex flex-col gap-0.5">
+          <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">
+            My Holdings
+          </div>
+          {item({ key: "holdings-dashboard", label: "Dashboard" }, true)}
+        </div>
+
+        {/* My Realm — Create realm пока realm нет; после создания Dashboard + Customization */}
+        <div className="mb-2 flex flex-col gap-0.5">
+          <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">
+            My Realm
+          </div>
+          {realmLoading ? (
+            <div className="px-3 py-2 text-small text-fg-faint">…</div>
+          ) : (
+            realmItems.map((it) => item(it, true))
+          )}
+        </div>
+
+        <div className="my-1 border-t border-border" aria-hidden />
+        {item({ key: "settings", label: "Settings" }, false)}
+      </nav>
+    </aside>
+  );
+}
+
+function SettingsSection({ address }: { address: string }) {
+  return (
+    <div className="flex flex-col gap-8 pb-10">
+      <h1 className="text-display-l text-fg">Settings</h1>
+
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1 border-b border-border pb-3">
+          <h2 className="text-h2 text-fg">Profile</h2>
+          <p className="text-small text-fg-faint">
+            Public identity: your name, avatar and links are visible in the feed and leaderboard.
+          </p>
+        </div>
+        <ProfileForm />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-h2 text-fg">Account</h2>
+        </div>
+        <AccountBlock address={address} />
+      </section>
+    </div>
+  );
+}
+
+function AccountBlock({ address }: { address: string }) {
+  const dev = useDevControls();
+  const [copied, mark] = useCopied();
+  const btn =
+    "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-caption uppercase tracking-wide text-fg-faint">Wallet</span>
+          <span className="mono break-all text-fg">{address}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className={btn}
+            title="Copy address"
+            aria-label="Copy address"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(address);
+                mark();
+                toast({ variant: "success", title: "Address copied" });
+              } catch {
+                toast({ variant: "error", title: "Couldn't copy" });
+              }
+            }}
+          >
+            {copied ? <CheckIcon className="h-[18px] w-[18px]" /> : <CopyIcon className="h-[18px] w-[18px]" />}
+          </button>
+          <a
+            className={btn}
+            href={explorerAddressUrl(address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Address in Solana Explorer"
+            aria-label="Open in explorer"
+          >
+            <ExternalLinkIcon className="h-[18px] w-[18px]" />
+          </a>
+        </div>
+      </div>
+      {dev.available ? (
+        <Button variant="ghost" className="w-fit" onClick={() => dev.setAddress(null)}>
+          Sign out
+        </Button>
+      ) : null}
+    </div>
+  );
+}

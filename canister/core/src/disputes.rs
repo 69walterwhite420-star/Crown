@@ -358,8 +358,16 @@ pub fn apply_resolution(
 }
 
 /// Эффекты на репутацию (порт `repEffects`, ADR 0015): деньги дошли стримеру → DONATION донору;
-/// проигранный спор → −50 инициатору; подтверждённый → +10. Возврат донору репутации не даёт.
-pub fn rep_effects(task: &Task, outcome: TaskOutcome, reason: ResolutionReason) -> Vec<RepEffect> {
+/// проигранный спор → −loss_penalty инициатору; подтверждённый → +win_bonus. Возврат донору не даёт.
+/// Величины наград — параметры (раньше константы `DISPUTE_*_MICRO`): арбитр передаёт действующие для
+/// канала governance-значения; golden-паритет зовёт с дефолтными константами (10/50).
+pub fn rep_effects(
+    task: &Task,
+    outcome: TaskOutcome,
+    reason: ResolutionReason,
+    win_bonus_micro: i128,
+    loss_penalty_micro: i128,
+) -> Vec<RepEffect> {
     let mut out = Vec::new();
     if outcome == TaskOutcome::ToStreamer {
         out.push(RepEffect {
@@ -375,7 +383,7 @@ pub fn rep_effects(task: &Task, outcome: TaskOutcome, reason: ResolutionReason) 
             out.push(RepEffect {
                 address: d.by.clone(),
                 kind: "DISPUTE_LOST",
-                points_delta_micro: -DISPUTE_LOSS_PENALTY_MICRO,
+                points_delta_micro: -loss_penalty_micro,
                 amount_micro: None,
             });
         }
@@ -383,7 +391,7 @@ pub fn rep_effects(task: &Task, outcome: TaskOutcome, reason: ResolutionReason) 
             out.push(RepEffect {
                 address: d.by.clone(),
                 kind: "DISPUTE_WON",
-                points_delta_micro: DISPUTE_WIN_BONUS_MICRO,
+                points_delta_micro: win_bonus_micro,
                 amount_micro: None,
             });
         }

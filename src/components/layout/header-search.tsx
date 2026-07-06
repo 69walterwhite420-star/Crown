@@ -17,8 +17,7 @@ export function HeaderSearch() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    // Каталог живёт на /discovery (ADR 0018), параметр ?q читает только он — не главная.
-    router.push(q.trim() ? `/discovery?q=${encodeURIComponent(q.trim())}` : "/discovery");
+    router.push(q.trim() ? `/?q=${encodeURIComponent(q.trim())}` : "/");
     setOpen(false);
   }
 
@@ -45,8 +44,8 @@ export function HeaderSearch() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск каналов…"
-          aria-label="Поиск каналов"
+          placeholder="Search realms…"
+          aria-label="Search realms"
           className={`${inputCls} w-56`}
         />
       </form>
@@ -54,7 +53,7 @@ export function HeaderSearch() {
       {/* Мобила: иконка-лупа; по тапу — развёрнутое поле поверх шапки. */}
       <button
         type="button"
-        aria-label="Поиск каналов"
+        aria-label="Search realms"
         onClick={() => setOpen(true)}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-fg-muted transition-colors hover:border-border-strong hover:text-fg md:hidden"
       >
@@ -72,8 +71,8 @@ export function HeaderSearch() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск каналов…"
-              aria-label="Поиск каналов"
+              placeholder="Search realms…"
+              aria-label="Search realms"
               className={inputCls}
             />
           </div>
@@ -82,7 +81,7 @@ export function HeaderSearch() {
             onClick={() => setOpen(false)}
             className="text-small shrink-0 px-1 text-fg-muted transition-colors hover:text-fg"
           >
-            Отмена
+            Cancel
           </button>
         </form>
       ) : null}

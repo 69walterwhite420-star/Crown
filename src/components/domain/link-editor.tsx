@@ -73,7 +73,7 @@ export function LinkEditor({
                 <Select
                   className="w-full"
                   value={row.platform}
-                  aria-label="Платформа"
+                  aria-label="Platform"
                   onChange={(e) => setRow(i, { platform: e.target.value as ChannelLinkPlatform })}
                 >
                   {CHANNEL_PLATFORMS.map((p) => (
@@ -88,7 +88,7 @@ export function LinkEditor({
                   mono
                   placeholder={def?.example}
                   value={row.url}
-                  aria-label={`Ссылка ${def?.label ?? ""}`}
+                  aria-label={`${def?.label ?? ""} link`}
                   aria-invalid={invalid || undefined}
                   onChange={(e) => setRow(i, { url: e.target.value })}
                 />
@@ -96,8 +96,8 @@ export function LinkEditor({
               <button
                 type="button"
                 onClick={() => removeRow(i)}
-                title="Удалить ссылку"
-                aria-label="Удалить ссылку"
+                title="Remove link"
+                aria-label="Remove link"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
               >
                 <XIcon className="h-4 w-4" />
@@ -105,7 +105,7 @@ export function LinkEditor({
             </div>
             {invalid ? (
               <span className="pl-7 text-small text-danger">
-                Нужна ссылка на профиль/канал в {def?.label} (напр. {def?.example}).
+                A link to your {def?.label} profile/channel is required (e.g. {def?.example}).
               </span>
             ) : null}
           </div>
@@ -114,7 +114,7 @@ export function LinkEditor({
 
       <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="secondary" size="sm" onClick={addRow} disabled={atMax}>
-          + Добавить ссылку
+          + Add link
         </Button>
         <span className="mono text-small text-fg-faint">
           {value.length}/{MAX_CHANNEL_LINKS}
@@ -122,8 +122,8 @@ export function LinkEditor({
       </div>
 
       <p className="text-small text-fg-faint">
-        Можно без https://. Принимается только ссылка на профиль/канал (не youtube.com/watch). Несколько
-        ссылок на одно приложение — можно.
+        The https:// is optional. Only a profile/channel link is accepted (not youtube.com/watch). Multiple
+        links to the same app are allowed.
       </p>
     </div>
   );

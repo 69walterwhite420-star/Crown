@@ -18,10 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { IS_CHAIN } from "@/lib/chain/addresses";
 import { useDonate, useMyBlock } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { cn, formatPoints, plural, toMicro } from "@/lib/utils";
+import { cn, formatPoints, toMicro } from "@/lib/utils";
 import type {
   Channel,
   ChannelConfig,
@@ -97,24 +96,15 @@ export function DonateWidget({
   // Хватает ли USDC на кошельке (только chain — где balance известен). amountNum и balance оба в USDC.
   const balance = session.address ? balanceQ.data : undefined;
   const insufficient = balance != null && amountValid && amountNum > balance;
-  // Канальный блок бьёт только по тексту: донат без текста разрешён, с текстом — сервер откажет
-  // (BLOCKED), поэтому и кнопку честно гасим (плашка выше объясняет причину).
-  const blockedWithText = withText && Boolean(myBlock);
   const canDonate =
-    connected &&
-    amountValid &&
-    meetsMin &&
-    textOk &&
-    !(withText && isBasic) &&
-    !blockedWithText &&
-    !insufficient;
+    connected && amountValid && meetsMin && textOk && !(withText && isBasic) && !insufficient;
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
   const amountError = overMax
-    ? `Максимум ${formatPoints(MAX_DONATION_USDC)} USDC за раз`
+    ? `Max ${formatPoints(MAX_DONATION_USDC)} USDC per crown`
     : amountPositive && !meetsMin
-      ? "Ниже минимума канала"
+      ? "Below realm minimum"
       : insufficient
-        ? "Недостаточно USDC на кошельке"
+        ? "Not enough USDC in wallet"
         : undefined;
 
   // Прогноз начисления за введённую сумму (та же формула, что и при реальном начислении) — для предпросмотра.
@@ -139,24 +129,10 @@ export function DonateWidget({
         onError: (e) =>
           toast({
             variant: "error",
-            title: "Донат не прошёл",
+            title: "Crown failed",
             description: e instanceof Error ? e.message : String(e),
           }),
       },
-    );
-  }
-
-  // H1: канал без подписи payout — в chain-режиме провайдер откажется собирать tx (PAYOUT_UNATTESTED),
-  // поэтому вместо формы честный disabled-state с объяснением (никаких заглушек-обманок, CLAUDE.md §7).
-  if (IS_CHAIN && !channel.payoutAttestation) {
-    return (
-      <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
-        <h3 className="text-h3 text-fg">Задонатить</h3>
-        <p className="text-small text-fg-muted">
-          Донаты приостановлены: канал ещё не подтвердил адрес выплат подписью кошелька владельца
-          (защита от подмены адреса). Стример включает донаты одной подписью в настройках студии.
-        </p>
-      </div>
     );
   }
 
@@ -164,9 +140,9 @@ export function DonateWidget({
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
       {!connected ? (
         <>
-          <h3 className="text-h3 text-fg">Задонатить</h3>
+          <h3 className="text-h3 text-fg">Crown</h3>
           <p className="text-small text-fg-muted">
-            Подключи кошелёк, чтобы поддержать канал и набирать standing.
+            Connect your wallet to crown this realm and build your Reign.
           </p>
           <ConnectWalletButton />
         </>
@@ -177,16 +153,16 @@ export function DonateWidget({
         <div className="flex items-start gap-2 rounded-lg border border-danger bg-danger-bg p-3">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-small font-medium text-danger">
-              Ты заблокирован на этом канале
+              You&apos;re blocked on this realm
             </span>
             <span className="text-small text-fg-muted">
-              Донаты с сообщением сюда не проходят
-              {myBlock.reason ? <> · причина: {myBlock.reason}</> : null}. Задонатить без текста можно.
+              Crowns with a message won&apos;t go through
+              {myBlock.reason ? <> · reason: {myBlock.reason}</> : null}. You can still crown without text.
             </span>
           </div>
           <button
             type="button"
-            aria-label="Скрыть"
+            aria-label="Dismiss"
             onClick={() => setBlockDismissed(true)}
             className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
           >
@@ -195,16 +171,16 @@ export function DonateWidget({
         </div>
       ) : null}
 
-      {/* Моё standing + живой предпросмотр: ввёл сумму → число катится к прогнозу, полоска тянется. */}
+      {/* Моё Reign + живой предпросмотр: ввёл сумму → число катится к прогнозу, полоска тянется. */}
       <StandingHeadline standing={standing} tiers={config.tiers} gain={gain} loading={standingLoading} />
 
       <div className="border-t border-border" />
 
-      <h3 className="text-h3 text-fg">Задонатить</h3>
+      <h3 className="text-h3 text-fg">Crown</h3>
 
       <div className="flex flex-col gap-2">
         <Input
-          label="Сумма, USDC"
+          label="Amount, USDC"
           mono
           inputMode="decimal"
           placeholder="0.00"
@@ -230,7 +206,7 @@ export function DonateWidget({
 
       {isBasic ? (
         <p className="rounded border border-border bg-surface-raised p-3 text-small text-fg-muted">
-          Канал не активирован — донат с сообщением пока недоступен. Задонатить можно, но без текста.
+          This realm isn&apos;t activated — crowning with a message isn&apos;t available yet. You can still crown without text.
         </p>
       ) : (
         <>
@@ -240,21 +216,21 @@ export function DonateWidget({
               checked={withText}
               onChange={(e) => setWithText(e.target.checked)}
             />
-            Добавить сообщение
+            Add a message
           </label>
 
           {withText ? (
             <Textarea
-              label="Сообщение"
-              placeholder="Текст к донату…"
+              label="Message"
+              placeholder="Message to attach…"
               maxLength={config.messageMaxLen}
               showCount
               value={text}
               onChange={(e) => setText(e.target.value)}
               helper={
                 softWarn
-                  ? "В тексте есть слово, которое может попасть под фильтр стримера (не блокирует)."
-                  : "Текст приватен до показа — стример решит, публиковать ли его."
+                  ? "This contains a word the streamer's filter may flag (doesn't block)."
+                  : "Text stays private until shown — the streamer decides whether to publish it."
               }
               className={cn("bg-[var(--bg)]", softWarn && "border-warn")}
             />
@@ -270,7 +246,7 @@ export function DonateWidget({
         onClick={openFlow}
         className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
       >
-        Задонатить
+        Crown
       </Button>
 
       <Dialog
@@ -292,24 +268,24 @@ export function DonateWidget({
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Подтверждение</DialogTitle>
-                <DialogDescription>Донат необратим. Возврата нет.</DialogDescription>
+                <DialogTitle>Confirm</DialogTitle>
+                <DialogDescription>Crowns are final. No refunds.</DialogDescription>
               </DialogHeader>
               <FeeSplit amount={micro} />
               {donate.isPending ? (
                 <p className="text-small text-fg-muted">
-                  Подпиши в кошельке и подожди финализации в сети (~15–30с) — «Готово» появится, когда донат
-                  станет необратимым.
+                  Sign in your wallet and wait for on-chain finality (~15–30s) — “Done” appears once the crown
+                  becomes irreversible.
                 </p>
               ) : null}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="ghost" disabled={donate.isPending}>
-                    Отмена
+                    Cancel
                   </Button>
                 </DialogClose>
                 <Button variant="money" loading={donate.isPending} onClick={confirm}>
-                  {donate.isPending ? "Финализируем…" : "Подтвердить и подписать"}
+                  {donate.isPending ? "Finalizing…" : "Confirm & sign"}
                 </Button>
               </DialogFooter>
             </>
@@ -327,14 +303,14 @@ export function FinalityMoment({ result }: { result: DonationResult }) {
   return (
     <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-5 text-center">
       <div className="flex w-full items-center justify-between text-small">
-        <span className="text-fg-muted">Стримеру</span>
+        <span className="text-fg-muted">To streamer</span>
         <Amount micro={result.donation.netToStreamer} variant="money" />
       </div>
       <div className="flex w-full items-center justify-between text-small">
-        <span className="text-fg-muted">Платформе</span>
+        <span className="text-fg-muted">To platform</span>
         <Amount micro={result.donation.feeAmount} variant="money" />
       </div>
-      <p className="text-h3 text-money">Готово. Деньги ушли стримеру.</p>
+      <p className="text-h3 text-money">Done. Funds sent to the streamer.</p>
     </div>
   );
 }
@@ -351,8 +327,8 @@ function DoneView({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Донат прошёл</DialogTitle>
-        <DialogDescription>Деньги финальны. Репутация уже зачтена.</DialogDescription>
+        <DialogTitle>Crown sent</DialogTitle>
+        <DialogDescription>Funds are final. Your Reign is already counted.</DialogDescription>
       </DialogHeader>
       <div className="flex flex-col gap-3">
         <FinalityMoment result={result} />
@@ -361,24 +337,23 @@ function DoneView({
             className="animate-stamp flex items-center justify-center gap-2 rounded-lg border-2 p-3"
             style={{ borderColor: result.standing.tier.color }}
           >
-            <span className="text-small text-fg-muted">Новый тир!</span>
+            <span className="text-small text-fg-muted">New tier!</span>
             <TierBadge tier={result.standing.tier} />
           </div>
         ) : null}
         <p className="text-small text-fg-muted">
-          Твой standing уже зачтён:{" "}
-          <span className="mono text-status">{result.standing.points}</span>{" "}
-          {plural(result.standing.points, ["очко", "очка", "очков"])}.
+          Your Reign is counted:{" "}
+          <span className="mono text-status">{result.standing.points}</span> Reign.
         </p>
         {hadText ? (
           <p className="rounded border border-border bg-surface p-3 text-small text-fg-muted">
-            Сообщение на модерации у стримера (HELD). Деньги и standing уже зачтены — публикация текста
-            от них не зависит.
+            Your message is with the streamer for review (HELD). Funds and Reign are already counted —
+            publishing the text doesn&apos;t affect them.
           </p>
         ) : null}
       </div>
       <DialogFooter>
-        <Button onClick={onClose}>Готово</Button>
+        <Button onClick={onClose}>Done</Button>
       </DialogFooter>
     </>
   );

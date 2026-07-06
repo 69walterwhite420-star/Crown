@@ -10,9 +10,14 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useMyChannel, useSession } from "@/lib/data/hooks";
 import { formatUSDCNumber as usd, fromMicro, plural } from "@/lib/utils";
 
-const DONORS = ["донатёр", "донатёра", "донатёров"] as const;
+const DONORS = ["supporter", "supporters", "supporters"] as const;
 
-export default function StudioDashboardPage() {
+/**
+ * Обзор СВОЕГО realm (сторона владельца): аналитика (оборот, донатёры) + история донатов с модерацией.
+ * Нет своего realm → форма создания. Самодостаточен (useMyChannel). Используется в Студии и в личном
+ * пространстве (My Realm → Dashboard).
+ */
+export function RealmDashboard() {
   const sessionQ = useSession();
   const myChannelQ = useMyChannel();
   const channel = myChannelQ.data;
@@ -40,19 +45,19 @@ export default function StudioDashboardPage() {
     return <Skeleton className="h-64 w-full rounded-lg" />;
   }
   if (myChannelQ.error) {
-    return <ErrorState description="Не удалось загрузить канал." onRetry={() => myChannelQ.refetch()} />;
+    return <ErrorState description="Couldn't load realm." onRetry={() => myChannelQ.refetch()} />;
   }
   if (!sessionQ.data?.address) {
     return (
       <EmptyState
-        title="Подключи кошелёк"
-        description="Студия доступна после подключения кошелька."
+        title="Connect wallet"
+        description="Your realm is available once your wallet is connected."
         action={<ConnectWalletButton />}
       />
     );
   }
   if (!channel) {
-    // Канала нет → форма создания прямо здесь (отдельной страницы /studio/create больше нет).
+    // Своего realm нет → форма создания прямо здесь.
     return <CreateChannelForm />;
   }
 
@@ -66,25 +71,25 @@ export default function StudioDashboardPage() {
         <span className="mono text-caption text-fg-faint">{channel.status}</span>
       </div>
 
-      {/* Аналитика: графики в стиле профиля (кумулятивная area-диаграмма с наведением). */}
+      {/* Аналитика: кумулятивные area-диаграммы (как в профиле). */}
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-h2 text-fg">Аналитика</h2>
+        <h2 className="text-h2 text-fg">Analytics</h2>
         <RangeTabs range={range} onChange={setRange} />
       </div>
       <div className="grid items-start gap-3 lg:grid-cols-2">
         <ChartCard
-          title="Оборот"
+          title="Turnover"
           headline={<Amount micro={turnover} variant="money" className="text-display-l" />}
         >
           <CumulativeAreaChart
             events={turnoverEvents}
             range={range}
             formatValue={usd}
-            emptyHint="Оборот появится после первого доната."
+            emptyHint="Turnover appears after the first crown."
           />
         </ChartCard>
         <ChartCard
-          title="Донатёры"
+          title="Supporters"
           headline={
             <span className="font-display text-display-l text-fg">
               {donorsCount} <span className="text-h3 text-fg-muted">{plural(donorsCount, DONORS)}</span>
@@ -96,7 +101,7 @@ export default function StudioDashboardPage() {
             range={range}
             color="var(--info)"
             formatValue={(v) => `${Math.round(v)} ${plural(Math.round(v), DONORS)}`}
-            emptyHint="Донатёры появятся после первого доната."
+            emptyHint="Supporters appear after the first crown."
           />
         </ChartCard>
       </div>

@@ -2,18 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { DonationCard } from "./donation-card";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ExpandingSearch } from "@/components/ui/expanding-search";
+import { Pager, usePager } from "@/components/ui/pager";
 import { TaskFeedRow } from "@/games/escrow-task/EscrowTaskPanel";
 import type { EscrowTask } from "@/games/escrow-task/types";
-import { useSession } from "@/lib/data/hooks";
-import type { Donation } from "@/lib/data/types";
+import { useLeaderboard, useSession } from "@/lib/data/hooks";
+import type { Donation, Tier } from "@/lib/data/types";
 import { fromMicro } from "@/lib/utils";
-
-const PAGE_SIZES = [10, 25, 50, 100];
 
 type FeedItem =
   | { kind: "donation"; key: string; ts: number; hay: string; d: Donation }
@@ -30,27 +26,36 @@ const taskHay = (t: EscrowTask): string =>
     .toLowerCase();
 
 /**
- * Единая лента канала (заменяет разделённые «Лента»/«Донаты»): обычные донаты + донаты-с-заданиями (игры) в
- * ОДНОМ таймлайне по времени — ник, сумма, текст, результат. Задания показываются read-only (метка «Задание» +
- * статус/исход); управление ими — во вкладке «Игры». Поиск (ник/хеш/текст/сумма) + пагинация, как в истории.
+ * Единая лента двора: обычные донаты + донаты-с-заданиями (игры) в ОДНОМ таймлайне по времени. Каждый ряд —
+ * аватар донора, ник + локальный тир, сумма, текст (если показан), время. Поиск — растущая лупа; пагинация
+ * появляется только когда донатов много (Pager сам прячется). Тир донора берём из лидерборда (дедуп-запрос).
  */
 export function ChannelFeed({
   donations,
   tasks,
   handle,
+  channelId,
   reportable = false,
   manageChannelId,
 }: {
   donations: Donation[];
   tasks: EscrowTask[];
   handle: string; // для ссылки на детали спора задания (/c/<handle>/dispute/<taskId>)
-  reportable?: boolean; // «Пожаловаться» на показанных сообщениях (бывшая «Лента»)
+  channelId?: string; // для тир-бейджей донаторов (лидерборд); опц. — без него просто без бейджей
+  reportable?: boolean; // «Пожаловаться» на показанных сообщениях
   manageChannelId?: string; // задан → «Забанить» донора (владелец/модератор)
 }) {
   const viewer = useSession().data?.address ?? null; // для «Пожаловаться» на заданиях
   const [query, setQuery] = useState("");
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(0);
+
+  // Локальный тир донора (для бейджа в ленте) — из лидерборда канала. Тот же ключ, что и полная страница
+  // донатёров/Realm roll → React Query дедупит запрос.
+  const board = useLeaderboard(channelId, "all_time").data;
+  const tierByDonor = useMemo(() => {
+    const m = new Map<string, Tier>();
+    for (const e of board ?? []) if (e.tier) m.set(e.donor, e.tier);
+    return m;
+  }, [board]);
 
   const items = useMemo<FeedItem[]>(() => {
     const ds = donations.map<FeedItem>((d) => ({
@@ -74,60 +79,43 @@ export function ChannelFeed({
 
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => (q ? items.filter((it) => it.hay.includes(q)) : items), [items, q]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1); // фильтр мог укоротить список → не зависаем на пустой стр.
-  const start = safePage * pageSize;
-  const pageItems = filtered.slice(start, start + pageSize);
+  const pager = usePager(filtered, 25);
 
   return (
-    <div className="flex flex-col gap-3">
-      <span className="text-caption uppercase tracking-wide text-fg-faint">Донаты · {items.length}</span>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <Input
-            label="Поиск"
-            icon={<SearchIcon className="h-4 w-4" />}
-            placeholder="ник, хеш транзакции, текст, сумма…"
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-caption uppercase tracking-wide text-fg-faint">
+          Crowns · {items.length}
+        </span>
+        {items.length > 0 ? (
+          <ExpandingSearch
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(0);
+            onChange={(v) => {
+              setQuery(v);
+              pager.setPage(0);
             }}
+            placeholder="name, hash, text, amount…"
+            label="Search feed"
           />
-        </div>
-        <Select
-          label="На странице"
-          value={String(pageSize)}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(0);
-          }}
-          className="sm:w-28"
-        >
-          {PAGE_SIZES.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </Select>
+        ) : null}
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="Ничего не найдено"
-          description={query ? "Измени запрос поиска." : "Пока нет донатов."}
+          title="Nothing found"
+          description={query ? "Try a different search." : "No crowns yet."}
         />
       ) : (
         <>
           <div className="flex flex-col [&>:last-child]:border-b-0">
-            {pageItems.map((it) =>
+            {pager.pageItems.map((it) =>
               it.kind === "donation" ? (
                 <DonationCard
                   key={it.key}
                   donation={it.d}
+                  tier={tierByDonor.get(it.d.donor)}
                   variant="row"
+                  avatar
                   reportable={reportable}
                   manageChannelId={manageChannelId}
                 />
@@ -142,32 +130,7 @@ export function ChannelFeed({
               ),
             )}
           </div>
-          <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
-            <span>Всего: {filtered.length}</span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={safePage <= 0}
-                onClick={() => setPage(safePage - 1)}
-              >
-                <ChevronLeftIcon className="h-4 w-4" />
-                Назад
-              </Button>
-              <span className="mono">
-                {safePage + 1} / {pageCount}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(safePage + 1)}
-              >
-                Вперёд
-                <ChevronRightIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <Pager {...pager} />
         </>
       )}
     </div>

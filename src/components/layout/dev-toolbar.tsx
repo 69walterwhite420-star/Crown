@@ -13,31 +13,31 @@ export function DevToolbar() {
   const [addr, setAddr] = useState("");
 
   if (!dev.available) {
-    return <p className="text-small text-fg-faint">Dev-контролы доступны только на mock/api.</p>;
+    return <p className="text-small text-fg-faint">Dev controls are only available on mock/api.</p>;
   }
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
       <div className="flex flex-col gap-2">
-        <span className="text-caption">Личность (адрес сессии)</span>
+        <span className="text-caption">Identity (session address)</span>
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <Input
               mono
-              placeholder="вставь любой devnet-адрес для теста"
+              placeholder="paste any devnet address to test"
               value={addr}
               onChange={(e) => setAddr(e.target.value)}
             />
           </div>
           <Button size="sm" onClick={() => dev.setAddress(addr.trim() || null)}>
-            Войти как адрес
+            Sign in as address
           </Button>
           <Button size="sm" variant="ghost" onClick={() => dev.setAddress(null)}>
-            Выйти
+            Sign out
           </Button>
         </div>
         <span className="mono text-small text-fg-muted">
-          текущая сессия: {session.isLoading ? "…" : JSON.stringify(session.data)}
+          current session: {session.isLoading ? "…" : JSON.stringify(session.data)}
         </span>
       </div>
 
@@ -50,16 +50,16 @@ export function DevToolbar() {
           MOCK_FAIL: {dev.failMode ? "on" : "off"}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => dev.reset()}>
-          Сбросить стор
+          Reset store
         </Button>
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-caption">Каналы (listChannels)</span>
+        <span className="text-caption">Realms (listChannels)</span>
         <span className="mono text-small text-fg-muted">
           {discovery.isLoading
             ? "…"
-            : (discovery.data?.items ?? []).map((c) => `@${c.handle}`).join("  ·  ") || "пусто"}
+            : (discovery.data?.items ?? []).map((c) => `@${c.handle}`).join("  ·  ") || "empty"}
         </span>
       </div>
     </div>

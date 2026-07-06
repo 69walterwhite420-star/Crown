@@ -1,0 +1,311 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
+import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
+import {
+  CumulativeAreaChart,
+  DailyBars,
+  RangeTabs,
+  type ChartRange,
+} from "@/components/domain/area-chart";
+import { ErrorState, Skeleton } from "@/components/ui/feedback";
+import { splitAmount } from "@/lib/chain/addresses";
+import { useData } from "@/lib/data/context";
+import { useDiscovery } from "@/lib/data/hooks";
+import type { ChannelLinkPlatform, Donation } from "@/lib/data/types";
+import { cn, fromMicro } from "@/lib/utils";
+
+const DAY = 86_400_000;
+
+function usd(micro: bigint): string {
+  return "$" + Math.round(fromMicro(micro)).toLocaleString("en-US");
+}
+function usdNum(n: number): string {
+  return "$" + Math.round(n).toLocaleString("en-US");
+}
+/** Компактный формат для осей: $1.2M / $34k / $560. */
+function usdShort(micro: bigint): string {
+  const n = fromMicro(micro);
+  if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return "$" + Math.round(n / 1_000) + "k";
+  return "$" + Math.round(n);
+}
+
+/**
+ * Admin → Dashboard. Метрики + графики по всей платформе.
+ * Growth — накопление crowned/patrons по времени (события из донатов всех realms; 0 до первого доната).
+ * Ниже — распределение (бар-чарты) по платформам и размеру realm.
+ */
+export default function AdminDashboardPage() {
+  const provider = useData();
+  const { data, isLoading, error, refetch } = useDiscovery();
+  const realms = useMemo(() => data?.items ?? [], [data]);
+
+  // Донаты по всем realms → события для графиков роста (глобального фида донатов нет — агрегируем).
+  const donationQs = useQueries({
+    queries: realms.map((r) => ({
+      queryKey: ["donations", r.channelId] as const,
+      queryFn: () => provider.listDonations(r.channelId),
+      staleTime: 30_000,
+    })),
+  });
+  const donationsLoading = donationQs.some((q) => q.isLoading);
+
+  const { turnoverEvents, patronEvents } = useMemo(() => {
+    const all: Donation[] = donationQs.flatMap((q) => q.data?.items ?? []);
+    const turnover = all.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) }));
+    // Патроны: первое появление каждого донора (v=1) → накопительный счётчик уникальных.
+    const firstByDonor = new Map<string, number>();
+    for (const d of all) {
+      const t = Date.parse(d.ts);
+      const prev = firstByDonor.get(d.donor);
+      if (prev === undefined || t < prev) firstByDonor.set(d.donor, t);
+    }
+    const patrons = [...firstByDonor.values()].map((t) => ({ t, v: 1 }));
+    // Нулевая точка за день до запуска → линия явно стартует с 0.
+    if (turnover.length > 0) {
+      const minT = Math.min(...turnover.map((e) => e.t));
+      turnover.unshift({ t: minT - DAY, v: 0 });
+    }
+    if (patrons.length > 0) {
+      const minT = Math.min(...patrons.map((e) => e.t));
+      patrons.unshift({ t: minT - DAY, v: 0 });
+    }
+    return { turnoverEvents: turnover, patronEvents: patrons };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [donationQs.map((q) => q.dataUpdatedAt).join(",")]);
+
+  const m = useMemo(() => {
+    const totalCrowned = realms.reduce((s, r) => s + r.totalDonated, 0n);
+    const patrons = realms.reduce((s, r) => s + r.donorsCount, 0);
+    const active = realms.filter((r) => r.activated).length;
+    const fees = splitAmount(totalCrowned).fee;
+    const avg = realms.length ? totalCrowned / BigInt(realms.length) : 0n;
+    const largest = realms.reduce((mx, r) => (r.totalDonated > mx ? r.totalDonated : mx), 0n);
+
+    const byPlatform = CHANNEL_PLATFORMS.map((p) => {
+      const rs = realms.filter((r) => (r.links ?? []).some((l) => l.platform === p.key));
+      return {
+        key: p.key as ChannelLinkPlatform,
+        label: p.label,
+        count: rs.length,
+        crowned: rs.reduce((s, r) => s + r.totalDonated, 0n),
+      };
+    })
+      .filter((x) => x.count > 0)
+      .sort((a, b) => (b.crowned > a.crowned ? 1 : b.crowned < a.crowned ? -1 : 0));
+
+    const BUCKETS: { label: string; test: (n: number) => boolean }[] = [
+      { label: "< $1k", test: (n) => n < 1_000 },
+      { label: "$1k–10k", test: (n) => n >= 1_000 && n < 10_000 },
+      { label: "$10k–100k", test: (n) => n >= 10_000 && n < 100_000 },
+      { label: "$100k+", test: (n) => n >= 100_000 },
+    ];
+    const sizeBuckets = BUCKETS.map((b) => ({
+      label: b.label,
+      count: realms.filter((r) => b.test(fromMicro(r.totalDonated))).length,
+    }));
+
+    return { totalCrowned, patrons, active, fees, avg, largest, byPlatform, sizeBuckets };
+  }, [realms]);
+
+  const [range, setRange] = useState<ChartRange>("ALL");
+  const [view, setView] = useState<"chart" | "bars">("chart");
+
+  if (isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
+  if (error) return <ErrorState description="Couldn't load platform data." onRetry={() => refetch()} />;
+
+  // Один и тот же набор пропсов у обоих (events/range/formatValue/color/emptyHint) → выбираем компонент.
+  const GrowthChart = view === "bars" ? DailyBars : CumulativeAreaChart;
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-h2 text-fg">Dashboard</h1>
+        <p className="text-small text-fg-faint">Platform overview across all realms.</p>
+      </div>
+
+      {/* KPI */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <StatCard label="Realms" value={String(realms.length)} sub={`${m.active} active`} />
+        <StatCard label="Total crowned" value={usd(m.totalCrowned)} tone="money" />
+        <StatCard label="Platform fees" value={usd(m.fees)} sub="3% of volume" tone="money" />
+        <StatCard label="Patrons" value={m.patrons.toLocaleString("en-US")} sub="across realms" />
+        <StatCard label="Avg / realm" value={usd(m.avg)} />
+        <StatCard label="Largest realm" value={usd(m.largest)} />
+      </div>
+
+      {/* Growth over time */}
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-h3 text-fg">Growth</h2>
+            <p className="text-caption text-fg-faint">
+              {view === "bars" ? "Per day · 0 on empty days" : "Cumulative · 0 before launch"}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <RangeTabs range={range} onChange={setRange} />
+          </div>
+        </div>
+        {donationsLoading ? (
+          <Skeleton className="h-40 w-full rounded" />
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <span className="text-caption uppercase tracking-wide text-fg-faint">
+                {view === "bars" ? "Crowned / day" : "Total crowned"}
+              </span>
+              <GrowthChart
+                events={turnoverEvents}
+                range={range}
+                formatValue={usdNum}
+                emptyHint="Crowned appears after the first donation."
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-caption uppercase tracking-wide text-fg-faint">
+                {view === "bars" ? "New patrons / day" : "Patrons"}
+              </span>
+              <GrowthChart
+                events={patronEvents}
+                range={range}
+                color="var(--info)"
+                formatValue={(v) => Math.round(v).toLocaleString("en-US")}
+                emptyHint="Patrons appear after the first donation."
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Distribution (bar charts) */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="Crowned by platform" hint="Where volume concentrates">
+          <BarList
+            rows={m.byPlatform.map((p) => ({
+              key: p.key,
+              label: p.label,
+              value: fromMicro(p.crowned),
+              display: usdShort(p.crowned),
+              iconPath: platformDef(p.key)?.iconPath,
+            }))}
+          />
+        </ChartCard>
+        <ChartCard title="Realms by size" hint="Distribution of realm crowned totals">
+          <BarList
+            rows={m.sizeBuckets.map((b) => ({
+              key: b.label,
+              label: b.label,
+              value: b.count,
+              display: String(b.count),
+            }))}
+          />
+        </ChartCard>
+      </div>
+    </div>
+  );
+}
+
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: "chart" | "bars";
+  onChange: (v: "chart" | "bars") => void;
+}) {
+  const opts: { k: "chart" | "bars"; label: string }[] = [
+    { k: "chart", label: "Chart" },
+    { k: "bars", label: "Bars" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Chart view"
+      className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-[var(--bg)] p-0.5"
+    >
+      {opts.map((o) => (
+        <button
+          key={o.k}
+          type="button"
+          onClick={() => onChange(o.k)}
+          aria-pressed={value === o.k}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-small font-medium transition-colors",
+            value === o.k
+              ? "bg-surface-raised text-fg shadow-sm"
+              : "text-fg-faint hover:bg-surface-raised/60 hover:text-fg",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "money";
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3">
+      <span className="text-caption text-fg-faint">{label}</span>
+      <span className={cn("font-display text-xl font-semibold", tone === "money" ? "text-money" : "text-fg")}>
+        {value}
+      </span>
+      {sub ? <span className="text-caption text-fg-faint">{sub}</span> : null}
+    </div>
+  );
+}
+
+function ChartCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-h3 text-fg">{title}</h2>
+        {hint ? <p className="text-caption text-fg-faint">{hint}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Простой горизонтальный бар-чарт (без внешних либ): ширина бара пропорциональна max. */
+function BarList({
+  rows,
+}: {
+  rows: { key: string; label: string; value: number; display: string; iconPath?: string }[];
+}) {
+  if (rows.length === 0) return <p className="text-small text-fg-faint">No data.</p>;
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div className="flex flex-col gap-2.5">
+      {rows.map((r) => (
+        <div key={r.key} className="flex items-center gap-3">
+          <div className="flex w-24 flex-none items-center gap-1.5 text-small text-fg-muted">
+            {r.iconPath ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 flex-none" aria-hidden="true">
+                <path d={r.iconPath} />
+              </svg>
+            ) : null}
+            <span className="truncate">{r.label}</span>
+          </div>
+          <div className="h-2 flex-1 overflow-hidden rounded-pill bg-[var(--bg)]">
+            <div className="h-full rounded-pill bg-money" style={{ width: `${(r.value / max) * 100}%` }} />
+          </div>
+          <span className="mono w-14 flex-none text-right text-small text-fg">{r.display}</span>
+        </div>
+      ))}
+    </div>
+  );
+}

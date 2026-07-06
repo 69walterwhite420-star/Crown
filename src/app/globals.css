@@ -10,32 +10,34 @@
 :root {
   color-scheme: dark;
 
-  /* Поверхности (ink, не чёрный) */
-  --bg: #0e0f13;
-  --surface: var(--bg); /* было #16181f — карточки/панели теперь на цвете фона (один тёмный, без серого) */
-  --surface-2: #15171e; /* было #1e212b — лишь лёгкий «подъём» для оверлеев/дорожек/наведения, не «серый» */
-  --border: #2a2e3a;
-  --border-strong: #3a4050;
+  /* CROWN — чёрный с золотом: база чисто чёрная, поверхности НЕЙТРАЛЬНО-тёмные (без тёплого подтона —
+     золото живёт в тексте/акцентах, не в фоне) */
+  --bg: #000000;
+  --surface: #0f0f0f; /* карточки/панели — приподняты над чёрным фоном */
+  --surface-2: #191919; /* оверлеи/дорожки/наведение */
+  --border: #8f7536; /* рамки — приглушённое золото */
+  --border-strong: #c9a24a; /* акцент/hover — яркое золото */
 
-  /* Текст */
-  --text: #eceef3;
-  --text-muted: #9aa1b2;
-  --text-faint: #6b7282;
+  /* Текст — пергамент (тёплый королевский белый) */
+  --text: #f3ecdd;
+  --text-muted: #ada491;
+  --text-faint: #726a5a;
 
-  /* Акцент СТАТУСА (заработанное, «отчеканенное») — янтарь/золото */
-  --status: #e8b04b;
-  --status-dim: #b5832f;
-  --status-bg: #2a2114;
+  /* Акцент СТАТУСА (Reign / ранги) — античное золото, приглушено под money */
+  --status: #c9a24a;
+  --status-dim: #8f7536;
+  --status-bg: #221b10;
 
-  /* Акцент ДЕНЕГ/ДОВЕРИЯ — строго под подтверждённое/финальное */
-  --money: #3dd6a0;
-  --money-dim: #2a9c74;
-  --money-bg: #11241d;
+  /* Акцент ДЕНЕГ (Crown / транзакции / финальность) — яркое золото, рационировано */
+  --money: #e4b34c;
+  --money-dim: #b5832f;
+  --money-bg: #241b07;
+  --money-bright: #f6d778; /* блик короны / hover */
 
-  /* Семантика */
-  --danger: #f0566b;
-  --danger-bg: #2a1419;
-  --warn: #f0a84b;
+  /* Семантика (отдельно от акцента) */
+  --danger: #cf5a4d;
+  --danger-bg: #2a1512;
+  --warn: #e0a94b;
   --info: #6e8bff;
 
   /* Пространство, ритм, форма */
@@ -100,28 +102,28 @@
 @layer components {
   /* Типографическая шкала (1.250 — major third). display-роль с плотным трекингом. */
   .text-display-xl {
-    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-family: var(--font-body), "Inter", system-ui, sans-serif;
     font-size: 3.05rem;
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 1.05;
   }
   .text-display-l {
-    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-family: var(--font-body), "Inter", system-ui, sans-serif;
     font-size: 2.44rem;
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 1.1;
   }
   .text-h1 {
-    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-family: var(--font-body), "Inter", system-ui, sans-serif;
     font-size: 1.95rem;
     font-weight: 600;
     letter-spacing: -0.01em;
     line-height: 1.15;
   }
   .text-h2 {
-    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-family: var(--font-body), "Inter", system-ui, sans-serif;
     font-size: 1.56rem;
     font-weight: 600;
     line-height: 1.2;
@@ -198,6 +200,146 @@
 }
 .animate-rise {
   animation: standing-rise var(--dur) var(--ease);
+}
+
+/* Вход на страницу (template.tsx): плавное проявление контента при заходе на сайт и при навигации.
+   ВАЖНО — только opacity: transform на обёртке-предке сломал бы position: sticky (шапка) и position:
+   fixed (липкая плашка hero, модалки), сделав обёртку containing-block'ом. Подъём — на детях (ниже). */
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-enter {
+  animation: page-fade var(--dur-slow) var(--ease) both;
+}
+
+/* Каскадное появление детей (сетки карточек / списки секций): fade + лёгкий подъём со сдвигом по времени.
+   fill-mode backwards → после анимации transform снимается (никаких застрявших transform на элементах). */
+.enter-stagger > * {
+  animation: standing-rise var(--dur-slow) var(--ease) backwards;
+}
+.enter-stagger > *:nth-child(1) {
+  animation-delay: 40ms;
+}
+.enter-stagger > *:nth-child(2) {
+  animation-delay: 90ms;
+}
+.enter-stagger > *:nth-child(3) {
+  animation-delay: 140ms;
+}
+.enter-stagger > *:nth-child(4) {
+  animation-delay: 190ms;
+}
+.enter-stagger > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.enter-stagger > *:nth-child(6) {
+  animation-delay: 290ms;
+}
+.enter-stagger > *:nth-child(n + 7) {
+  animation-delay: 340ms;
+}
+
+/* Меню / дропдауны: СИММЕТРИЧНЫЕ появление и исчезание — fade + лёгкий подъём/скейл от якоря.
+   Появление и исчезание — зеркальные (одна и та же анимация, обратно). Закрытие проигрывается до
+   размонтирования (delayed unmount на onAnimationEnd). transform-origin задаётся на элементе. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes menu-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.animate-menu-in {
+  animation: menu-in var(--dur-fast) var(--ease);
+}
+.animate-menu-out {
+  animation: menu-out var(--dur-fast) var(--ease) forwards;
+}
+
+/* Список (сетка дворов) при смене сортировки/фильтра: старая раскладка гаснет (fade-out), затем контент
+   подменяется и новая въезжает каскадом (.enter-stagger). Симметрия «исчезание ↔ появление». */
+@keyframes list-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.animate-list-out {
+  animation: list-fade-out var(--dur) var(--ease) forwards;
+}
+
+/* The Crown (топ-1 в Realm roll): корона мягко «дышит» — тонкое золотое свечение + едва заметный масштаб.
+   Очень низкая амплитуда, медленный цикл — не отвлекает; reduced-motion гасит глобально. */
+@keyframes crown-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 1px color-mix(in srgb, var(--status) 35%, transparent));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--status) 75%, transparent));
+  }
+}
+.animate-crown {
+  animation: crown-glow 2.6s var(--ease) infinite;
+}
+
+/* Скелетоны: вместо пульсации — золотистый блик, пробегающий слева направо (в тон металлу). База —
+   surface-2; поверх бежит полупрозрачная золотая полоса. reduced-motion гасит (блик уезжает за край). */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: -100% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.skeleton-shimmer {
+  background-color: var(--surface-2);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--status) 16%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.5s var(--ease) infinite;
+}
+
+/* Кроссфейд между страницами: нативный View Transitions API (триггерит PageTransitions при клиентской
+   навигации). Дефолт браузера — кросс-фейд снимков old→new; подгоняем длительность под токен. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }
 
 /* Лишняя анимация = ощущение «сгенерировано AI». Уважаем reduced-motion везде. */

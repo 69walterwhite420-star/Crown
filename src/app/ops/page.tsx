@@ -18,6 +18,7 @@ import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
+import { ModerationSandbox } from "@/components/domain/moderation-sandbox";
 import {
   useApplyOperatorAction,
   useOperatorChannels,
@@ -29,41 +30,38 @@ import type { IncidentLog, PenaltyAction } from "@/lib/data/types";
 
 // Тип инцидента → понятная подпись и цвет (читается с одного взгляда).
 const KIND: Record<IncidentLog["kind"], { label: string; cls: string }> = {
-  report: { label: "Жалоба", cls: "border-warn text-warn" },
-  hard_block: { label: "Авто-карантин", cls: "border-danger text-danger" },
-  sanction_hit: { label: "Санкции", cls: "border-danger text-danger" },
-  flood: { label: "Флуд", cls: "border-warn text-warn" },
+  report: { label: "Report", cls: "border-warn text-warn" },
+  hard_block: { label: "Auto-quarantine", cls: "border-danger text-danger" },
+  sanction_hit: { label: "Sanctions", cls: "border-danger text-danger" },
+  flood: { label: "Flood", cls: "border-warn text-warn" },
 };
 
-// Лестница наказаний по нарастанию (каждая ступень — отдельная цель/эффект, не дубли):
-//  контент → участие на канале → сам канал (временно/навсегда) → кошелёк целиком → юр-эскалация.
 const LADDER = [
-  "Скрыть контент (текст задания/сообщения)",
-  "Канальный блок кошелька (на одном канале)",
-  "Саспенд канала — временно (SUSPENDED, обратимо)",
-  "Бан роли креатора — навсегда (BANNED)",
-  "Полный бан кошелька (обнуляет ценность репутации везде)",
-  "Юр-эскалация: NCMEC + preservation",
+  "Hide / quarantine message",
+  "Realm block (streamer)",
+  "Temporary realm suspend (SUSPENDED)",
+  "Ban creator role (BANNED)",
+  "Full wallet ban",
+  "Legal escalation: NCMEC + preservation",
 ];
 
 const ACTIONS: { value: PenaltyAction; label: string }[] = [
-  { value: "HIDE_MESSAGE", label: "Скрыть контент (текст)" },
-  { value: "CHANNEL_BLOCK", label: "Канальный блок кошелька" },
-  { value: "SUSPEND_CHANNEL", label: "Саспенд канала (временно)" },
-  { value: "BAN_CREATOR_ROLE", label: "Бан роли креатора (навсегда)" },
-  { value: "BAN_WALLET_FULL", label: "Полный бан кошелька" },
-  { value: "REINSTATE_CHANNEL", label: "Восстановить канал (снять саспенд/бан)" },
+  { value: "HIDE_MESSAGE", label: "Hide message" },
+  { value: "CHANNEL_BLOCK", label: "Realm block" },
+  { value: "SUSPEND_CHANNEL", label: "Suspend realm" },
+  { value: "BAN_CREATOR_ROLE", label: "Ban creator role" },
+  { value: "BAN_WALLET_FULL", label: "Full wallet ban" },
+  { value: "REINSTATE_CHANNEL", label: "Reinstate realm (lift suspend/ban)" },
 ];
 
-// Какие цели нужны действию: канал / адрес кошелька / id контента. Под выбранное действие показываем поля.
-const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean; content: boolean }> = {
-  HIDE_MESSAGE: { channel: false, address: false, content: true }, // тейкдаун: id задания/донат-сообщения
-  CHANNEL_BLOCK: { channel: true, address: true, content: false },
-  SUSPEND_CHANNEL: { channel: true, address: false, content: false },
-  BAN_CREATOR_ROLE: { channel: true, address: false, content: false },
-  BAN_WALLET_FULL: { channel: false, address: true, content: false },
-  // Восстановление снимает санкцию с любой цели — поля канал/адрес/контент показываем опционально (нужен ≥1).
-  REINSTATE_CHANNEL: { channel: false, address: false, content: false },
+// Какие цели нужны действию: канал и/или адрес кошелька. Под выбранное действие показываем нужные поля.
+const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = {
+  HIDE_MESSAGE: { channel: true, address: false },
+  CHANNEL_BLOCK: { channel: true, address: true },
+  SUSPEND_CHANNEL: { channel: true, address: false },
+  BAN_CREATOR_ROLE: { channel: true, address: false },
+  BAN_WALLET_FULL: { channel: false, address: true },
+  REINSTATE_CHANNEL: { channel: true, address: false },
 };
 
 export default function OpsConsolePage() {
@@ -75,7 +73,6 @@ export default function OpsConsolePage() {
   const [action, setAction] = useState<PenaltyAction>("SUSPEND_CHANNEL");
   const [channelId, setChannelId] = useState("");
   const [address, setAddress] = useState("");
-  const [contentId, setContentId] = useState("");
   const [reason, setReason] = useState("");
   const [preservation, setPreservation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -83,12 +80,8 @@ export default function OpsConsolePage() {
   const incPg = usePager(queueQ.data ?? [], 10); // лог постранично, чтобы не уходил в бесконечность
 
   const req = REQUIRES[action];
-  const isReinstate = action === "REINSTATE_CHANNEL"; // восстановление: любая из целей, поля опциональны
-  const canApply = isReinstate
-    ? channelId.trim() !== "" || address.trim() !== "" || contentId.trim() !== ""
-    : (!req.channel || channelId.trim() !== "") &&
-      (!req.address || address.trim() !== "") &&
-      (!req.content || contentId.trim() !== "");
+  const canApply =
+    (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
 
   // channelId → @handle (читаемо).
   const handleFor = (id: string): string => {
@@ -102,7 +95,7 @@ export default function OpsConsolePage() {
     if (inc.address) setAddress(inc.address);
     if (inc.kind === "hard_block" || inc.kind === "sanction_hit") setAction("SUSPEND_CHANNEL");
     document.getElementById("ops-action")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    toast({ title: "Цель подставлена в форму", description: "Проверь действие и применяй." });
+    toast({ title: "Target filled into the form", description: "Check the action and apply." });
   }
 
   function doApply() {
@@ -111,17 +104,16 @@ export default function OpsConsolePage() {
         action,
         targetChannelId: channelId.trim() || undefined,
         targetAddress: address.trim() || undefined,
-        targetContentId: contentId.trim() || undefined,
         reason: reason.trim() || action,
         preservation: preservation || undefined,
         reported: preservation || undefined,
       },
       {
         onSuccess: () => {
-          toast({ variant: "success", title: "Действие применено", description: action });
+          toast({ variant: "success", title: "Action applied", description: action });
           setConfirmOpen(false);
         },
-        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );
   }
@@ -132,8 +124,8 @@ export default function OpsConsolePage() {
   if (!sessionQ.data?.isOperator) {
     return (
       <EmptyState
-        title="Доступ только для оператора"
-        description="Консоль T&S доступна лишь кошельку-оператору платформы. Войди кошельком оператора."
+        title="Operators only"
+        description="The T&S console is available only to the platform operator wallet. Sign in with the operator wallet."
         action={<ConnectWalletButton />}
       />
     );
@@ -142,15 +134,25 @@ export default function OpsConsolePage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-display-l text-fg">Консоль оператора / T&amp;S</h1>
+        <h1 className="text-display-l text-fg">Operator console / T&amp;S</h1>
         <p className="text-fg-muted">
-          Платформенный уровень: то, что не может стример. Репутацию руками не редактируем — нарушителя
-          БЛОКИРУЕМ (бан кошелька/канала), и вся ценность его репутации обнуляется, а число остаётся честным.
+          Platform level: what a streamer cannot do. ADMIN_VOID is the only Reign deduction.
         </p>
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-h2 text-fg">Лестница наказаний</h2>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-h2 text-fg">Moderation sandbox</h2>
+          <p className="text-small text-fg-muted">
+            Впиши текст — прогоним через тот же конвейер, что и боевой путь, и покажем вердикт. Ничего не
+            сохраняется.
+          </p>
+        </div>
+        <ModerationSandbox />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-h2 text-fg">Penalty ladder</h2>
         <ol className="flex flex-col gap-1">
           {LADDER.map((step, i) => (
             <li key={step} className="flex items-center gap-3 rounded border border-border bg-surface px-3 py-2">
@@ -162,19 +164,19 @@ export default function OpsConsolePage() {
       </section>
 
       <section id="ops-action" className="flex flex-col gap-3 scroll-mt-4">
-        <h2 className="text-h2 text-fg">Применить действие</h2>
+        <h2 className="text-h2 text-fg">Apply action</h2>
         <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
-          <Select label="Действие" value={action} onChange={(e) => setAction(e.target.value as PenaltyAction)}>
+          <Select label="Action" value={action} onChange={(e) => setAction(e.target.value as PenaltyAction)}>
             {ACTIONS.map((a) => (
               <option key={a.value} value={a.value}>
                 {a.label}
               </option>
             ))}
           </Select>
-          <Input label="Причина" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="CSAM / flood / sanctions" />
-          {req.channel || isReinstate ? (
-            <Select label="Канал" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
-              <option value="">— выбери канал —</option>
+          <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="CSAM / flood / sanctions" />
+          {req.channel ? (
+            <Select label="Realm" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+              <option value="">— select realm —</option>
               {(channelsQ.data ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   @{c.handle} · {c.status}
@@ -182,48 +184,37 @@ export default function OpsConsolePage() {
               ))}
             </Select>
           ) : null}
-          {req.address || isReinstate ? (
+          {req.address ? (
             <Input
-              label="Адрес кошелька"
+              label="Wallet address"
               mono
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="вставь base58-адрес"
+              placeholder="paste base58 address"
             />
           ) : null}
-          {req.content || isReinstate ? (
-            <Input
-              label="ID контента (задание / донат-сообщение)"
-              mono
-              value={contentId}
-              onChange={(e) => setContentId(e.target.value)}
-              placeholder="снять с публикации: id задания или сообщения"
-            />
-          ) : null}
-          <Switch checked={preservation} onCheckedChange={setPreservation} label="Preservation + репорт (NCMEC)" />
+          <Switch checked={preservation} onCheckedChange={setPreservation} label="Preservation + report (NCMEC)" />
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="danger" disabled={!canApply} onClick={() => setConfirmOpen(true)}>
-            Применить действие
+            Apply action
           </Button>
           {!canApply ? (
             <span className="text-small text-fg-faint">
-              {isReinstate
-                ? "Укажи цель восстановления: канал, адрес кошелька или id контента"
-                : `Укажи цель: ${[req.channel && "канал", req.address && "адрес кошелька", req.content && "id контента"].filter(Boolean).join(" + ")}`}
+              Specify a target: {[req.channel && "realm", req.address && "wallet address"].filter(Boolean).join(" + ")}
             </span>
           ) : null}
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-h2 text-fg">Инцидент-лог</h2>
+        <h2 className="text-h2 text-fg">Incident log</h2>
         {queueQ.isLoading ? (
           <Skeleton className="h-32 w-full" />
         ) : queueQ.error ? (
           <ErrorState onRetry={() => queueQ.refetch()} />
         ) : (queueQ.data ?? []).length === 0 ? (
-          <EmptyState title="Инцидентов нет" />
+          <EmptyState title="No incidents" />
         ) : (
           <div className="flex flex-col gap-2">
             <ul className="flex flex-col gap-2">
@@ -256,7 +247,7 @@ export default function OpsConsolePage() {
                     onClick={() => fillFromIncident(inc)}
                     className="self-start text-small text-info hover:underline"
                   >
-                    Разобрать →
+                    Resolve →
                   </button>
                 ) : null}
               </li>
@@ -277,20 +268,20 @@ export default function OpsConsolePage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Подтверждение действия</DialogTitle>
+            <DialogTitle>Confirm action</DialogTitle>
             <DialogDescription>
-              {ACTIONS.find((a) => a.value === action)?.label}. Деструктивные действия записываются в
-              инцидент-лог.
+              {ACTIONS.find((a) => a.value === action)?.label}. Destructive actions are recorded in the
+              incident log.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost" disabled={apply.isPending}>
-                Отмена
+                Cancel
               </Button>
             </DialogClose>
             <Button variant="danger" loading={apply.isPending} onClick={doApply}>
-              Применить
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>

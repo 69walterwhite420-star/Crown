@@ -27,10 +27,10 @@ export function ChannelStatusBanner() {
     return (
       <div className="mb-6 flex flex-col gap-3 rounded-lg border border-status bg-status-bg p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <span className="text-h3 text-fg">Канал @{channel.handle} не активирован</span>
+          <span className="text-h3 text-fg">Realm @{channel.handle} is not activated</span>
           <span className="text-small text-fg-muted">
-            Активируй, чтобы разблокировать донаты-с-текстом и публичную индексацию. Одноразовый
-            сбор <Amount micro={ACTIVATION_FEE_MICRO} />.
+            Activate to unlock crowns-with-text and public indexing. One-time
+            fee <Amount micro={ACTIVATION_FEE_MICRO} />.
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -39,17 +39,17 @@ export function ChannelStatusBanner() {
             loading={activate.isPending}
             onClick={() =>
               activate.mutate(channel.id, {
-                onSuccess: () => toast({ variant: "success", title: "Канал активирован" }),
+                onSuccess: () => toast({ variant: "success", title: "Realm activated" }),
                 onError: (e) =>
-                  toast({ variant: "error", title: "Ошибка активации", description: String(e) }),
+                  toast({ variant: "error", title: "Activation failed", description: String(e) }),
               })
             }
           >
-            Активировать
+            Activate
           </Button>
           <button
             type="button"
-            aria-label="Скрыть напоминание"
+            aria-label="Dismiss reminder"
             onClick={() => setDismissed(true)}
             className="flex h-9 w-9 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
           >
@@ -63,12 +63,12 @@ export function ChannelStatusBanner() {
   return (
     <div className="mb-6 rounded-lg border border-danger bg-danger-bg p-4">
       <span className="text-h3 text-fg">
-        {channel.status === "SUSPENDED" ? "Канал приостановлен" : "Канал заблокирован"}
+        {channel.status === "SUSPENDED" ? "Realm suspended" : "Realm banned"}
       </span>
       <p className="text-small text-fg-muted">
         {channel.status === "SUSPENDED"
-          ? "Канал на ревью у оператора. Дождись решения или обратись в поддержку."
-          : "Канал заблокирован платформой. Возврат — только новый кошелёк и повторная активация."}
+          ? "The realm is under operator review. Wait for a decision or contact support."
+          : "The realm was banned by the platform. The only way back is a new wallet and re-activation."}
       </p>
     </div>
   );

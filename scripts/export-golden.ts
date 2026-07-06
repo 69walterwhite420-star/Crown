@@ -907,6 +907,8 @@ write("messages.json", {
     disputeWindowSecs: 120,
     votingWindowSecs: 120,
     dMaxMicro: 0n,
+    disputeWinBonusMicro: 10_000_000n, // = DisputeParams::default() в Rust (пин v:3)
+    disputeLossPenaltyMicro: 50_000_000n,
   }),
   openDispute: buildOpenDisputeMessage("ESCROW", "chan-1", "BY"),
   vote: buildVoteMessage("ESCROW", "chan-1", "VOTER", "not_completed"),

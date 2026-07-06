@@ -14,9 +14,11 @@ describe("dispute-params (кросс-языковой пин с канистро
       disputeWindowSecs: 120,
       votingWindowSecs: 120,
       dMaxMicro: 0n,
+      disputeWinBonusMicro: 10_000_000n,
+      disputeLossPenaltyMicro: 50_000_000n,
     });
     const expected =
-      "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\nv: 2";
+      "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\ndisputeWinBonusMicro: 10000000\ndisputeLossPenaltyMicro: 50000000\nv: 3";
     expect(msg).toBe(expected);
   });
 
@@ -33,6 +35,8 @@ describe("dispute-params (кросс-языковой пин с канистро
         disputeWindowSecs: 120,
         votingWindowSecs: 120,
         dMaxMicro: "0",
+        disputeWinBonusMicro: 10_000_000,
+        disputeLossPenaltyMicro: 50_000_000,
       },
       pending: {
         params: {
@@ -42,6 +46,8 @@ describe("dispute-params (кросс-языковой пин с канистро
           disputeWindowSecs: 180,
           votingWindowSecs: 300,
           dMaxMicro: "50000000",
+          disputeWinBonusMicro: "15000000",
+          disputeLossPenaltyMicro: "60000000",
         },
         effectiveAtNs: "1783176899623489861",
         version: 1,

@@ -5,10 +5,10 @@ import { Button } from "./button";
 
 /** Loading-плейсхолдер. Форма должна совпадать с финальным контентом (без layout-shift). */
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded bg-surface-raised", className)} />;
+  return <div className={cn("skeleton-shimmer rounded", className)} />;
 }
 
-/** Пустое состояние — приглашение к действию (docs/design-system.md). */
+/** Пустое состояние — приглашение к действию (components.md §1). */
 export function EmptyState({
   title,
   description,
@@ -29,7 +29,7 @@ export function EmptyState({
 
 /** Ошибка — что случилось + как починить + «Повторить» (не извиняется, не туманит). */
 export function ErrorState({
-  title = "Что-то пошло не так",
+  title = "Something went wrong",
   description,
   onRetry,
 }: {
@@ -43,7 +43,7 @@ export function ErrorState({
       {description ? <p className="max-w-md text-small text-fg-muted">{description}</p> : null}
       {onRetry ? (
         <Button variant="secondary" size="sm" onClick={onRetry}>
-          Повторить
+          Retry
         </Button>
       ) : null}
     </div>

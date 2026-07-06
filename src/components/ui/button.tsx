@@ -10,8 +10,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // основной CTA — интерактивный акцент (info), НЕ money (тот резервируем под финальное)
-        primary: "bg-info text-[#0a0c14] hover:brightness-110",
+        // основной CTA — золото CROWN (status): бренд гольд, но не яркий money (тот резервируем под финальное)
+        primary: "bg-status text-[#1a1206] hover:brightness-110",
         secondary:
           "border border-border bg-[var(--bg)] text-fg hover:border-border-strong hover:bg-surface-raised",
         ghost: "text-fg-muted hover:bg-surface-raised hover:text-fg",

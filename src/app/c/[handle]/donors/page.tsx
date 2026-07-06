@@ -22,15 +22,15 @@ export default function DonorsPage() {
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
         <div className="flex flex-col gap-1">
           <Link href={`/c/${handle}`} className="w-fit text-small text-fg-faint hover:text-fg">
-            ← Канал @{handle}
+            ← Realm @{handle}
           </Link>
-          <h1 className="text-display-l text-fg">Донатёры</h1>
+          <h1 className="text-display-l text-fg">Supporters</h1>
         </div>
 
         {channelQ.isLoading ? (
           <Skeleton className="h-64 w-full rounded-lg" />
         ) : !channel ? (
-          <EmptyState title="Канал не найден" description={`Канала @${handle} не существует.`} />
+          <EmptyState title="Realm not found" description={`Realm @${handle} doesn't exist.`} />
         ) : (
           <Leaderboard channelId={channel.id} currentAddress={address} />
         )}

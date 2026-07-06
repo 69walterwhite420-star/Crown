@@ -43,6 +43,15 @@ pub struct DisputeParams {
     /// Держится ради стабильности подписанного сообщения (`build_params_message`) и уже
     /// сохранённого стейта; убирать только с бампом `v:` и миграцией. Из UI студии убрано.
     pub d_max_micro: u64,
+    /// Награда репутации инициатору за ПОДТВЕРЖДЁННЫЙ спор (micro-очки). Раньше протокольная
+    /// константа (10 очков, `disputes::DISPUTE_WIN_BONUS_MICRO`); с v:3 — параметр канала (подпись
+    /// владельца + таймлок, как остальные правила спора). Дефолт сохраняет прежнее число.
+    pub dispute_win_bonus_micro: u64,
+    /// Списание репутации инициатору за ПРОИГРАННЫЙ ложный спор (micro-очки; хранится положительным,
+    /// применяется со знаком минус). Раньше константа (50 очков); с v:3 — параметр канала. Инвариант
+    /// §4.5 держится: списывает не ОПЕРАТОР, а протокол по исходу голосования; владелец лишь калибрует
+    /// величину своей игры, как кворум/окна.
+    pub dispute_loss_penalty_micro: u64,
 }
 
 impl Default for DisputeParams {
@@ -55,6 +64,8 @@ impl Default for DisputeParams {
             dispute_window_secs: 120,
             voting_window_secs: 120,
             d_max_micro: 0,
+            dispute_win_bonus_micro: 10_000_000, // = disputes::DISPUTE_WIN_BONUS_MICRO (прежняя константа)
+            dispute_loss_penalty_micro: 50_000_000, // = disputes::DISPUTE_LOSS_PENALTY_MICRO
         }
     }
 }
@@ -112,7 +123,9 @@ pub fn build_params_message(channel_id: &str, owner: &str, version: u64, p: &Dis
         format!("disputeWindowSecs: {}", p.dispute_window_secs),
         format!("votingWindowSecs: {}", p.voting_window_secs),
         format!("dMaxMicro: {}", p.d_max_micro),
-        "v: 2".to_string(),
+        format!("disputeWinBonusMicro: {}", p.dispute_win_bonus_micro),
+        format!("disputeLossPenaltyMicro: {}", p.dispute_loss_penalty_micro),
+        "v: 3".to_string(),
     ]
     .join("\n")
 }

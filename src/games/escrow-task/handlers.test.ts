@@ -30,6 +30,7 @@ function harness(
   verifyTextCommitment: GameContext["verifyTextCommitment"] = async () => true,
   minReputationToTask = 0, // §10: порог репутации на присыл задания (тест порога передаёт свой)
   minReputationToDispute = 1, // §10: порог репутации на право поднять спор (дефолт фикстур = 1)
+  channelPayoutAttested = true, // H1: payout подтверждён подписью владельца (тест PAYOUT_UNATTESTED ставит false)
 ) {
   let slice: unknown;
   let counter = 0;
@@ -39,6 +40,7 @@ function harness(
     channelId: "ch-1",
     channelOwner: STREAMER,
     channelPayout,
+    channelPayoutAttested,
     isChannelManager: identity === STREAMER, // менеджер = владелец (модераторов в харнессе нет)
     minTaskAmountMicro,
     minReputationToTask,
@@ -209,6 +211,46 @@ describe("ESC-18 / ESC-6: привязка ончейн-эскроу к кана
     await expect(
       h.run("Donor", T0, "create", { amount: AMOUNT, text: "X", escrowTaskId: "abc123" }),
     ).rejects.toMatchObject({ code: "NO_PAYOUT" });
+  });
+
+  it("H1 fail-closed: chain-эскроу к НЕподтверждённому подписью payout отклоняется", async () => {
+    // payout есть, но не аттестован владельцем (последний позиционный арг = false). Серверный гвард держит
+    // даже если клиент (chain-provider.assertPayoutAttested) обойдён руками собранным запросом.
+    const h = harness(
+      {},
+      "Payout1",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+    await expect(
+      h.run("Donor", T0, "create", { amount: AMOUNT, text: "X", escrowTaskId: "abc123" }),
+    ).rejects.toMatchObject({ code: "PAYOUT_UNATTESTED" });
+  });
+
+  it("H1: НЕаттестованный payout НЕ мешает mock/api-заданию (без escrowTaskId — денег на цепочке нет)", async () => {
+    const h = harness(
+      {},
+      "Payout1",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+    // Без escrowTaskId гвард H1 не срабатывает: это симуляция без ончейн-денег (паритет с ESC-6/verifyEscrow).
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    expect(t.status).toBe("PENDING");
   });
 });
 

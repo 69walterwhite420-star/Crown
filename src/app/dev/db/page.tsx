@@ -1,7 +1,5 @@
 "use client";
 
-import { SIWS_STORAGE_KEY } from "@/lib/chain/addresses";
-
 import { useEffect, useMemo, useState } from "react";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { useSession } from "@/lib/data/hooks";
@@ -15,7 +13,7 @@ const disp = (v: unknown): string =>
 // Токен сессии хранится клиентом под этим ключом (см. chain-provider SIWS_STORAGE_KEY).
 function siwsToken(): string | null {
   try {
-    return (JSON.parse(localStorage.getItem(SIWS_STORAGE_KEY) ?? "null") as { token?: string } | null)
+    return (JSON.parse(localStorage.getItem("standing.siws.v1") ?? "null") as { token?: string } | null)
       ?.token ?? null;
   } catch {
     return null;
@@ -42,7 +40,7 @@ export default function DbViewerPage() {
       .then((r) => r.json())
       .then((d: TableData) => {
         if ((d as { error?: string }).error) {
-          setError((d as { error?: string }).error ?? "Ошибка");
+          setError((d as { error?: string }).error ?? "Error");
           return;
         }
         setData(d);
@@ -84,10 +82,10 @@ export default function DbViewerPage() {
   if (!session.isLoading && !isOperator) {
     return (
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-16 text-center">
-        <h1 className="text-h2 text-fg">База данных</h1>
+        <h1 className="text-h2 text-fg">Database</h1>
         <p className="text-small text-fg-muted">
-          Раздел только для оператора — здесь есть приватный текст сообщений и инциденты. Подключи
-          операторский кошелёк.
+          This section is operator-only — it contains private message text and incidents. Connect
+          your operator wallet.
         </p>
         <ConnectWalletButton />
       </main>
@@ -97,17 +95,17 @@ export default function DbViewerPage() {
   return (
     <main className="mx-auto flex max-w-content flex-col gap-4 px-4 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-display-l text-fg">База данных</h1>
+        <h1 className="text-display-l text-fg">Database</h1>
         <p className="text-small text-fg-muted">
-          Данные приложения в таблицах Postgres (папка <span className="mono">.data/pg</span>). Выбери
-          таблицу, кликни по заголовку столбца для сортировки. Доступ только у оператора.
+          Application data in Postgres tables (folder <span className="mono">.data/pg</span>). Pick a
+          table, click a column header to sort. Operator access only.
         </p>
       </div>
 
       {error ? (
         <p className="rounded-lg border border-danger bg-danger-bg p-3 text-small text-danger">{error}</p>
       ) : !data ? (
-        <p className="text-small text-fg-faint">Загрузка…</p>
+        <p className="text-small text-fg-faint">Loading…</p>
       ) : (
         <>
           {/* Выбор таблицы */}
@@ -136,7 +134,7 @@ export default function DbViewerPage() {
           {/* Таблица */}
           {!current || current.rows.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-              Таблица пуста.
+              Table is empty.
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -148,7 +146,7 @@ export default function DbViewerPage() {
                         key={c}
                         onClick={() => toggleSort(c)}
                         className="cursor-pointer select-none whitespace-nowrap border-b border-border bg-surface-raised px-3 py-2 text-left font-medium text-fg-muted transition-colors hover:text-fg"
-                        title="Сортировать"
+                        title="Sort"
                       >
                         {c}
                         {sortCol === c ? (
@@ -180,8 +178,8 @@ export default function DbViewerPage() {
             </div>
           )}
           <p className="text-small text-fg-faint">
-            Показано строк: {rows.length}
-            {current && current.count > rows.length ? ` из ${current.count} (лимит 500)` : ""}.
+            Rows shown: {rows.length}
+            {current && current.count > rows.length ? ` of ${current.count} (limit 500)` : ""}.
           </p>
         </>
       )}

@@ -15,6 +15,7 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
     channelId: "chan-1",
     channelOwner: "Streamer1",
     channelPayout: null,
+    channelPayoutAttested: false,
     isChannelManager: false,
     minTaskAmountMicro: "0",
     minReputationToTask: 0,

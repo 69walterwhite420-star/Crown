@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Amount } from "@/components/domain/amount";
-import { ModerationItem } from "@/components/domain/moderation";
+import { Amount } from "./amount";
+import { ModerationItem } from "./moderation";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Pager, usePager } from "@/components/ui/pager";
@@ -18,9 +18,8 @@ import {
 } from "@/lib/data/hooks";
 import { collapseWhitespace, shortAddress } from "@/lib/utils";
 
-export default function ModerationQueuePage() {
-  // Каналы, которыми управляешь: владелец ИЛИ модератор (раньше очередь брала только канал-владельца через
-  // getMyChannel, поэтому модератор её не видел).
+/** Очередь модерации (Personal Space → My Realm). Каналы: владелец ИЛИ модератор (useManagedChannels). */
+export function ModerationQueue() {
   const managedQ = useManagedChannels();
   const channels = managedQ.data ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,8 +28,6 @@ export default function ModerationQueuePage() {
   const queueQ = useModerationQueue(channelId);
   const donationsQ = useDonations(channelId);
   const setState = useSetMessageState(channelId ?? "");
-  // Задания-донаты с текстом на модерации (HELD) — та же очередь. В очереди ТОЛЬКО те, что ещё можно
-  // опубликовать: таймер не истёк и они не разрешены. Истёкшие уходят в возврат донору сами — текст поздно.
   const tasksQ = useEscrowTasks(channelId);
   const taskAction = useEscrowAction(channelId ?? "");
   const nowMs = Date.now();
@@ -38,16 +35,15 @@ export default function ModerationQueuePage() {
     (t) => t.textState === "HELD" && t.status !== "RESOLVED" && !dueResolution(t, nowMs),
   );
 
-  // Джойн message → donation, чтобы показать донора и сумму в очереди.
   const byDonation = new Map((donationsQ.data?.items ?? []).map((d) => [d.id, d]));
-  const pg = usePager(queueQ.data ?? [], 10); // постранично, чтобы очередь не уходила в бесконечность
+  const pg = usePager(queueQ.data ?? [], 10);
 
   if (managedQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
   if (channels.length === 0) {
     return (
       <EmptyState
-        title="Нет каналов на модерации"
-        description="Создай свой канал или попроси владельца добавить твой кошелёк в модераторы."
+        title="No realms to moderate"
+        description="Create your own realm, or ask an owner to add your wallet as a moderator."
       />
     );
   }
@@ -59,20 +55,18 @@ export default function ModerationQueuePage() {
     setState.mutate(
       { messageId, state },
       {
-        onSuccess: () => toast({ title: state === "SHOWN" ? "Показано" : "Скрыто" }),
-        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+        onSuccess: () => toast({ title: state === "SHOWN" ? "Shown" : "Hidden" }),
+        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );
   }
 
-  // Модерация ТОЛЬКО текста задания (деньги не трогаем): «Показать» публикует, «Отклонить» прячет текст.
-  // Отклонил и не выполняешь → эскроу сам вернётся донору по таймеру (no-show), не «за счёт стримера».
   function taskAct(taskId: string, state: "SHOWN" | "HIDDEN") {
     taskAction.mutate(
       { op: "setTextState", payload: { taskId, state } },
       {
-        onSuccess: () => toast({ title: state === "SHOWN" ? "Показано" : "Скрыто" }),
-        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+        onSuccess: () => toast({ title: state === "SHOWN" ? "Shown" : "Hidden" }),
+        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );
   }
@@ -82,24 +76,24 @@ export default function ModerationQueuePage() {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-display-l text-fg">Очередь модерации</h1>
+            <h1 className="text-display-l text-fg">Moderation queue</h1>
             {heldCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 rounded-pill bg-money-bg px-2.5 py-0.5 text-small text-money">
                 <span className="h-1.5 w-1.5 rounded-pill bg-money" />
-                {heldCount} на модерации
+                {heldCount} in moderation
               </span>
             ) : null}
           </div>
           <p className="text-fg-muted">
-            Текст приватен до показа — решаешь только его судьбу. Деньги отдельно: у донатов уже зачтены;
-            эскроу задания вернётся донору сам по таймеру, если не выполнить.
+            Text is private until shown — you only decide its fate. Money is separate: crowns are already
+            credited, and a task&apos;s escrow returns to the supporter on its own timer if left undone.
           </p>
         </div>
         {channels.length > 1 ? (
           <Select
             value={channelId}
             onChange={(e) => setSelectedId(e.target.value)}
-            aria-label="Канал"
+            aria-label="Realm"
             className="sm:w-56"
           >
             {channels.map((c) => (
@@ -116,11 +110,11 @@ export default function ModerationQueuePage() {
       {queueQ.isLoading || tasksQ.isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : queueQ.error ? (
-        <ErrorState description="Не удалось загрузить очередь." onRetry={() => queueQ.refetch()} />
+        <ErrorState description="Couldn't load the queue." onRetry={() => queueQ.refetch()} />
       ) : (queueQ.data ?? []).length === 0 && heldTasks.length === 0 ? (
         <EmptyState
-          title="Очередь чиста"
-          description="Новые сообщения и задания на модерации появятся здесь."
+          title="Queue is clear"
+          description="New messages and tasks awaiting moderation will show up here."
         />
       ) : (
         <div className="flex flex-col gap-6">
@@ -158,7 +152,7 @@ export default function ModerationQueuePage() {
 
           {heldTasks.length > 0 ? (
             <section className="flex flex-col gap-3">
-              <h2 className="text-h3 text-fg">Задания на модерации · {heldTasks.length}</h2>
+              <h2 className="text-h3 text-fg">Tasks in moderation · {heldTasks.length}</h2>
               <div className="flex flex-col [&>:last-child]:border-b-0">
                 {heldTasks.map((t) => (
                   <div key={t.id} className="flex flex-col gap-2 border-b border-border py-4">
@@ -174,7 +168,7 @@ export default function ModerationQueuePage() {
                         disabled={taskAction.isPending}
                         onClick={() => taskAct(t.id, "SHOWN")}
                       >
-                        Показать
+                        Show
                       </Button>
                       <Button
                         size="sm"
@@ -182,7 +176,7 @@ export default function ModerationQueuePage() {
                         disabled={taskAction.isPending}
                         onClick={() => taskAct(t.id, "HIDDEN")}
                       >
-                        Отклонить
+                        Reject
                       </Button>
                     </div>
                   </div>

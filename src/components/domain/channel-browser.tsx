@@ -44,7 +44,7 @@ export function ChannelBrowser({
       {filtered.length > PAGE_SIZES[0]! ? (
         <div className="flex justify-end">
           <Select
-            label="На странице"
+            label="Per page"
             value={String(pageSize)}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
@@ -63,8 +63,8 @@ export function ChannelBrowser({
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="Ничего не найдено"
-          description={q ? "Под запрос из поиска ничего нет." : "Пока нет каналов."}
+          title="Nothing found"
+          description={q ? "Nothing matches your search." : "No realms yet."}
         />
       ) : (
         <>
@@ -74,7 +74,7 @@ export function ChannelBrowser({
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
-            <span>Всего: {filtered.length}</span>
+            <span>Total: {filtered.length}</span>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -83,7 +83,7 @@ export function ChannelBrowser({
                 onClick={() => setPage(safePage - 1)}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
-                Назад
+                Back
               </Button>
               <span className="mono">
                 {safePage + 1} / {pageCount}
@@ -94,7 +94,7 @@ export function ChannelBrowser({
                 disabled={safePage >= pageCount - 1}
                 onClick={() => setPage(safePage + 1)}
               >
-                Вперёд
+                Next
                 <ChevronRightIcon className="h-4 w-4" />
               </Button>
             </div>

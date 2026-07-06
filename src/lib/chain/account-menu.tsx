@@ -35,14 +35,14 @@ export function AccountMenu() {
     <div className="group relative">
       <button
         type="button"
-        aria-label={hasPending ? "Аккаунт — есть что проверить" : "Аккаунт"}
+        aria-label={hasPending ? "Account — something to review" : "Account"}
         className="relative flex h-9 w-9 items-center justify-center rounded-full font-display text-small outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
         style={{ backgroundColor: `hsl(${hue} 45% 22%)`, color: `hsl(${hue} 70% 74%)` }}
       >
         {initial}
         {hasPending ? (
           <NotificationDot
-            title="Есть что проверить в студии"
+            title="Something to review in the studio"
             className="absolute -right-0.5 -top-0.5 ring-2 ring-[var(--bg)]"
           />
         ) : null}
@@ -51,17 +51,17 @@ export function AccountMenu() {
       {/* Меню по наведению/фокусу. pt-2 — невидимый «мостик», чтобы курсор не терял ховер по пути к меню. */}
       <div className="invisible absolute right-0 top-full z-40 pt-2 opacity-0 transition-opacity duration-fast ease-ease group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
         <div className="w-52 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
-          <div className="truncate px-3 pt-2 font-display text-fg">{display || "Аккаунт"}</div>
+          <div className="truncate px-3 pt-2 font-display text-fg">{display || "Account"}</div>
           <button
             type="button"
-            title={copied ? "Скопировано" : "Копировать адрес"}
-            aria-label="Копировать адрес"
+            title={copied ? "Copied" : "Copy address"}
+            aria-label="Copy address"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(address);
                 markCopied();
               } catch {
-                toast({ variant: "error", title: "Не удалось скопировать" });
+                toast({ variant: "error", title: "Couldn’t copy" });
               }
             }}
             className="flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-left text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
@@ -75,12 +75,12 @@ export function AccountMenu() {
           </button>
           <div className="my-1 border-t border-border" />
           <Link href="/me" className={itemCls}>
-            Профиль
+            Profile
           </Link>
-          <Link href="/studio" className={itemCls}>
-            Студия
+          <Link href="/space" className={itemCls}>
+            Personal Space
             {hasPending ? (
-              <NotificationDot className="ml-2" title="Есть что проверить в очереди" />
+              <NotificationDot className="ml-2" title="Something to review in the queue" />
             ) : null}
           </Link>
           <button
@@ -90,7 +90,7 @@ export function AccountMenu() {
               void data.disconnect(); // полный выход: revoke токена + дисконект кошелька (мост чистит сессию)
             }}
           >
-            Выйти
+            Sign out
           </button>
         </div>
       </div>

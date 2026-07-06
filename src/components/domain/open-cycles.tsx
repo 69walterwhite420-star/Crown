@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Amount } from "./amount";
 import { useHomeFeed } from "@/lib/data/hooks";
 import type { OpenCycle } from "@/lib/data/types";
-import { cn, collapseWhitespace, plural } from "@/lib/utils";
+import { cn, collapseWhitespace } from "@/lib/utils";
 
 /**
  * Секция «Требует тебя» — открытые циклы ВЛАДЕЛЬЦА профиля (ADR 0018), по срочности. Часть профиля-базы:
@@ -12,24 +12,24 @@ import { cn, collapseWhitespace, plural } from "@/lib/utils";
  * §4.6: текст задания твой). Пусто → null (не показываем пустую секцию).
  */
 const KIND: Record<OpenCycle["kind"], { label: string; hot: boolean }> = {
-  claimable: { label: "Забрать возврат", hot: true },
-  grace: { label: "Можно отменить", hot: true },
-  dispute_window: { label: "Оспорить или подождать", hot: true },
-  voting: { label: "Идёт голосование", hot: false },
-  awaiting: { label: "В работе", hot: false },
+  claimable: { label: "Claim refund", hot: true },
+  grace: { label: "Can cancel", hot: true },
+  dispute_window: { label: "Dispute or wait", hot: true },
+  voting: { label: "Voting in progress", hot: false },
+  awaiting: { label: "In progress", hot: false },
 };
 
 /** Относительная подсказка по дедлайну (не тикер — пересчёт при рефетче). */
 function deadlineHint(iso?: string): string {
-  if (!iso) return "доступно сейчас";
+  if (!iso) return "available now";
   const ms = Date.parse(iso) - Date.now();
-  if (ms <= 0) return "истекает";
+  if (ms <= 0) return "expiring";
   const min = Math.round(ms / 60_000);
-  if (min < 60) return `≈ ${min} ${plural(min, ["минута", "минуты", "минут"])}`;
+  if (min < 60) return `≈ ${min} ${min === 1 ? "minute" : "minutes"}`;
   const h = Math.round(min / 60);
-  if (h < 48) return `≈ ${h} ${plural(h, ["час", "часа", "часов"])}`;
+  if (h < 48) return `≈ ${h} ${h === 1 ? "hour" : "hours"}`;
   const d = Math.round(h / 24);
-  return `≈ ${d} ${plural(d, ["день", "дня", "дней"])}`;
+  return `≈ ${d} ${d === 1 ? "day" : "days"}`;
 }
 
 function CycleCard({ c }: { c: OpenCycle }) {
@@ -65,7 +65,7 @@ export function OpenCycles() {
   if (cycles.length === 0) return null;
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-h3 text-fg">Требует тебя</h2>
+      <h2 className="text-h3 text-fg">Needs you</h2>
       <div className="flex flex-col gap-3">
         {cycles.map((c) => (
           <CycleCard key={c.taskId} c={c} />

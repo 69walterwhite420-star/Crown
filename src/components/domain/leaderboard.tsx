@@ -10,10 +10,10 @@ import { useLeaderboard } from "@/lib/data/hooks";
 import type { Address, LeaderboardEntry, LeaderboardPeriod, Tier } from "@/lib/data/types";
 import { cn, formatPoints, shortAddress } from "@/lib/utils";
 
-// «Топ месяца» убран как дубль верха «Месяца» (и из типа тоже — оверлея, который его читал, в коде нет).
+// «Топ месяца» (top_donor_month) убран как дубль верха «Месяца». Период остаётся в типе (его юзает оверлей).
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
-  { value: "all_time", label: "За всё время" },
-  { value: "month", label: "Месяц" },
+  { value: "all_time", label: "All time" },
+  { value: "month", label: "Month" },
 ];
 
 type SortKey = "points" | "total";
@@ -67,12 +67,12 @@ export function Leaderboard({
         </Tabs>
         <div className="flex items-center gap-2">
           <Select
-            aria-label="Фильтр по тиру"
+            aria-label="Filter by tier"
             value={tierFilter}
             onChange={(e) => setTierFilter(e.target.value)}
             className="w-40"
           >
-            <option value="all">Все тиры</option>
+            <option value="all">All tiers</option>
             {tiers.map((t) => (
               <option key={t.name} value={t.name}>
                 {t.name}
@@ -80,13 +80,13 @@ export function Leaderboard({
             ))}
           </Select>
           <Select
-            aria-label="Сортировка"
+            aria-label="Sort"
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="w-40"
           >
-            <option value="points">По standing</option>
-            <option value="total">По сумме</option>
+            <option value="points">By Reign</option>
+            <option value="total">By amount</option>
           </Select>
         </div>
       </div>
@@ -98,14 +98,14 @@ export function Leaderboard({
           ))}
         </div>
       ) : error ? (
-        <ErrorState description="Не удалось загрузить лидерборд." onRetry={() => refetch()} />
+        <ErrorState description="Couldn't load the leaderboard." onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState
-          title="Пусто"
+          title="Empty"
           description={
             tierFilter === "all"
-              ? "Будь первым, кто наберёт standing на этом канале."
-              : "Нет донатёров в этом тире."
+              ? "Be the first to build Reign on this realm."
+              : "No supporters in this tier."
           }
         />
       ) : (

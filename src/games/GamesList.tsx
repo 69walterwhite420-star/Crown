@@ -1,0 +1,86 @@
+"use client";
+
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { LockIcon } from "@/components/ui/icons";
+import { GAME_PANELS } from "./panels";
+import { GAMES } from "./registry";
+import type { GameModule } from "./types";
+import { channelHue, cn } from "@/lib/utils";
+
+/**
+ * Каталог мини-игр: постер-карточки в сетке (в строку, перенос при нехватке места). Каждая карточка —
+ * обложка на всю высоту (пока плейсхолдер: градиент по хэшу id + иконка; позже — реальное фото игры).
+ * Название/описание проявляются ПО НАВЕДЕНИЮ. Клик открывает правила (или «coming soon» для заглушек).
+ */
+export function GamesList({ enabledGames }: { enabledGames: string[] }) {
+  const [rulesFor, setRulesFor] = useState<GameModule | null>(null);
+  const RulesComp = rulesFor ? GAME_PANELS[rulesFor.id]?.Rules : null;
+
+  return (
+    <>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
+        {GAMES.map((game) => {
+          const Icon = GAME_PANELS[game.id]?.Icon ?? LockIcon;
+          const enabledHere = enabledGames.includes(game.id);
+          const building = game.status === "building";
+          const hue = channelHue(game.id);
+          const status = enabledHere
+            ? { label: "Live", cls: "text-status" }
+            : building
+              ? { label: "Soon", cls: "text-fg-faint" }
+              : { label: "Available", cls: "text-money" };
+          return (
+            <button
+              key={game.id}
+              type="button"
+              onClick={() => setRulesFor(game)}
+              aria-label={game.title}
+              className="group relative block aspect-[3/4] overflow-hidden rounded-lg border border-border text-left transition-colors hover:border-border-strong"
+            >
+              {/* Обложка (плейсхолдер): градиент по оттенку игры + иконка-водяной знак. Замени на <img>. */}
+              <span
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${hue} 34% 9%) 62%, #000)`,
+                }}
+              />
+              <span
+                className="absolute inset-0 grid place-items-center"
+                style={{ color: `hsl(${hue} 45% 68%)` }}
+              >
+                <Icon className="h-12 w-12 opacity-25 transition-opacity duration-200 group-hover:opacity-10" />
+              </span>
+
+              {/* Подпись — проявляется по наведению */}
+              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black via-black/75 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 text-small font-semibold leading-tight text-fg">
+                    {game.title}
+                  </span>
+                  <span className={cn("flex-none text-caption", status.cls)}>{status.label}</span>
+                </div>
+                <p className="line-clamp-3 text-caption normal-case tracking-normal text-fg-muted">
+                  {game.tagline}
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <Dialog open={!!rulesFor} onOpenChange={(o) => (o ? null : setRulesFor(null))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{rulesFor?.title}</DialogTitle>
+          </DialogHeader>
+          {RulesComp ? (
+            <RulesComp />
+          ) : (
+            <p className="text-small text-fg-muted">{rulesFor?.tagline} Coming soon.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

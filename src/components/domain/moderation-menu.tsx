@@ -18,7 +18,7 @@ const itemCls =
   "flex w-full items-center rounded px-3 py-2 text-left text-small text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg";
 
 const closeMenu = (el: HTMLElement) => el.closest("details")?.removeAttribute("open");
-const errToast = (e: unknown) => toast({ variant: "error", title: "Ошибка", description: String(e) });
+const errToast = (e: unknown) => toast({ variant: "error", title: "Error", description: String(e) });
 
 /**
  * Меню действий модерации для владельца/модератора — иконка-щит вместо россыпи кнопок на донате. По клику
@@ -79,8 +79,8 @@ export function ModerationMenu({
     <details ref={detailsRef} className="relative">
       <summary
         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg [&::-webkit-details-marker]:hidden"
-        title="Ещё действия"
-        aria-label="Действия модерации"
+        title="More actions"
+        aria-label="Moderation actions"
       >
         <MoreIcon className="h-4 w-4" />
       </summary>
@@ -96,13 +96,13 @@ export function ModerationMenu({
               setState.mutate(
                 { messageId: message.id, state: "HIDDEN" },
                 {
-                  onSuccess: () => toast({ title: "Сообщение скрыто" }),
+                  onSuccess: () => toast({ title: "Message hidden" }),
                   onError: errToast,
                 },
               );
             }}
           >
-            Скрыть это сообщение
+            Hide this message
           </button>
         ) : null}
 
@@ -115,7 +115,7 @@ export function ModerationMenu({
               setReportOpen(true);
             }}
           >
-            Пожаловаться
+            Report
           </button>
         ) : null}
 
@@ -126,12 +126,12 @@ export function ModerationMenu({
             onClick={(e) => {
               closeMenu(e.currentTarget);
               hideAll.mutate(donor, {
-                onSuccess: (r) => toast({ title: `Скрыто сообщений: ${r.hidden}` }),
+                onSuccess: (r) => toast({ title: `Messages hidden: ${r.hidden}` }),
                 onError: errToast,
               });
             }}
           >
-            Скрыть все сообщения пользователя
+            Hide all messages from this user
           </button>
         ) : null}
 
@@ -143,12 +143,12 @@ export function ModerationMenu({
               onClick={(e) => {
                 closeMenu(e.currentTarget);
                 removeBlock.mutate(donor, {
-                  onSuccess: () => toast({ title: "Разбанен", description: shortAddress(donor) }),
+                  onSuccess: () => toast({ title: "Unbanned", description: shortAddress(donor) }),
                   onError: errToast,
                 });
               }}
             >
-              Разбанить донаты-с-сообщениями
+              Unban crowns-with-messages
             </button>
           ) : (
             <button
@@ -160,13 +160,13 @@ export function ModerationMenu({
                   { address: donor },
                   {
                     onSuccess: () =>
-                      toast({ variant: "success", title: "Заблокированы донаты-с-сообщениями", description: shortAddress(donor) }),
+                      toast({ variant: "success", title: "Crowns-with-messages blocked", description: shortAddress(donor) }),
                     onError: errToast,
                   },
                 );
               }}
             >
-              Блок донатов-с-сообщениями
+              Block crowns-with-messages
             </button>
           )
         ) : null}

@@ -182,6 +182,8 @@ fn param_fields(p: &crate::governance::DisputeParams) -> serde_json::Value {
         "disputeWindowSecs": p.dispute_window_secs,
         "votingWindowSecs": p.voting_window_secs,
         "dMaxMicro": p.d_max_micro.to_string(),
+        "disputeWinBonusMicro": p.dispute_win_bonus_micro.to_string(),
+        "disputeLossPenaltyMicro": p.dispute_loss_penalty_micro.to_string(),
     })
 }
 
@@ -306,15 +308,17 @@ fn handle_params_update(body: &serde_json::Value) -> HttpResponse {
     ) else {
         return json_response(400, json!({ "error": "нужны channelId, owner, version, params, signature" }));
     };
-    let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) = (
+    let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h)) = (
         get_u64(p, "minReputationToDisputeMicro"),
         get_u64(p, "minWeightToVoteMicro"),
         get_u64(p, "quorumMicro"),
         get_u64(p, "disputeWindowSecs"),
         get_u64(p, "votingWindowSecs"),
         get_u64(p, "dMaxMicro"),
+        get_u64(p, "disputeWinBonusMicro"),
+        get_u64(p, "disputeLossPenaltyMicro"),
     ) else {
-        return json_response(400, json!({ "error": "params: шесть полей *Micro/*Milli/*Secs (число или строка)" }));
+        return json_response(400, json!({ "error": "params: восемь полей *Micro/*Secs (число или строка)" }));
     };
     let params = crate::governance::DisputeParams {
         min_reputation_to_dispute_micro: a,
@@ -323,6 +327,8 @@ fn handle_params_update(body: &serde_json::Value) -> HttpResponse {
         dispute_window_secs: d,
         voting_window_secs: e,
         d_max_micro: f,
+        dispute_win_bonus_micro: g,
+        dispute_loss_penalty_micro: h,
     };
     match crate::governance::set_dispute_params(
         &channel,

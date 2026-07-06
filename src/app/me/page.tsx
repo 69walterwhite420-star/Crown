@@ -19,8 +19,8 @@ export default function ProfilePage() {
           <Skeleton className="h-32 w-full" />
         ) : !address ? (
           <EmptyState
-            title="Кошелёк не подключён"
-            description="Подключи кошелёк, чтобы увидеть свой профиль и standing."
+            title="Wallet not connected"
+            description="Connect wallet to see your profile and Reign."
             action={<ConnectWalletButton />}
           />
         ) : (

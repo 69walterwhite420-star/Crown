@@ -46,9 +46,9 @@ import {
   timeAgo,
 } from "@/lib/utils";
 
-const DONATIONS = ["донат", "доната", "донатов"] as const;
-const CHANNELS = ["канал", "канала", "каналов"] as const;
-const POINTS = ["очко", "очка", "очков"] as const;
+const DONATIONS = ["crown", "crowns", "crowns"] as const;
+const CHANNELS = ["realm", "realms", "realms"] as const;
+const POINTS = ["Reign", "Reign", "Reign"] as const;
 
 /** Аватар профиля: монограмма со стабильным цветом по имени/адресу (картинок нет — §профиль). */
 export function ProfileAvatar({ name, address }: { name?: string; address: string }) {
@@ -71,7 +71,7 @@ export function ProfileAvatar({ name, address }: { name?: string; address: strin
 
 function monthYear(iso?: string): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 /** Кнопка-иконка «скопировать» (адрес / ссылка) с галочкой-подтверждением. */
@@ -87,9 +87,9 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
         try {
           await navigator.clipboard.writeText(value);
           markCopied();
-          toast({ variant: "success", title: "Скопировано" });
+          toast({ variant: "success", title: "Copied" });
         } catch {
-          toast({ variant: "error", title: "Не удалось скопировать" });
+          toast({ variant: "error", title: "Couldn't copy" });
         }
       }}
     >
@@ -128,12 +128,12 @@ function ProfileBio({ bio }: { bio: string }) {
               type="button"
               className="shrink-0 text-small text-fg-faint transition-colors hover:text-fg"
             >
-              …ещё
+              …more
             </button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>О себе</DialogTitle>
+              <DialogTitle>About</DialogTitle>
             </DialogHeader>
             <p className="whitespace-pre-wrap break-words text-body text-fg-muted">{bio}</p>
           </DialogContent>
@@ -171,10 +171,10 @@ function ProfileEditDialog({ address }: { address: string }) {
       },
       {
         onSuccess: () => {
-          toast({ variant: "success", title: "Профиль сохранён" });
+          toast({ variant: "success", title: "Profile saved" });
           setOpen(false);
         },
-        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );
   }
@@ -184,8 +184,8 @@ function ProfileEditDialog({ address }: { address: string }) {
       <DialogTrigger asChild>
         <button
           type="button"
-          title="Редактировать профиль"
-          aria-label="Редактировать профиль"
+          title="Edit profile"
+          aria-label="Edit profile"
           className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
         >
           <PencilIcon className="h-[18px] w-[18px]" />
@@ -193,38 +193,39 @@ function ProfileEditDialog({ address }: { address: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Редактирование профиля</DialogTitle>
+          <DialogTitle>Edit profile</DialogTitle>
           <DialogDescription>
-            Ник, аватар и ссылки видны в ленте, лидерборде и на этом профиле. Профиль необязателен.
+            Your name, avatar and links are visible in the feed, the leaderboard and on this profile.
+            The profile is optional.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <Input
-            label="Имя"
+            label="Name"
             maxLength={40}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <Textarea
-            label="О себе"
+            label="About"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             maxLength={280}
             showCount
           />
           <div className="flex flex-col gap-2">
-            <span className="text-small text-fg-muted">Ссылки</span>
+            <span className="text-small text-fg-muted">Links</span>
             <LinkEditor value={linkInputs} onChange={setLinkInputs} />
           </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="ghost" disabled={update.isPending}>
-              Отмена
+              Cancel
             </Button>
           </DialogClose>
           <Button onClick={save} loading={update.isPending}>
-            Сохранить
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -235,11 +236,11 @@ function ProfileEditDialog({ address }: { address: string }) {
 
 // Подпись под графиком для выбранного окна.
 const RANGE_CAPTION: Record<ChartRange, string> = {
-  "1D": "за день",
-  "1W": "за неделю",
-  "1M": "за месяц",
-  "1Y": "за год",
-  ALL: "за всё время",
+  "1D": "past day",
+  "1W": "past week",
+  "1M": "past month",
+  "1Y": "past year",
+  ALL: "all time",
 };
 
 /**
@@ -256,7 +257,7 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
       events={events}
       range={range}
       formatValue={formatUSDCNumber}
-      emptyHint="Пока нет донатов — график появится после первого."
+      emptyHint="No crowns yet — the chart appears after the first one."
     />
   );
 }
@@ -289,20 +290,14 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
       </div>
       <div className="flex min-w-[6rem] shrink-0 flex-col items-end">
         <Amount micro={s.totalDonated} variant="money" className="whitespace-nowrap" />
-        <span className="text-small text-fg-faint">задонатил</span>
+        <span className="text-small text-fg-faint">crowned</span>
       </div>
     </Link>
   );
 }
 
-/** Строка журнала очков: канал + «за что» (донат / задание / исход спора) + знаковая дельта очков. */
-const EVENT_LABEL: Record<DonorPointEvent["type"], string> = {
-  DONATION: "Донат",
-  GAME_DONATION: "Задание-донат выполнено",
-  DISPUTE_WON: "Выигранный спор",
-  DISPUTE_LOST: "Проигранный ложный спор",
-};
-
+/** Строка активности: канал (ссылка) + сумма + время + текст (если показан). */
+/** Строка журнала очков: канал + «за что» (донат $X / списание оператором) + дельта очков (+/−). */
 function ActivityRow({
   e,
   handle,
@@ -312,9 +307,19 @@ function ActivityRow({
   handle?: string;
   channelName?: string;
 }) {
+  // В ядре оператор Reign не списывает (§4.5/CR-1): единственная отрицательная дельта — DISPUTE_LOST.
+  const isPenalty = e.type === "DISPUTE_LOST";
+  const reason =
+    e.type === "DISPUTE_LOST"
+      ? "Lost false dispute"
+      : e.type === "DISPUTE_WON"
+        ? "Won dispute"
+        : e.type === "GAME_DONATION"
+          ? "Task crown"
+          : "Crown";
+  const showsAmount = e.type === "DONATION" || e.type === "GAME_DONATION";
   const shown = e.message?.state === "SHOWN";
   const delta = e.pointsDelta;
-  const negative = delta < 0;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-3">
       <div className="flex items-center justify-between gap-2">
@@ -326,22 +331,26 @@ function ActivityRow({
         ) : (
           <span className="mono min-w-0 truncate text-small text-fg-faint">{e.channelId}</span>
         )}
-        {/* знаковая дельта: рост — money-green, протокольное списание (DISPUTE_LOST) — danger */}
+        {/* дельта очков: + начислено / − списано */}
         <span
           className="mono shrink-0 text-small font-medium"
-          style={{ color: negative ? "var(--danger)" : "var(--money)" }}
+          style={{ color: delta < 0 ? "var(--danger)" : "var(--money)" }}
         >
-          {negative ? "−" : "+"}
+          {delta >= 0 ? "+" : "−"}
           {formatPoints(Math.abs(delta))} {plural(Math.abs(delta), POINTS)}
         </span>
       </div>
 
-      {/* за что: денежные события — с суммой; исходы споров — только подпись */}
-      <div className="flex items-center gap-1.5 text-small text-fg-muted">
-        <span>{EVENT_LABEL[e.type] ?? e.type}</span>
-        {e.amount > 0n ? <Amount micro={e.amount} variant="money" /> : null}
-      </div>
-      {shown && e.message ? (
+      {/* за что */}
+      {isPenalty ? (
+        <p className="text-small text-danger">Lost false dispute — Reign penalty.</p>
+      ) : (
+        <div className="flex items-center gap-1.5 text-small text-fg-muted">
+          <span>{reason}</span>
+          {showsAmount ? <Amount micro={e.amount} variant="money" /> : null}
+        </div>
+      )}
+      {!isPenalty && shown && e.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(e.message.text)}</p>
       ) : null}
 
@@ -352,8 +361,8 @@ function ActivityRow({
             href={explorerTxUrl(e.txSignature)}
             target="_blank"
             rel="noreferrer"
-            title="Транзакция в проводнике"
-            aria-label="Транзакция в проводнике"
+            title="Transaction in explorer"
+            aria-label="Transaction in explorer"
             className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
           >
             <ExternalLinkIcon className="h-4 w-4" />
@@ -424,7 +433,7 @@ function DonorDashboard({
     return sorted;
   }, [overview.standings, query, sort]);
 
-  const name = displayName?.trim() || profileQ.data?.displayName?.trim() || "Профиль донатёра";
+  const name = displayName?.trim() || profileQ.data?.displayName?.trim() || "Supporter profile";
 
   return (
     <div className="flex flex-col gap-8">
@@ -437,7 +446,7 @@ function DonorDashboard({
           <div className="flex items-start gap-4">
             <ProfileAvatar name={name} address={overview.address} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-caption uppercase tracking-wide text-fg-faint">Профиль</span>
+              <span className="text-caption uppercase tracking-wide text-fg-faint">Profile</span>
               <h1 className="text-display-l leading-tight text-fg">{name}</h1>
               <div className="mono truncate text-small text-fg-faint">{overview.address}</div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
@@ -451,19 +460,19 @@ function DonorDashboard({
                   {plural(overview.donationCount, DONATIONS)}
                 </span>
                 <span className="text-fg-faint">·</span>
-                <span>с {monthYear(overview.firstDonationAt)}</span>
+                <span>since {monthYear(overview.firstDonationAt)}</span>
               </div>
               {overview.ownedChannelHandle ? (
                 <Link
                   href={`/c/${overview.ownedChannelHandle}`}
                   className="mt-1 inline-flex w-fit items-center gap-1 rounded-pill border border-border px-2.5 py-0.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-status"
                 >
-                  Канал @{overview.ownedChannelHandle} →
+                  Realm @{overview.ownedChannelHandle} →
                 </Link>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <CopyIconButton value={overview.address} title="Скопировать адрес" />
+              <CopyIconButton value={overview.address} title="Copy address" />
               {editable ? <ProfileEditDialog address={overview.address} /> : null}
             </div>
           </div>
@@ -477,13 +486,13 @@ function DonorDashboard({
         {/* Карточка «всего задонатил» + график */}
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-small text-fg-muted">Всего задонатил</span>
+            <span className="text-small text-fg-muted">Total crowned</span>
             <RangeTabs range={range} onChange={setRange} />
           </div>
           <Amount micro={overview.totalDonated} variant="money" className="text-display-l" />
           <DonationsAreaChart donations={overview.donations} range={range} />
           <span className="text-small text-fg-faint">
-            {RANGE_CAPTION[range]} · деньги финальны, репутация считается у каждого канала отдельно
+            {RANGE_CAPTION[range]} · money is final, Reign is computed per realm separately
           </span>
         </div>
       </div>
@@ -493,8 +502,8 @@ function DonorDashboard({
         <div className="flex items-center gap-4 border-b border-border">
           {(
             [
-              ["channels", `Каналы · ${overview.channelsSupported}`],
-              ["activity", `Журнал репутации · ${pointEvents.length}`],
+              ["channels", `Realms · ${overview.channelsSupported}`],
+              ["activity", `Reign log · ${pointEvents.length}`],
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -518,7 +527,7 @@ function DonorDashboard({
                 <div className="min-w-48 flex-1">
                   <Input
                     icon={<SearchIcon className="h-4 w-4" />}
-                    placeholder="Поиск каналов…"
+                    placeholder="Search realms…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
@@ -526,8 +535,8 @@ function DonorDashboard({
                 <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
                   {(
                     [
-                      ["donated", "По сумме"],
-                      ["points", "По очкам"],
+                      ["donated", "By amount"],
+                      ["points", "By Reign"],
                     ] as [PosSort, string][]
                   ).map(([key, label]) => (
                     <button
@@ -551,12 +560,12 @@ function DonorDashboard({
                   ))}
                 </div>
               ) : (
-                <p className="text-small text-fg-faint">Ничего не найдено.</p>
+                <p className="text-small text-fg-faint">Nothing found.</p>
               )}
             </div>
           ) : (
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-              Этот адрес ещё не донатил ни одному каналу.
+              This address hasn&apos;t crowned any realm yet.
             </p>
           )
         ) : pointEvents.length > 0 ? (
@@ -568,10 +577,10 @@ function DonorDashboard({
                   setActChannel(e.target.value);
                   setActLimit(12);
                 }}
-                aria-label="Фильтр журнала по каналу"
+                aria-label="Filter log by realm"
                 className="w-full sm:w-64"
               >
-                <option value="all">Все каналы</option>
+                <option value="all">All realms</option>
                 {actChannels.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
@@ -600,17 +609,17 @@ function DonorDashboard({
                     onClick={() => setActLimit((n) => n + 12)}
                     className="mx-auto rounded-pill border border-border px-4 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
                   >
-                    Показать больше
+                    Show more
                   </button>
                 ) : null}
               </>
             ) : (
-              <p className="text-small text-fg-faint">По этому каналу записей в журнале нет.</p>
+              <p className="text-small text-fg-faint">No log entries for this realm.</p>
             )}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-            Журнал репутации пуст.
+            The Reign log is empty.
           </p>
         )}
       </div>
@@ -634,7 +643,7 @@ export function DonorProfile({ address, editable }: { address: string; editable?
     );
   }
   if (!overviewQ.data) {
-    return <p className="text-small text-fg-faint">Не удалось загрузить профиль.</p>;
+    return <p className="text-small text-fg-faint">Couldn&apos;t load the profile.</p>;
   }
   return (
     <DonorDashboard

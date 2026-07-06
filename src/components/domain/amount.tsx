@@ -18,21 +18,21 @@ export function Amount({
   );
 }
 
-/** Разбивка комиссии 97/3 прямо в виджете доната (yellow-paper §14). */
+/** Разбивка комиссии 97/3 прямо в виджете доната (screens.md). */
 export function FeeSplit({ amount }: { amount: bigint }) {
   const { fee, net } = splitAmount(amount);
   return (
     <div className="flex flex-col gap-1.5 rounded border border-border bg-[var(--bg)] p-3 text-small">
       <div className="flex items-center justify-between">
-        <span className="text-fg-muted">Стримеру 97%</span>
+        <span className="text-fg-muted">To streamer 97%</span>
         <Amount micro={net} />
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-fg-muted">Платформе 3%</span>
+        <span className="text-fg-muted">To platform 3%</span>
         <Amount micro={fee} />
       </div>
       <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
-        <span className="text-fg">Итого</span>
+        <span className="text-fg">Total</span>
         <Amount micro={amount} className="text-fg" />
       </div>
     </div>

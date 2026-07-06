@@ -13,7 +13,7 @@ export default function DiscoveryPage() {
     <>
       <AppHeader />
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
-        <h1 className="text-display-l text-fg">Каналы</h1>
+        <h1 className="text-display-l text-fg">Realms</h1>
         <Suspense fallback={<Skeleton className="h-28 w-full rounded-lg" />}>
           <DiscoveryList />
         </Suspense>
@@ -37,13 +37,13 @@ function DiscoveryList() {
     );
   }
   if (error) {
-    return <ErrorState description="Не удалось загрузить каналы." onRetry={() => refetch()} />;
+    return <ErrorState description="Couldn't load realms." onRetry={() => refetch()} />;
   }
   if (!data || data.items.length === 0) {
     return (
       <EmptyState
-        title="Пока нет каналов"
-        description="Подключи кошелёк и активируй свой канал, чтобы он появился здесь."
+        title="No realms yet"
+        description="Connect wallet and activate your realm so it shows up here."
       />
     );
   }

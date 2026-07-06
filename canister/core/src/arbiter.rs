@@ -299,10 +299,16 @@ pub fn open_dispute_with_escrow(
 
     let (params, _) = governance::effective_params(&args.channel_id, (now_ms as u64) * 1_000_000);
     let weight = weight_as_of_micro(&args.channel_id, &args.by, now_ms);
-    if weight < params.min_reputation_to_dispute_micro as i128 {
+    // Порог открытия спора не ниже штрафа за проигрыш: нельзя поднять спор, не имея репутации покрыть
+    // возможное списание (у кого репутация ниже, чем у него заберут, — не спорит). Эффективный минимум =
+    // max(заданный владельцем порог, DISPUTE_LOSS_PENALTY). Решение владельца.
+    let min_rep = params
+        .min_reputation_to_dispute_micro
+        .max(params.dispute_loss_penalty_micro);
+    if weight < min_rep as i128 {
         return Err(format!(
-            "вес {} micro-очков ниже порога открытия спора {}",
-            weight, params.min_reputation_to_dispute_micro
+            "вес {} micro-очков ниже порога открытия спора {} (не ниже штрафа за проигрыш)",
+            weight, min_rep
         ));
     }
 
@@ -522,7 +528,18 @@ pub fn finalize_due(now_ms: i64) -> u64 {
         let Some((outcome, reason)) = disputes::due_resolution(&case.task, now_ms) else {
             continue;
         };
-        let effects = disputes::rep_effects(&case.task, outcome, reason);
+        // Награды спора — governance-параметры канала (подпись владельца + таймлок). Берём действующие
+        // на момент финализации: изменения раньше проходят таймлок, так что «догоняющий» апдейт наград
+        // применится к разрешаемому спору лишь если уже вступил в силу (кворум/окна снапшотятся при
+        // открытии; награды здесь читаются на резолве — компромисс без правки хранимого стейта спора).
+        let (params, _) = governance::effective_params(&case.channel_id, (now_ms as u64) * 1_000_000);
+        let effects = disputes::rep_effects(
+            &case.task,
+            outcome,
+            reason,
+            params.dispute_win_bonus_micro as i128,
+            params.dispute_loss_penalty_micro as i128,
+        );
         let d = case.task.dispute.as_ref().expect("dispute");
         let (mut completed, mut not) = (0i128, 0i128);
         for v in &d.votes {
@@ -628,7 +645,8 @@ mod tests {
 
         // Журнал: активация (владелец) + веса инициатора и присяжных на канале.
         journal(EntryKind::Activation, ch, &owner, 0, 100, "arb-act");
-        journal(EntryKind::Donation, ch, &initiator, 5_000_000, 200, "arb-d1"); // 5 очков
+        // 50 очков: инициатор должен покрыть штраф за проигрыш (порог = max(мин, штраф 50)).
+        journal(EntryKind::Donation, ch, &initiator, 50_000_000, 200, "arb-d1");
         journal(EntryKind::Donation, ch, &juror1, 10_000_000, 200, "arb-d2");
         journal(EntryKind::Donation, ch, &juror2, 3_000_000, 200, "arb-d3");
 
@@ -711,11 +729,11 @@ mod tests {
         assert_eq!(v.reason.as_str(), "vote_not_completed");
         assert_eq!(v.tally_not_completed_micro, 10_000_000);
 
-        // Журнал получил DISPUTE_WON (+10 очков) инициатору; вес инициатора вырос.
+        // Журнал получил DISPUTE_WON (+10 очков) инициатору; вес инициатора вырос (50 → 60).
         let w_before = weight_as_of_micro(ch, &initiator, now);
         let w_after = weight_as_of_micro(ch, &initiator, now + 122_000);
-        assert_eq!(w_before, 5_000_000);
-        assert_eq!(w_after, 15_000_000);
+        assert_eq!(w_before, 50_000_000);
+        assert_eq!(w_after, 60_000_000);
     }
 
     /// Гонка resolve_timeout: голосование обязано кончаться раньше ончейн-дедлайна.

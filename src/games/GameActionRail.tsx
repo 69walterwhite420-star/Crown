@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronRightIcon, InfoIcon } from "@/components/ui/icons";
+import { IS_CHAIN } from "@/lib/chain/addresses";
 import { pickerEntries, type PickerEntry, type RailContext } from "./picker";
 
 /**
@@ -29,6 +30,22 @@ export function GameActionRail({
 
   const current = entries.find((e) => e.id === currentId) ?? entries[0];
   if (!current) return null; // недостижимо: «Донат» всегда в списке — но сужаем тип для TS
+
+  // H1: realm без подписанного payout не принимает крауны НИ обычным донатом, НИ заданием — сервер отобьёт
+  // (ingest для доната, ESC-20 для эскроу-задания). Не показываем форму-обманку (конвенция «никаких заглушек»):
+  // донору — честный paused-стейт, зеркало панели владельца «crowns paused». Только ончейн-режимы (IS_CHAIN =
+  // chain|icp); в mock/api аттестация не требуется. Гейтит ВЕСЬ рейл разом — и донат, и все игры из пикера.
+  if (IS_CHAIN && !channel.payoutAttestation) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
+        <span className="text-small font-medium text-fg">Crowns paused</span>
+        <span className="text-caption text-fg-muted">
+          This realm hasn’t pinned its payout address by signature yet. Until the owner signs it, no
+          crowns — donations or tasks — can be sent. This protects senders from a swapped address.
+        </span>
+      </div>
+    );
+  }
   const ctx: RailContext = { channel, config, session, standing, standingLoading, handle };
 
   return (

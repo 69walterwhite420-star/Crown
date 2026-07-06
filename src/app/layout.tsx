@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-// Шрифты грузим через next/font (design-system.md §8, display: swap).
-// Design-target — General Sans (Fontshare) для display; на Фазе 0 берём Cyrillic-capable
-// замены из Google Fonts, т.к. UI-копирайт русский (Hanken Grotesk без кириллицы).
-import { Manrope, Inter, JetBrains_Mono } from "next/font/google";
+// Шрифты через next/font (display: swap). CROWN: ОДИН шрифт на весь UI — Inter (заголовки и текст).
+// Моно (JetBrains) — только для чисел/сумм/адресов (tabular-nums). Без декоративных серифов.
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AppFooter } from "@/components/layout/app-footer";
+import { PageTransitions } from "@/components/layout/page-transitions";
 import { Providers } from "./providers";
 
-const display = Manrope({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-display",
-  display: "swap",
-});
 const body = Inter({
   subsets: ["latin", "cyrillic"],
   variable: "--font-body",
@@ -24,23 +18,28 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Standing",
-  description: "Локальная репутация как продукт. Донаты в USDC на Solana → статус в комьюнити стримера.",
+  title: "CROWN — crown your realm",
+  description:
+    "Crown a streamer with USDC on Solana and build your Reign in their realm. Non-transferable, earned crown by crown.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="ru"
-      className={`dark ${display.variable} ${body.variable} ${mono.variable}`}
+      lang="en"
+      className={`dark ${body.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
       <body>
+        {/* Кроссфейд между страницами (нативный View Transitions API). */}
+        <PageTransitions />
         <div className="flex min-h-screen flex-col">
-          <div className="flex-1">
+          {/* animate-enter — мягкое проявление при ПЕРВОМ заходе на сайт (layout не перемонтируется →
+              один раз; переходы между страницами делает View Transitions). Только opacity — безопасно
+              для sticky-шапки/fixed-элементов. */}
+          <div className="flex-1 animate-enter">
             <Providers>{children}</Providers>
           </div>
-          <AppFooter />
         </div>
       </body>
     </html>

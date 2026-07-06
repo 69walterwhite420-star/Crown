@@ -12,8 +12,8 @@ import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/da
 
 // Бейдж только для того, что требует внимания (FLAG/HARD_BLOCK); CLEAR — без метки, чтобы не зашумлять.
 const VERDICT: Partial<Record<ModerationVerdict, { label: string; cls: string }>> = {
-  FLAG: { label: "Подозрительное", cls: "border-warn text-warn" },
-  HARD_BLOCK: { label: "Запрещённое", cls: "border-danger text-danger" },
+  FLAG: { label: "Suspicious", cls: "border-warn text-warn" },
+  HARD_BLOCK: { label: "Prohibited", cls: "border-danger text-danger" },
 };
 
 /**
@@ -42,7 +42,7 @@ export function ModerationItem({
   const tier = standing.data?.tier;
   const hardBlock = message.autoVerdict === "HARD_BLOCK";
   const verdict = message.autoVerdict ? VERDICT[message.autoVerdict] : undefined;
-  const name = donorName?.trim() || (donor ? shortAddress(donor) : "Аноним");
+  const name = donorName?.trim() || (donor ? shortAddress(donor) : "Anonymous");
 
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
@@ -75,18 +75,18 @@ export function ModerationItem({
 
         <div className="ml-auto flex items-center gap-2">
           {hardBlock ? (
-            <span className="text-small text-danger">Авто-карантин — показать нельзя</span>
+            <span className="text-small text-danger">Auto-quarantined — cannot be shown</span>
           ) : (
             <>
               {/* Один `pending` на обе кнопки → не вешаем спиннер на «Показать» (иначе он крутится и при «Скрыть»).
                   Обе просто блокируются на время операции. */}
               <Button variant="secondary" size="sm" onClick={onShow} disabled={pending}>
                 <EyeIcon className="h-4 w-4" />
-                Показать
+                Show
               </Button>
               <Button variant="secondary" size="sm" onClick={onHide} disabled={pending}>
                 <EyeOffIcon className="h-4 w-4" />
-                Скрыть
+                Hide
               </Button>
             </>
           )}

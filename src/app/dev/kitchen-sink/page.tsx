@@ -58,10 +58,10 @@ export default function KitchenSink() {
       <header className="flex flex-col gap-1">
         <span className="mono text-caption text-fg-faint">/dev/kitchen-sink</span>
         <h1 className="text-display-l text-fg">Kitchen sink</h1>
-        <p className="text-fg-muted">Все токены и примитивы Фазы 0 в одном месте — для визуального ревью.</p>
+        <p className="text-fg-muted">All Phase 0 tokens and primitives in one place — for visual review.</p>
       </header>
 
-      <Section title="Цвет (токены)">
+      <Section title="Color (tokens)">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
           {COLORS.map((name) => (
             <div key={name} className="flex flex-col gap-2">
@@ -75,21 +75,21 @@ export default function KitchenSink() {
         </div>
       </Section>
 
-      <Section title="Типографика">
+      <Section title="Typography">
         <div className="flex flex-col gap-2">
           <p className="text-display-xl">Display XL</p>
           <p className="text-display-l">Display L</p>
-          <p className="text-h1">H1 — заголовок секции</p>
-          <p className="text-h2">H2 — подсекция</p>
-          <p className="text-h3">H3 — карточка</p>
-          <p className="text-body">Body — основной текст интерфейса.</p>
-          <p className="text-small text-fg-muted">Small — мета-информация.</p>
+          <p className="text-h1">H1 — section heading</p>
+          <p className="text-h2">H2 — subsection</p>
+          <p className="text-h3">H3 — card</p>
+          <p className="text-body">Body — main interface text.</p>
+          <p className="text-small text-fg-muted">Small — meta info.</p>
           <p className="text-caption">Caption / eyebrow</p>
           <p className="mono text-fg">Mono · 1,234.56 · 7xKp…3fQa</p>
         </div>
       </Section>
 
-      <Section title="Форматирование (utils)">
+      <Section title="Formatting (utils)">
         <div className="mono flex flex-col gap-1 text-small text-fg">
           <span>formatUSDC(toMicro(12.5)) → {formatUSDC(toMicro(12.5))}</span>
           <span>formatUSDC(9_700_000n) → {formatUSDC(9_700_000n)}</span>
@@ -104,7 +104,7 @@ export default function KitchenSink() {
           <Button variant="secondary">Secondary</Button>
           <Button variant="ghost">Ghost</Button>
           <Button variant="danger">Danger</Button>
-          <Button variant="money">Money (финальное)</Button>
+          <Button variant="money">Money (final)</Button>
           <Button loading>Loading</Button>
           <Button disabled>Disabled</Button>
         </div>
@@ -115,17 +115,17 @@ export default function KitchenSink() {
         </div>
       </Section>
 
-      <Section title="Поля ввода">
+      <Section title="Input fields">
         <div className="grid max-w-xl gap-4">
-          <Input label="Handle канала" placeholder="my-channel" helper="Латиница, цифры, дефис" />
-          <Input label="Сумма" mono placeholder="0.00" defaultValue="10.00" />
-          <Input label="С ошибкой" defaultValue="bad" error="Адрес невалиден" />
+          <Input label="Realm handle" placeholder="my-channel" helper="Latin letters, digits, hyphen" />
+          <Input label="Amount" mono placeholder="0.00" defaultValue="10.00" />
+          <Input label="With error" defaultValue="bad" error="Address is invalid" />
           <Textarea
-            label="Сообщение к донату"
-            placeholder="Текст…"
+            label="Crown message"
+            placeholder="Text…"
             maxLength={200}
             showCount
-            helper="Текст приватен до показа (HELD)"
+            helper="Text is private until shown (HELD)"
           />
         </div>
       </Section>
@@ -134,17 +134,17 @@ export default function KitchenSink() {
         <Tabs defaultValue="all">
           <TabsList>
             <TabsTrigger value="all">All-time</TabsTrigger>
-            <TabsTrigger value="month">Месяц</TabsTrigger>
-            <TabsTrigger value="top">Топ-донатёр</TabsTrigger>
+            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="top">Top supporter</TabsTrigger>
           </TabsList>
           <TabsContent value="all">
-            <p className="text-small text-fg-muted">Лидерборд за всё время (заглушка).</p>
+            <p className="text-small text-fg-muted">All-time leaderboard (placeholder).</p>
           </TabsContent>
           <TabsContent value="month">
-            <p className="text-small text-fg-muted">Лидерборд за месяц (заглушка).</p>
+            <p className="text-small text-fg-muted">Monthly leaderboard (placeholder).</p>
           </TabsContent>
           <TabsContent value="top">
-            <p className="text-small text-fg-muted">Топ-донатёр месяца (заглушка).</p>
+            <p className="text-small text-fg-muted">Top supporter of the month (placeholder).</p>
           </TabsContent>
         </Tabs>
       </Section>
@@ -153,28 +153,28 @@ export default function KitchenSink() {
         <div className="flex flex-wrap items-center gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="secondary">Наведи (tooltip)</Button>
+              <Button variant="secondary">Hover (tooltip)</Button>
             </TooltipTrigger>
-            <TooltipContent>Standing нельзя купить или передать.</TooltipContent>
+            <TooltipContent>Reign cannot be bought or transferred.</TooltipContent>
           </Tooltip>
 
           <Dialog>
             <DialogTrigger asChild>
-              <Button>Открыть Dialog</Button>
+              <Button>Open Dialog</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Подтверждение</DialogTitle>
+                <DialogTitle>Confirmation</DialogTitle>
                 <DialogDescription>
-                  Донат необратим. Возврата нет. (Демо диалога, действий нет.)
+                  A crown is irreversible. No refunds. (Demo dialog, no actions.)
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="ghost">Отмена</Button>
+                  <Button variant="ghost">Cancel</Button>
                 </DialogClose>
                 <DialogClose asChild>
-                  <Button variant="money">Подтвердить</Button>
+                  <Button variant="money">Confirm</Button>
                 </DialogClose>
               </DialogFooter>
             </DialogContent>
@@ -182,39 +182,39 @@ export default function KitchenSink() {
 
           <Button
             variant="secondary"
-            onClick={() => toast({ variant: "success", title: "Показано", description: "Сообщение опубликовано." })}
+            onClick={() => toast({ variant: "success", title: "Shown", description: "Message published." })}
           >
             Toast success
           </Button>
           <Button
             variant="secondary"
-            onClick={() => toast({ variant: "error", title: "Ошибка", description: "Не удалось выполнить." })}
+            onClick={() => toast({ variant: "error", title: "Error", description: "Could not complete." })}
           >
             Toast error
           </Button>
         </div>
       </Section>
 
-      <Section title="Состояния (loading / empty / error)">
+      <Section title="States (loading / empty / error)">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Skeleton className="h-6 w-2/3" />
             <Skeleton className="h-24 w-full" />
           </div>
           <EmptyState
-            title="Пока пусто"
-            description="Подключи кошелёк и активируй канал."
-            action={<Button size="sm">Активировать</Button>}
+            title="Nothing yet"
+            description="Connect wallet and activate your realm."
+            action={<Button size="sm">Activate</Button>}
           />
-          <ErrorState description="Не удалось загрузить." onRetry={() => toast({ title: "Повтор" })} />
+          <ErrorState description="Could not load." onRetry={() => toast({ title: "Retry" })} />
         </div>
       </Section>
 
-      <Section title="useData() — смоук-проверка (пустой мок)">
+      <Section title="useData() — smoke check (empty mock)">
         <div className="mono flex flex-col gap-1 rounded border border-border bg-surface p-4 text-small text-fg">
           <span>getSession(): {session.isLoading ? "loading…" : JSON.stringify(session.data)}</span>
           <span className="text-fg-muted">
-            Запрос идёт через useData() → MockDataProvider (NEXT_PUBLIC_DATA_SOURCE).
+            The request goes through useData() → MockDataProvider (NEXT_PUBLIC_DATA_SOURCE).
           </span>
         </div>
         <div className="flex gap-3">
@@ -226,18 +226,18 @@ export default function KitchenSink() {
               } catch (e) {
                 toast({
                   variant: "error",
-                  title: "Мутация не реализована (Фаза 0)",
+                  title: "Mutation not implemented (Phase 0)",
                   description: e instanceof Error ? e.message : String(e),
                 });
               }
             }}
           >
-            Вызвать createDonation (на guest ожидаем «подключи кошелёк»)
+            Call createDonation (as guest we expect &quot;connect wallet&quot;)
           </Button>
         </div>
       </Section>
 
-      <Section title="Dev-тулбар (сессии · ошибки · фикстуры)">
+      <Section title="Dev toolbar (sessions · errors · fixtures)">
         <DevToolbar />
       </Section>
     </main>

@@ -8,7 +8,7 @@ use serde_json::Value;
 use standing_core::disputes::{
     accept, apply_resolution, cancel, cast_vote, claim, create_task, due_resolution, mark_done,
     raise_dispute, rep_effects, tally, CreateTaskInput, MachineError, Task, TaskVote, VoteChoice,
-    Windows,
+    Windows, DISPUTE_LOSS_PENALTY_MICRO, DISPUTE_WIN_BONUS_MICRO,
 };
 use standing_core::donation::{extract_activation, extract_donation, ParsedTx};
 use standing_core::reputation::{
@@ -403,8 +403,14 @@ fn golden_scenarios() {
                     let (o, r) = due_resolution(&task, now)
                         .unwrap_or_else(|| panic!("{ctx}: dueResolution дал None"));
                     assert_due(Some((o, r)), &expected["due"], &ctx);
-                    // Эффекты считаются на состоянии ДО применения (как в раннере эталона).
-                    assert_effects(&rep_effects(&task, o, r), &expected["repEffects"], &ctx);
+                    // Эффекты считаются на состоянии ДО применения (как в раннере эталона). Награды —
+                    // дефолтные константы (эталон породил их с теми же значениями); канальные governance-
+                    // величины проверяются в disputes/governance-тестах, не в golden-паритете.
+                    assert_effects(
+                        &rep_effects(&task, o, r, DISPUTE_WIN_BONUS_MICRO, DISPUTE_LOSS_PENALTY_MICRO),
+                        &expected["repEffects"],
+                        &ctx,
+                    );
                     task = apply_resolution(&task, o, r, now);
                     assert_task(&task, &expected["task"], &ctx);
                 }
@@ -424,7 +430,13 @@ fn golden_scenarios() {
         } else {
             let res = task.resolution.as_ref().unwrap();
             assert_effects(
-                &rep_effects(&task, res.outcome, res.reason),
+                &rep_effects(
+                    &task,
+                    res.outcome,
+                    res.reason,
+                    DISPUTE_WIN_BONUS_MICRO,
+                    DISPUTE_LOSS_PENALTY_MICRO,
+                ),
                 final_effects,
                 &format!("{name}/final-effects"),
             );

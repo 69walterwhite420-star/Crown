@@ -6,7 +6,7 @@ import { platformDef } from "@/lib/channel-links";
 import type { ChannelCard } from "@/lib/data/types";
 import { channelHue, plural, shortAddress } from "@/lib/utils";
 
-const DONORS = ["донатёр", "донатёра", "донатёров"] as const;
+const DONORS = ["supporter", "supporters", "supporters"] as const;
 
 /** Карточка канала в Discovery: монограмма, название/@handle, тир, описание, инфо о донатёрах, мини-ссылки
  *  на соцсети и payout-адрес. Тело — ссылка на канал; соцсети/кошелёк — отдельные ссылки (не вложены). */
@@ -49,7 +49,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
             {plural(card.donorsCount, DONORS)}
           </span>
           <span className="flex items-center gap-1">
-            объём <Amount micro={card.totalDonated} />
+            volume <Amount micro={card.totalDonated} />
           </span>
         </div>
       </Link>
@@ -76,8 +76,8 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
               {hiddenLinks > 0 ? (
                 <Link
                   href={`/c/${card.handle}`}
-                  title={`Ещё ${hiddenLinks} — на странице канала`}
-                  aria-label={`Ещё ${hiddenLinks} ссылок на странице канала`}
+                  title={`${hiddenLinks} more — on the realm page`}
+                  aria-label={`${hiddenLinks} more links on the realm page`}
                   className="flex h-6 items-center justify-center rounded-md px-1.5 text-small leading-none text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
                 >
                   …
@@ -85,14 +85,14 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
               ) : null}
             </>
           ) : (
-            <span className="text-small text-fg-muted">нет ссылок</span>
+            <span className="text-small text-fg-muted">no links</span>
           )}
         </div>
         <a
           href={explorerAddressUrl(card.payoutAddress)}
           target="_blank"
           rel="noopener noreferrer"
-          title="Payout-адрес в Solana Explorer"
+          title="Payout address in Solana Explorer"
           className="mono flex shrink-0 items-center gap-1 text-small text-fg-muted transition-colors hover:text-fg"
         >
           {shortAddress(card.payoutAddress)} ↗

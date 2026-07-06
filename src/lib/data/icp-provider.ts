@@ -242,8 +242,27 @@ export class IcpDataProvider extends ChainDataProvider {
       const skinBySig = new Map(
         base.pointEvents.filter((e) => e.txSignature).map((e) => [e.txSignature!, e]),
       );
+      // Текст эскроу-задания — кожа, в канистре его нет (и не будет: канистра только про деньги/репутацию).
+      // Джойним текст с сервера по паре (канал, сумма) — канистра-запись и серверное событие описывают
+      // ОДИН эскроу-донат; список на ключ + shift() разводит редкий случай двух заданий одной суммы на канале.
+      const escrowSkinByKey = new Map<string, DonorPointEvent[]>();
+      for (const e of base.pointEvents) {
+        if (e.type !== "GAME_DONATION") continue;
+        const k = `${e.channelId}:${e.amount}`;
+        const list = escrowSkinByKey.get(k);
+        if (list) list.push(e);
+        else escrowSkinByKey.set(k, [e]);
+      }
+      // Спаривание с каноном (canon.events — по seq, старые→новые) хронологическое: сортируем каждый
+      // список по возрастанию ts, чтобы при коллизии (два задания одной суммы на канале) `shift()` отдал
+      // события в том же порядке. Профинансировано раньше ⇒ заклеймлено ⇒ зарезолвлено раньше — порядки сходятся.
+      for (const list of escrowSkinByKey.values()) list.sort((a, b) => (a.ts < b.ts ? -1 : 1));
       const canonEvents: DonorPointEvent[] = (canon.events ?? []).map((e) => {
         const skin = skinBySig.get(e.signature);
+        const escrowSkin =
+          e.kind === "GAME_DONATION"
+            ? escrowSkinByKey.get(`${e.channelId}:${e.amountMicro}`)?.shift()
+            : undefined;
         const isTx = !e.signature.startsWith("dispute:"); // псевдо-подпись спор-эффекта — не ссылка
         return {
           id: `icp:${e.seq}`,
@@ -254,9 +273,10 @@ export class IcpDataProvider extends ChainDataProvider {
           ts:
             e.blockTime != null
               ? new Date(e.blockTime * 1000).toISOString()
-              : (skin?.ts ?? new Date(0).toISOString()),
+              : (skin?.ts ?? escrowSkin?.ts ?? new Date(0).toISOString()),
           txSignature: isTx ? e.signature : undefined,
-          message: skin?.message,
+          escrowTaskId: escrowSkin?.escrowTaskId,
+          message: skin?.message ?? escrowSkin?.message, // донат — по подписи; задание — по (канал,сумма)
         };
       });
       // Канистра без `events` (код до M2-детализации, ещё не передеплоена) → серверный журнал
@@ -335,6 +355,8 @@ export class IcpDataProvider extends ChainDataProvider {
               disputeWindowSecs: params.disputeWindowSecs,
               votingWindowSecs: params.votingWindowSecs,
               dMaxMicro: params.dMaxMicro.toString(),
+              disputeWinBonusMicro: params.disputeWinBonusMicro.toString(),
+              disputeLossPenaltyMicro: params.disputeLossPenaltyMicro.toString(),
             },
             signature,
           }),

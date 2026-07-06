@@ -37,7 +37,7 @@ function matches(d: Donation, q: string): boolean {
  */
 export function DonationHistory({
   donations,
-  title = "История донатов",
+  title = "Crown history",
   defaultOpen = false,
   reportable = false,
   manageChannelId,
@@ -75,9 +75,9 @@ export function DonationHistory({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1">
           <Input
-            label="Поиск"
+            label="Search"
             icon={<SearchIcon className="h-4 w-4" />}
-            placeholder="ник, хеш транзакции, текст, сумма…"
+            placeholder="name, transaction hash, text, amount…"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -86,7 +86,7 @@ export function DonationHistory({
           />
         </div>
         <Select
-          label="На странице"
+          label="Per page"
           value={String(pageSize)}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
@@ -104,8 +104,8 @@ export function DonationHistory({
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="Ничего не найдено"
-          description={query ? "Измени запрос поиска." : "Пока нет донатов."}
+          title="Nothing found"
+          description={query ? "Try a different search." : "No crowns yet."}
         />
       ) : (
         <>
@@ -121,7 +121,7 @@ export function DonationHistory({
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
-            <span>Всего: {filtered.length}</span>
+            <span>Total: {filtered.length}</span>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -130,7 +130,7 @@ export function DonationHistory({
                 onClick={() => setPage(safePage - 1)}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
-                Назад
+                Back
               </Button>
               <span className="mono">
                 {safePage + 1} / {pageCount}
@@ -141,7 +141,7 @@ export function DonationHistory({
                 disabled={safePage >= pageCount - 1}
                 onClick={() => setPage(safePage + 1)}
               >
-                Вперёд
+                Next
                 <ChevronRightIcon className="h-4 w-4" />
               </Button>
             </div>
@@ -159,7 +159,7 @@ export function DonationHistory({
           {title} · {donations.length}
         </div>
         {donations.length === 0 ? (
-          <p className="py-6 text-center text-small text-fg-faint">Пока нет показанных сообщений.</p>
+          <p className="py-6 text-center text-small text-fg-faint">No shown messages yet.</p>
         ) : (
           <div className="flex flex-col [&>:last-child]:border-b-0">
             {donations.map((d) => (

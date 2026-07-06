@@ -309,7 +309,8 @@ export interface DonorPointEvent {
   amount: MicroUSDC; // сумма денег события (0n у DISPUTE_*)
   ts: Iso;
   txSignature?: TxSignature;
-  message?: MessageRef; // приватный текст доната (если показан) — для строки активности
+  message?: MessageRef; // приватный текст доната/задания (если показан) — для строки активности
+  escrowTaskId?: string; // GAME_DONATION: seed эскроу-задания (CR-4) — ключ джойна текста в icp-режиме
 }
 
 export interface DonorOverview {

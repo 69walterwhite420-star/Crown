@@ -104,8 +104,8 @@ export function ChannelLinkButtons({
           <DialogTrigger asChild>
             <button
               type="button"
-              title={`Ещё ${hiddenCount} — показать все ссылки`}
-              aria-label={`Ещё ${hiddenCount} ссылок — показать все`}
+              title={`${hiddenCount} more — show all links`}
+              aria-label={`${hiddenCount} more links — show all`}
               className={
                 text
                   ? "text-small text-fg-faint transition-colors hover:text-fg"
@@ -117,7 +117,7 @@ export function ChannelLinkButtons({
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Ссылки</DialogTitle>
+              <DialogTitle>Links</DialogTitle>
             </DialogHeader>
             <div className="flex flex-wrap gap-2">
               {valid.map((l) => (

@@ -4,9 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveTier } from "@/lib/reputation";
-import { cn, formatPoints, formatPointsCompact, plural } from "@/lib/utils";
-
-const POINTS = ["очко", "очка", "очков"] as const;
+import { cn, formatPoints, formatPointsCompact } from "@/lib/utils";
 import type { Tier, ViewerStanding } from "@/lib/data/types";
 
 /** Компактный бейдж тира рядом с ником/в ленте/лидерборде. */
@@ -52,7 +50,7 @@ export function StandingSeal({
         <div
           tabIndex={0}
           role="img"
-          aria-label={`Standing: тир ${tier.name}, ${formatPoints(points)} ${plural(points, POINTS)}. Непередаваемо.`}
+          aria-label={`Reign — ${tier.name}, ${formatPoints(points)} Reign. Non-transferable.`}
           className="flex w-full cursor-help flex-col gap-1 rounded-lg border-2 bg-status-bg p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
           style={{ borderColor: tier.color, boxShadow: `inset 0 0 0 1px ${tier.color}33` }}
         >
@@ -63,12 +61,12 @@ export function StandingSeal({
             {formatPoints(points)}
           </span>
           <span className="text-small" style={{ color: tier.color, opacity: 0.85 }}>
-            {plural(points, POINTS)} standing
+            Reign
           </span>
         </div>
       </TooltipTrigger>
       <TooltipContent>
-        Standing нельзя купить или передать — он считается из твоих донатов на этом канале.
+        Reign can&apos;t be bought or transferred — it&apos;s computed from your crowns to this realm.
       </TooltipContent>
     </Tooltip>
   );
@@ -81,8 +79,8 @@ export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-small text-fg-muted">
-        <span>до «{standing.nextTier.name}»</span>
-        <span className="mono">{formatPoints(remaining)} {plural(remaining, POINTS)}</span>
+        <span>to {standing.nextTier.name}</span>
+        <span className="mono">{formatPoints(remaining)} Reign</span>
       </div>
       <div className="h-2 overflow-hidden rounded-pill bg-surface-raised">
         <div
@@ -180,12 +178,12 @@ export function StandingHeadline({
     <div className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-caption text-fg-faint">Мой standing</span>
+          <span className="text-caption text-fg-faint">My Reign</span>
           <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
             <span className="mono max-w-full break-all text-h1 leading-none text-fg">
               {formatPointsCompact(rolled)}
             </span>
-            <span className="text-small text-fg-muted">{plural(rolled, POINTS)}</span>
+            <span className="text-small text-fg-muted">Reign</span>
             {active ? (
               <span className="mono text-small font-medium" style={{ color: PREVIEW_COLOR }}>
                 +{formatPointsCompact(gain)}
@@ -196,7 +194,7 @@ export function StandingHeadline({
         {tier ? (
           <TierBadge tier={tier} className="shrink-0" />
         ) : (
-          <span className="shrink-0 text-small text-fg-faint">Без тира</span>
+          <span className="shrink-0 text-small text-fg-faint">No tier</span>
         )}
       </div>
 
@@ -216,18 +214,18 @@ export function StandingHeadline({
           </div>
           {isNew && !active ? (
             <p className="text-small text-fg-muted">
-              Сделай первый донат, чтобы начать набирать standing.
+              Make your first crown to start building your Reign.
             </p>
           ) : (
             <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
-              <span className="truncate">до «{next.name}»</span>
-              <span className="mono shrink-0">осталось {formatPointsCompact(remaining)}</span>
+              <span className="truncate">to {next.name}</span>
+              <span className="mono shrink-0">{formatPointsCompact(remaining)} to go</span>
             </div>
           )}
         </div>
       ) : isNew && !active ? (
         <p className="text-small text-fg-muted">
-          Сделай первый донат, чтобы начать набирать standing.
+          Make your first crown to start building your Reign.
         </p>
       ) : null}
     </div>
