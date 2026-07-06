@@ -2,44 +2,44 @@ import { describe, expect, it } from "vitest";
 import { classifyTaskText, hashContent } from "./moderation";
 
 /**
- * Тест модерации ТЕКСТА ЗАДАНИЯ (escrow-task). Словарь-бэкстоп по ключевым словам УБРАН (давал ложные блоки
- * на легальных внутриигровых «укради/сопри/ограбь …»). Легальность задания судит семантический ИИ (OpenAI),
- * который тут НЕ гоняется — в тест-окружении нет OPENAI_API_KEY. Поэтому офлайн проверяем только
- * детерминированный контракт: безусловный CSAM-блок и отсутствие ложных блоков без ключа.
+ * Test of TASK TEXT moderation (escrow-task). The keyword-backstop wordlist was REMOVED (it produced false blocks
+ * on legal in-game "steal/swipe/rob …"). Task legality is judged by the semantic AI (OpenAI),
+ * which is NOT run here — the test environment has no OPENAI_API_KEY. So offline we only check the
+ * deterministic contract: the unconditional CSAM block and the absence of false blocks without a key.
  */
-describe("classifyTaskText — офлайн (без OpenAI-ключа)", () => {
-  it("явный CSAM-маркер → HARD_BLOCK (безусловно, контекст игры не оправдывает)", async () => {
-    for (const t of ["детское порно", "child porn", "csam", "педофил"]) {
+describe("classifyTaskText — offline (no OpenAI key)", () => {
+  it("explicit CSAM marker → HARD_BLOCK (unconditionally, the game context is no excuse)", async () => {
+    for (const t of ["child porn", "childporn", "csam", "pedophile"]) {
       expect(await classifyTaskText(t)).toBe("HARD_BLOCK");
     }
   });
 
-  it("без ключа умного судьи нет → не-CSAM возвращает CLEAR (нет ложных блоков)", async () => {
-    // Игровые формулировки, которые прежний словарь ложно блочил — теперь проходят.
-    for (const t of ["укради флаг у врагов", "сопри базу в доте", "ограбь вражеский лагерь"]) {
+  it("without a key there is no smart judge → non-CSAM returns CLEAR (no false blocks)", async () => {
+    // In-game phrasings that the former wordlist falsely blocked — now they pass.
+    for (const t of ["steal the flag from the enemies", "swipe the base in dota", "rob the enemy camp"]) {
       expect(await classifyTaskText(t)).toBe("CLEAR");
     }
-    // Обычные безобидные задания — тоже CLEAR.
-    for (const t of ["станцуй джигу", "сделай 50 отжиманий", "спой песню", "покажи сетап"]) {
+    // Ordinary harmless tasks — also CLEAR.
+    for (const t of ["dance a jig", "do 50 push-ups", "sing a song", "show your setup"]) {
       expect(await classifyTaskText(t)).toBe("CLEAR");
     }
   });
 });
 
-describe("hashContent — криптостойкий SHA-256 (ончейн-якорь текста + ключ модерации)", () => {
-  it("совпадает с эталонным SHA-256 нормализованного текста", async () => {
-    // Известный вектор: sha256("abc"). Раньше был FNV-1a 32 бита (8 hex) → мгновенный второй прообраз:
-    // подмена текста под чужой memo.m и коллизия с закэшированным CLEAR. Теперь полный SHA-256.
+describe("hashContent — cryptographically strong SHA-256 (onchain text anchor + moderation key)", () => {
+  it("matches the reference SHA-256 of the normalized text", async () => {
+    // Known vector: sha256("abc"). It used to be FNV-1a 32 bits (8 hex) → an instant second preimage:
+    // substituting text under someone else's memo.m and colliding with a cached CLEAR. Now full SHA-256.
     expect(await hashContent("abc")).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     );
   });
-  it("нормализует регистр/пробелы (trim + lowercase + collapse)", async () => {
+  it("normalizes case/whitespace (trim + lowercase + collapse)", async () => {
     expect(await hashContent("  Hello   World  ")).toBe(await hashContent("hello world"));
   });
-  it("64 hex; разные тексты → разные хэши", async () => {
-    const h = await hashContent("привет");
+  it("64 hex; different texts → different hashes", async () => {
+    const h = await hashContent("hello");
     expect(h).toMatch(/^[0-9a-f]{64}$/);
-    expect(await hashContent("привет!")).not.toBe(h);
+    expect(await hashContent("hello!")).not.toBe(h);
   });
 });

@@ -20,7 +20,7 @@ interface ToastItem extends ToastInput {
 let counter = 0;
 const listeners = new Set<(t: ToastItem) => void>();
 
-/** Императивно показать тост из любого места (success/error/info). */
+/** Imperatively show a toast from anywhere (success/error/info). */
 export function toast(input: ToastInput): void {
   const item: ToastItem = { id: ++counter, variant: "default", duration: 4000, ...input };
   listeners.forEach((l) => l(item));
@@ -33,7 +33,7 @@ const variantBorder: Record<ToastVariant, string> = {
   info: "border-info",
 };
 
-/** Рендерится один раз в Providers. Подписывается на очередь тостов. */
+/** Rendered once in Providers. Subscribes to the toast queue. */
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
 

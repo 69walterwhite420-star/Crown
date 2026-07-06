@@ -24,16 +24,16 @@ const STATUS_LABEL: Record<EscrowTask["status"], string> = {
 const STATUS_ORDER: EscrowTask["status"][] = ["PENDING", "ACCEPTED", "DONE", "DISPUTED", "RESOLVED"];
 
 /**
- * Admin → Mini-games. Статистика по всей платформе: каталог (реестр GAMES), охват (сколько realms включили
- * каждую игру — из конфигов), и активность escrow-task (задания по статусам + деньги). Данных нет? Показываем
- * честные нули — без фейка (мини-игры включаются стримерами, ADR 0016).
+ * Admin → Mini-games. Platform-wide stats: catalog (GAMES registry), reach (how many realms enabled
+ * each game — from configs), and escrow-task activity (tasks by status + money). No data? We show
+ * honest zeros — no fakes (mini-games are enabled by streamers, ADR 0016).
  */
 export default function AdminGamesPage() {
   const provider = useData();
   const { data, isLoading, error, refetch } = useDiscovery();
   const realms = useMemo(() => data?.items ?? [], [data]);
 
-  // Конфиг каждого realm → enabledGames (охват). Тот же ключ, что и useChannelConfig → React Query дедупит.
+  // Each realm's config → enabledGames (reach). Same key as useChannelConfig → React Query dedupes it.
   const configQs = useQueries({
     queries: realms.map((r) => ({
       queryKey: ["channelConfig", r.channelId] as const,
@@ -41,7 +41,7 @@ export default function AdminGamesPage() {
       staleTime: 30_000,
     })),
   });
-  // Escrow-задания каждого realm (op:"list"). Ключ совпадает с useEscrowTasks → дедуп.
+  // Each realm's escrow-tasks (op:"list"). Key matches useEscrowTasks → dedup.
   const taskQs = useQueries({
     queries: realms.map((r) => ({
       queryKey: ["game", "escrow-task", r.channelId] as const,

@@ -1,50 +1,50 @@
 /**
- * Governance-параметры споров канала (M1, ADR 0021) — изоморфный модуль без web3.js.
+ * Governance parameters for realm disputes (M1, ADR 0021) — an isomorphic module without web3.js.
  *
- * Канон хранения — core-канистра ICP (`canister/core/src/governance.rs`): запись только
- * ed25519-подписью владельца канала над каноническим сообщением отсюда, вступление с таймлоком.
- * ВАЖНО: `buildDisputeParamsMessage` обязан порождать БАЙТ-В-БАЙТ ту же строку, что Rust
- * (`governance.rs::build_params_message`) — общий пин в тестах обеих сторон
- * (dispute-params.test.ts ↔ governance.rs::canonical_message_pinned). Меняется только через `v:`.
+ * The storage canon is the ICP core canister (`canister/core/src/governance.rs`): writes only via the
+ * realm owner's ed25519 signature over the canonical message built here, taking effect with a timelock.
+ * IMPORTANT: `buildDisputeParamsMessage` must produce BYTE-FOR-BYTE the same string as Rust
+ * (`governance.rs::build_params_message`) — a shared pin in the tests on both sides
+ * (dispute-params.test.ts ↔ governance.rs::canonical_message_pinned). Change only via `v:`.
  */
 
-/** Значения параметров: деньги/очки — целые micro (bigint), K — милли, окна — секунды. */
+/** Parameter values: money/points — integer micro (bigint), K — milli, windows — seconds. */
 export interface DisputeParamsValues {
-  /** Порог репутации для права ОТКРЫТЬ спор (micro-очки). */
+  /** Reign threshold for the right to OPEN a dispute (micro-points). */
   minReputationToDisputeMicro: bigint;
-  /** Порог веса присяжного (micro-очки). */
+  /** Juror weight threshold (micro-points). */
   minWeightToVoteMicro: bigint;
-  /** Кворум явки — фиксированное число micro-очков, задаёт стример (дефолт 1 очко). */
+  /** Turnout quorum — a fixed number of micro-points, set by the streamer (default 1 point). */
   quorumMicro: bigint;
-  /** Окно «поднять спор» от «Готово», сек. */
+  /** Window to "raise a dispute" from "Done", secs. */
   disputeWindowSecs: number;
-  /** Окно голосования, сек. */
+  /** Voting window, secs. */
   votingWindowSecs: number;
-  /** МЁРТВОЕ поле (решение владельца M2: экономики от суммы нет — арбитр его не читает).
-   * Держится ради стабильности подписанного сообщения; убирать только с бампом `v:`. */
+  /** DEAD field (owner decision M2: there is no amount-based economics — the arbiter doesn't read it).
+   * Kept for the stability of the signed message; remove only with a `v:` bump. */
   dMaxMicro: bigint;
-  /** Награда репутации инициатору за ПОДТВЕРЖДЁННЫЙ спор (micro-очки). Параметр канала с v:3 — раньше
-   *  протокольная константа (10 очков). Меняется подписью владельца + таймлок, как кворум/окна. */
+  /** Reign reward to the initiator for a CONFIRMED dispute (micro-points). A realm parameter since v:3 — formerly
+   *  a protocol constant (10 points). Changed by the owner's signature + timelock, like quorum/windows. */
   disputeWinBonusMicro: bigint;
-  /** Списание репутации инициатору за ПРОИГРАННЫЙ ложный спор (micro-очки, хранится положительным).
-   *  Параметр канала с v:3 — раньше константа (50). §4.5 держится: списывает протокол по исходу, не оператор. */
+  /** Reign penalty to the initiator for a LOST false dispute (micro-points, stored positive).
+   *  A realm parameter since v:3 — formerly a constant (50). §4.5 holds: the protocol deducts by outcome, not the operator. */
   disputeLossPenaltyMicro: bigint;
 }
 
-/** Состояние параметров канала в канистре (ответ /dispute-params). */
+/** State of a realm's parameters in the canister (response to /dispute-params). */
 export interface DisputeParamsInfo {
   channelId: string;
-  /** Владелец ИЗ ЦЕПОЧКИ (плательщик активации в журнале канистры); null = канал не активирован. */
+  /** Owner FROM THE CHAIN (the activation payer in the canister ledger); null = realm not activated. */
   owner: string | null;
-  /** Последняя принятая версия (0 = записей не было). */
+  /** Last accepted version (0 = no records yet). */
   version: number;
-  /** true = канал ничего не менял, действуют дефолты. */
+  /** true = the realm changed nothing, defaults apply. */
   isDefault: boolean;
   effective: DisputeParamsValues;
   pending: { params: DisputeParamsValues; effectiveAtMs: number; version: number } | null;
 }
 
-/** Каноническое сообщение под подпись кошелька. НЕ МЕНЯТЬ без синхронной правки Rust и `v:`. */
+/** Canonical message to sign with the wallet. DO NOT CHANGE without a synchronous Rust edit and `v:`. */
 export function buildDisputeParamsMessage(
   channelId: string,
   owner: string,
@@ -52,10 +52,10 @@ export function buildDisputeParamsMessage(
   p: DisputeParamsValues,
 ): string {
   return [
-    "Standing: параметры споров канала.",
+    "Standing: realm dispute parameters.",
     "",
-    "Подписывая, вы устанавливаете правила споров для своего канала.",
-    "Изменения вступят после таймлока — идущие споры играются по прежним правилам.",
+    "By signing, you set the dispute rules for your realm.",
+    "Changes take effect after the timelock — ongoing disputes play out under the previous rules.",
     "",
     `channel: ${channelId}`,
     `owner: ${owner}`,
@@ -72,7 +72,7 @@ export function buildDisputeParamsMessage(
   ].join("\n");
 }
 
-/** JSON-поля параметров из канистры (числа или десятичные строки — деньги строками). */
+/** JSON parameter fields from the canister (numbers or decimal strings — money as strings). */
 interface RawParams {
   minReputationToDisputeMicro: number | string;
   minWeightToVoteMicro: number | string;
@@ -106,7 +106,7 @@ function normalizeValues(raw: RawParams): DisputeParamsValues {
   };
 }
 
-/** Ответ канистры → типизированное состояние (ns → ms на границе). */
+/** Canister response → typed state (ns → ms at the boundary). */
 export function normalizeDisputeParams(raw: RawDisputeParamsResponse): DisputeParamsInfo {
   return {
     channelId: raw.channelId,

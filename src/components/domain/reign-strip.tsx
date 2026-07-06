@@ -5,9 +5,9 @@ import type { ViewerStanding } from "@/lib/data/types";
 import { formatPoints } from "@/lib/utils";
 
 /**
- * Полоса «Your Reign»: личный ранг зрителя на этом дворе (шкала CROWN: Squire→King) + прогресс до
- * следующего ранга. Гость / нулевой Reign → приглашающая подсказка вместо прогресса. Reign считается по
- * очкам (1 USDC = 1 Reign); шкала едина для всех дворов (в отличие от настраиваемых стримером тиров).
+ * "Your Reign" strip: the viewer's personal rank in this realm (CROWN scale: Squire→King) + progress to
+ * the next rank. Guest / zero Reign → an inviting prompt instead of progress. Reign is measured in
+ * points (1 USDC = 1 Reign); the scale is the same for all realms (unlike the streamer-configurable tiers).
  */
 export function ReignStrip({
   standing,
@@ -22,7 +22,7 @@ export function ReignStrip({
   const { rank, next, progress, toNext } = rankProgress(points);
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4">
+    <div className="flex items-center gap-4 p-4">
       <RankBadge points={points} size={48} />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-3">

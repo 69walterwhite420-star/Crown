@@ -1,31 +1,31 @@
 /**
- * Каркас «игры-как-модули» (ADR 0016). Каждая мини-игра — самодостаточный модуль в `src/games/<id>/`,
- * который объявляет манифест (`GameModule`) и регистрируется в `registry.ts`. Ядро (`lib/`,
- * `components/domain/`, экраны) про конкретные игры НЕ знает — оно работает с репутацией и журналом
- * (ADR 0015), а игры подключаются сверху. Добавить новую игру = добавить папку + одну строку в реестр;
- * экраны ядра не трогаются.
+ * The "games-as-modules" skeleton (ADR 0016). Each mini-game is a self-contained module in `src/games/<id>/`
+ * that declares a manifest (`GameModule`) and registers itself in `registry.ts`. The core (`lib/`,
+ * `components/domain/`, screens) does NOT know about specific games — it works with reputation and the ledger
+ * (ADR 0015), while games plug in on top. Adding a new game = adding a folder + one line in the registry;
+ * the core screens are untouched.
  *
- * Манифест намеренно ДАННЫЕ-ОНЛИ (без React/логики) — его можно импортировать где угодно (реестр, доки,
- * настройки канала). Слоты под экраны (панель на странице канала / в студии) добавятся сюда же, когда
- * появятся сами компоненты (G1), чтобы не плодить пустых заглушек.
+ * The manifest is deliberately DATA-ONLY (no React/logic) — it can be imported anywhere (registry, docs,
+ * realm settings). Slots for screens (a panel on the realm page / in the studio) will be added here too, once
+ * the components themselves appear (G1), so as not to breed empty stubs.
  */
 
-/** Идентификатор игры. Расширяется объединением при добавлении новой игры. */
+/** A game identifier. Extended by a union when a new game is added. */
 export type GameId = "escrow-task";
 
 /**
- * Готовность модуля. `building` — игра ещё строится: видна в доках/деве, но НЕ предлагается каналам к
- * включению. `available` — можно включать на канале.
+ * Module readiness. `building` — the game is still being built: visible in docs/dev, but NOT offered to realms for
+ * enabling. `available` — can be enabled in a realm.
  */
 export type GameStatus = "building" | "available";
 
 export interface GameModule {
   id: GameId;
-  /** Имя в UI (рус.). */
+  /** Name in the UI. */
   title: string;
-  /** Одна строка — что это, для карточки в студии/дискавери. */
+  /** One line — what it is, for the card in the studio/discovery. */
   tagline: string;
   status: GameStatus;
-  /** Путь к спеке игры в репо (для ссылок из UI/доков). */
+  /** Path to the game's spec in the repo (for links from the UI/docs). */
   specDoc: string;
 }

@@ -1,19 +1,19 @@
 /**
- * Обработчики мини-игры «задание-донат» для game-bus (ADR 0016). Склеивают чистую машину (machine.ts) с
- * контекстом провайдера: проверяют ЛИЧНОСТЬ/допуск (что машине не видно), считают вес голоса и кворум через
- * ядровые мостики, банкуют эффекты на репутацию (ADR 0015). Деньги: в chain-режиме — реальный
- * ончейн-эскроу (G3a, ADR 0017; банковка строго по ончейн-исходу), в mock/api — симуляция.
+ * Handlers of the "task-for-a-crown" mini-game for the game-bus (ADR 0016). They glue the pure machine (machine.ts) to
+ * the provider context: they check IDENTITY/eligibility (invisible to the machine), compute the vote weight and quorum via
+ * core bridges, and bank the reputation effects (ADR 0015). Money: in chain mode — a real on-chain escrow
+ * (G3a, ADR 0017; banking strictly by the on-chain outcome), in mock/api — a simulation.
  *
- * Разрешение по времени и банковка происходят в `claim` (она в MUTATING → персистится): получатель забирает
- * выигрыш/возврат, и в этот момент исход фиксируется в журнале. Чтения (queries) — чистые, состояние не
- * меняют (UI выводит «ожидаемый исход» из машины сам).
+ * Time-based resolution and banking happen in `claim` (it's MUTATING → persisted): the recipient takes the
+ * winnings/refund, and at that moment the outcome is recorded in the ledger. Reads (queries) are pure and don't change
+ * state (the UI derives the "expected outcome" from the machine itself).
  */
 import { pointsForAmount } from "@/lib/reputation";
 import { GameBusError, type GameContext, type GameHandlers } from "../bus";
 import * as M from "./machine";
 import type { EscrowTask, ResolutionReason, TaskOutcome, VoteChoice } from "./types";
 
-/** Кворум в очках репутации — растёт с суммой доната (спека §8). Мок-дефолт: не меньше очков самого доната. */
+/** Quorum in reputation points — grows with the crown amount (spec §8). Mock default: no less than the crown's own points. */
 const quorumFor = (amount: string) => Math.max(1, pointsForAmount(BigInt(amount)));
 
 const nowMs = (ctx: GameContext) => Date.parse(ctx.now());
@@ -30,10 +30,10 @@ function findTask(tasks: EscrowTask[], id: unknown, channelId: string): EscrowTa
     typeof id === "string"
       ? tasks.find((x) => x.id === id && x.channelId === channelId)
       : undefined;
-  if (!t) throw new GameBusError("NO_TASK", "Задание не найдено.");
+  if (!t) throw new GameBusError("NO_TASK", "Task not found.");
   return t;
 }
-/** Заменить задание в списке по id и сохранить; вернуть его. */
+/** Replace the task in the list by id and save it; return it. */
 function commit(ctx: GameContext, tasks: EscrowTask[], updated: EscrowTask): EscrowTask {
   saveTasks(
     ctx,
@@ -43,20 +43,20 @@ function commit(ctx: GameContext, tasks: EscrowTask[], updated: EscrowTask): Esc
 }
 
 function requireIdentity(ctx: GameContext): string {
-  if (!ctx.identity) throw new GameBusError("NO_SESSION", "Сначала войди кошельком.");
+  if (!ctx.identity) throw new GameBusError("NO_SESSION", "Sign in with your wallet first.");
   return ctx.identity;
 }
 function requireOwner(ctx: GameContext): string {
   const id = requireIdentity(ctx);
   if (id !== ctx.channelOwner)
-    throw new GameBusError("FORBIDDEN", "Действие доступно только владельцу канала.");
+    throw new GameBusError("FORBIDDEN", "This action is available only to the realm owner.");
   return id;
 }
 
 /**
- * Свести офчейн-исход (по времени/голосам) с ОНЧЕЙН-исходом эскроу (ESC-12, деньги = истина). Если цепочка
- * расходится с офчейн-таймером (напр. резолвер не успел до дедлайна → resolve_timeout отдал стримеру),
- * берём ончейн-сторону и синтезируем когерентный reason, чтобы спор-эффекты следовали за деньгами.
+ * Reconcile the off-chain outcome (by time/votes) with the escrow's ON-CHAIN outcome (ESC-12, money = truth). If the chain
+ * diverges from the off-chain timer (e.g. the resolver didn't make the deadline → resolve_timeout gave it to the streamer),
+ * we take the on-chain side and synthesize a coherent reason, so the dispute effects follow the money.
  */
 function reconcile(
   due: { outcome: TaskOutcome; reason: ResolutionReason },
@@ -70,18 +70,18 @@ function reconcile(
 }
 
 /**
- * Разрешить по времени и забанковать эффекты, если пора (один раз — потом статус RESOLVED).
- * ESC-12: для chain-backed задания (есть `escrowTaskId`) банкуем донат-репутацию только когда исход
- * ПОДТВЕРЖДЁН на цепочке — деньги истина, не офчейн-таймер. Эскроу ещё не разрешён на цепочке → откладываем.
+ * Resolve by time and bank the effects when due (once — then the status is RESOLVED).
+ * ESC-12: for a chain-backed task (has `escrowTaskId`) we bank the crown reputation only when the outcome is
+ * CONFIRMED on the chain — money is truth, not the off-chain timer. If the escrow isn't resolved on-chain yet → defer.
  */
 async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   if (task.status === "RESOLVED") return task;
   const due = M.dueResolution(task, nowMs(ctx));
   if (!due) return task;
   if (task.escrowTaskId && ctx.escrowOutcome) {
-    // M3 (закрывает хвост ESC-12/16): банкуем ТОЛЬКО при ИЗВЕСТНОМ ончейн-исходе — живая `resolution` ИЛИ
-    // зафиксированный event-индексером claim (истина денег переживает закрытие аккаунта). Исход неизвестен
-    // (Unresolved / не проиндексирован / сбой RPC) → ОТКЛАДЫВАЕМ. Офчейн-таймера для chain-backed задания нет.
+    // M3 (closes the ESC-12/16 tail): bank ONLY on a KNOWN on-chain outcome — a live `resolution` OR a claim
+    // recorded by the event indexer (the money truth outlives the account closure). If the outcome is unknown
+    // (Unresolved / not indexed / RPC failure) → DEFER. There's no off-chain timer for a chain-backed task.
     const outcome = await ctx.escrowOutcome(task.escrowTaskId);
     if (!outcome) return task;
     const res = reconcile(due, outcome, task);
@@ -95,21 +95,21 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
 }
 
 /**
- * ESC-19: раскрыть текст задания, если стример ПРИНЯЛ его на цепочке (даже в обход UI). Путь к деньгам
- * стримеру (accept→mark_done→claim) невозможен без ончейн-`accept`, а `accept` мы видим через индексер и
- * раскрываем текст комьюнити. Так «спрятал текст, но забрал деньги» исключено. Только для chain-backed
- * заданий; state≥Accepted (или уже ушло стримеру) → SHOWN. Деньги/резолв не трогаем.
+ * ESC-19: reveal the task text if the streamer ACCEPTED it on-chain (even bypassing the UI). The path to the streamer's
+ * money (accept→mark_done→claim) is impossible without an on-chain `accept`, and `accept` is visible to us via the indexer,
+ * so we reveal the text to the community. That rules out "hid the text but took the money". Only for chain-backed
+ * tasks; state≥Accepted (or already gone to the streamer) → SHOWN. Money/resolve untouched.
  */
-/** Помечает задание operatorBlocked из операторского override-набора (модерация платформы). Вычисляемо в
- * запросах — сам слайс не хранит флаг; так тейкдаун/снятие через операторский журнал всегда актуальны. */
+/** Marks the task operatorBlocked from the operator override set (platform moderation). Computed in queries — the slice
+ * itself doesn't store the flag; so takedown/reinstatement via the operator log is always up to date. */
 function withOperatorBlock(ctx: GameContext, task: EscrowTask): EscrowTask {
   return ctx.isContentBlocked?.(task.id) ? { ...task, operatorBlocked: true } : task;
 }
 
-/** Серверная редакция приватного текста задания (инвариант §4.6, паритет с `redactDonation` ядра):
- * HELD/HIDDEN-текст видят только менеджеры канала (владелец/модератор) и сам донор; операторский тейкдаун
- * прячет текст ото ВСЕХ, включая менеджеров (перебивает роль). Клиентский `canSeeText` остаётся презентацией —
- * истина здесь: сырой приватный текст не покидает сервер. Применять ПОСЛЕ `withOperatorBlock`. */
+/** Server-side redaction of a task's private text (invariant §4.6, parity with the core's `redactDonation`):
+ * HELD/HIDDEN text is seen only by channel managers (owner/moderator) and the donor themselves; an operator takedown
+ * hides the text from EVERYONE, including managers (overrides the role). The client-side `canSeeText` stays presentation —
+ * the truth is here: raw private text does not leave the server. Apply AFTER `withOperatorBlock`. */
 function redactTask(ctx: GameContext, task: EscrowTask): EscrowTask {
   if (task.operatorBlocked) return { ...task, text: "" };
   if (M.isTextPublic(task)) return task;
@@ -118,17 +118,17 @@ function redactTask(ctx: GameContext, task: EscrowTask): EscrowTask {
 }
 
 async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
-  // Операторский тейкдаун перебивает авто-раскрытие: снятое оператором задание индексер НЕ возвращает на свет
-  // (нелегальщина остаётся снятой, даже если эскроу принят/оплачен ончейн). Оператор > цепочка > модерация.
+  // An operator takedown overrides auto-reveal: a task pulled by the operator is NOT brought back to light by the indexer
+  // (illegal content stays pulled even if the escrow is accepted/paid on-chain). Operator > chain > moderation.
   if (ctx.isContentBlocked?.(task.id)) return task;
-  // Уже ПОЛНОСТЬЮ на виду (текст показан И не спрятан из ленты) → чинить нечего. Иначе — сверяемся с цепочкой:
-  // «hidden» (Отклонить) или HIDDEN-текст на ПРИНЯТОМ ончейн задании надо снять, деньги ⟹ задание видно.
+  // Already FULLY visible (text shown AND not hidden from the feed) → nothing to fix. Otherwise — reconcile with the chain:
+  // a "hidden" (Reject) or HIDDEN text on an ACCEPTED on-chain task must be lifted, money ⟹ the task is visible.
   const fullyVisible = (task.textState ?? "SHOWN") === "SHOWN" && !task.hidden;
   if (fullyVisible || !task.escrowTaskId) return task;
   if (ctx.escrowState) {
     const st = await ctx.escrowState(task.escrowTaskId);
-    // Accepted(1)/Done(2)/Disputed(4) ⟹ accept ончейн был (mark_done требует Accepted) → задание на виду:
-    // раскрываем текст И возвращаем в ленту (снимаем hidden), чтобы комьюнити успело увидеть и оспорить.
+    // Accepted(1)/Done(2)/Disputed(4) ⟹ an on-chain accept happened (mark_done requires Accepted) → the task is visible:
+    // reveal the text AND return it to the feed (clear hidden), so the community has time to see and dispute it.
     if (st === 1 || st === 2 || st === 4)
       return {
         ...task,
@@ -137,8 +137,8 @@ async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<Escr
         status: task.status === "PENDING" ? "ACCEPTED" : task.status,
       };
   }
-  // Эскроу закрыт claim'ом стримеру ⟹ прошёл через Done ⟹ accept был → раскрываем ретроспективно (страховка
-  // на случай, если индексер не успел до закрытия аккаунта).
+  // The escrow was closed by a claim to the streamer ⟹ it passed through Done ⟹ accept happened → reveal retrospectively
+  // (a safeguard in case the indexer didn't make it before the account closed).
   if (ctx.escrowOutcome && (await ctx.escrowOutcome(task.escrowTaskId)) === "to_streamer")
     return { ...task, textState: "SHOWN", hidden: false };
   return task;
@@ -146,86 +146,86 @@ async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<Escr
 
 export const escrowTaskHandlers: GameHandlers = {
   actions: {
-    // Донор создаёт задание-донат (деньги «в эскроу» — мок).
+    // The donor creates a task-for-a-crown (money "in escrow" — mocked).
     create: async (ctx, payload) => {
       const donor = requireIdentity(ctx);
       const p = (payload ?? {}) as {
         amount?: unknown;
         text?: unknown;
         executionMs?: unknown;
-        escrowTaskId?: unknown; // chain-режим: ссылка на ончейн-эскроу (ADR 0017)
+        escrowTaskId?: unknown; // chain mode: a reference to the on-chain escrow (ADR 0017)
         fundTx?: unknown;
-        textNonce?: unknown; // CR-4: соль коммитмента текста (task_id = SHA-256(nonce ‖ text))
+        textNonce?: unknown; // CR-4: the text-commitment salt (task_id = SHA-256(nonce ‖ text))
       };
       const amount = String(p.amount ?? "");
       if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n)
-        throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
+        throw new GameBusError("BAD_AMOUNT", "A positive amount is required (micro-USDC).");
       const text = typeof p.text === "string" ? p.text.trim() : "";
-      if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
-      // Рычаги канала (спека §10, паритет с createDonation ядра): лимит длины (B4 — DoS/амплификация
-      // модерации) и минимум суммы (задание = донат с текстом → бóльший из двух минимумов канала).
+      if (!text) throw new GameBusError("NO_TEXT", "Task text is required.");
+      // Realm levers (spec §10, parity with the core's createDonation): the length limit (B4 — DoS/moderation
+      // amplification) and the minimum amount (a task = a crown with text → the larger of the realm's two minimums).
       if (text.length > ctx.textMaxLen)
-        throw new GameBusError("TOO_LONG", "Текст задания превышает лимит канала.");
+        throw new GameBusError("TOO_LONG", "The task text exceeds the realm's limit.");
       if (BigInt(amount) < BigInt(ctx.minTaskAmountMicro))
-        throw new GameBusError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
-      // §10: порог репутации на присыл задания — новички шлют простые донаты и так набирают статус, задания
-      // только с порога. Репутация = реально задонатенные деньги этому каналу → платный барьер против флуда
-      // заданий (в т.ч. бесплатного create через сырой RPC). 0 = без порога.
+        throw new GameBusError("BELOW_MIN", "The amount is below the realm's minimum for tasks.");
+      // §10: the reputation threshold to submit a task — newcomers send simple crowns and build standing that way, tasks
+      // only from the threshold. Reputation = money actually crowned to this realm → a paid barrier against task flooding
+      // (including a free create via raw RPC). 0 = no threshold.
       if (ctx.minReputationToTask > 0 && ctx.reputationAsOf(donor, ctx.now()) < ctx.minReputationToTask)
         throw new GameBusError(
           "LOW_REP",
-          "Недостаточно репутации на канале, чтобы присылать задания. Поддержи канал обычными донатами.",
+          "Not enough Reign in this realm to submit tasks. Support the realm with regular crowns.",
         );
-      // Модерация текста задания: нелегальное/опасное не создаётся вовсе. Иначе видимость текста в ПУБЛИЧНОЙ
-      // ленте решаем той же политикой, что донат-сообщения (textShowMode): чистый + auto_if_clean → сразу
-      // SHOWN; иначе → HELD (очередь модерации стримера до «Показать»). Деньги/эскроу от этого не зависят (§7).
+      // Task-text moderation: illegal/dangerous content isn't created at all. Otherwise the text's visibility in the PUBLIC
+      // feed is decided by the same policy as donation messages (textShowMode): clean + auto_if_clean → immediately
+      // SHOWN; otherwise → HELD (the streamer's moderation queue until "Show"). Money/escrow doesn't depend on this (§7).
       const verdict = await ctx.moderate(text);
       if (verdict === "HARD_BLOCK")
         throw new GameBusError(
           "ILLEGAL_TASK",
-          "Задание не прошло модерацию: запрещён нелегальный/опасный контент.",
+          "The task didn't pass moderation: illegal/dangerous content is forbidden.",
         );
       const textState: "SHOWN" | "HELD" =
         ctx.textShowMode === "auto_if_clean" && verdict === "CLEAR" ? "SHOWN" : "HELD";
-      // Трастлесс-сверка ончейн-эскроу (chain-режим): задание без подтверждённого эскроу (нет аккаунта,
-      // чужой донор/сумма/mint) не записываем — сервер не верит клиенту (ADR 0017). В mock/api — всегда ок.
+      // Trustless verification of the on-chain escrow (chain mode): a task without a confirmed escrow (no account,
+      // wrong donor/amount/mint) isn't recorded — the server doesn't trust the client (ADR 0017). In mock/api — always ok.
       const escrowTaskId = typeof p.escrowTaskId === "string" ? p.escrowTaskId : undefined;
-      // ESC-18: один ончейн-эскроу = одно зеркало. Повторная привязка того же escrowTaskId насчитала бы
-      // репутацию N раз за ОДИН платёж (verifyEscrow пропускает дубль, пока эскроу в Pending) → инфляция §4.4.
+      // ESC-18: one on-chain escrow = one mirror. Re-binding the same escrowTaskId would count reputation N times for ONE
+      // payment (verifyEscrow lets a duplicate through while the escrow is Pending) → inflation of §4.4.
       if (escrowTaskId && loadTasks(ctx).some((t) => t.escrowTaskId === escrowTaskId))
-        throw new GameBusError("ESCROW_REUSED", "Этот эскроу уже привязан к заданию.");
-      // ESC-6: вяжем эскроу к payout-адресу ИМЕННО этого канала (streamer) + требуем свежий Pending.
-      // fail-closed: chain-эскроу без payout канала не привязываем (иначе streamer-сверка молча пропущена).
+        throw new GameBusError("ESCROW_REUSED", "This escrow is already bound to a task.");
+      // ESC-6: bind the escrow to THIS realm's payout address (streamer) + require a fresh Pending.
+      // fail-closed: a chain escrow without the realm's payout isn't bound (otherwise the streamer check is silently skipped).
       const streamer = ctx.channelPayout ?? undefined;
       if (escrowTaskId && !streamer)
-        throw new GameBusError("NO_PAYOUT", "У канала нет payout-адреса — эскроу нельзя привязать.");
-      // H1: payout, на который вшиты деньги задания, обязан быть подтверждён подписью владельца канала —
-      // тот же серверный fail-closed гвард, что ingest.ts делает для обычного доната. Иначе эскроу-путь был бы
-      // лазейкой мимо H1: репутация капала бы каналу с возможно-подменённым payout, а клиентская проверка
-      // (chain-provider.assertPayoutAttested) обходится руками собранным клиентом. Держим и на сервере.
+        throw new GameBusError("NO_PAYOUT", "The realm has no payout address — the escrow can't be bound.");
+      // H1: the payout the task's money is baked into must be confirmed by the realm owner's signature —
+      // the same server-side fail-closed guard that ingest.ts does for a regular crown. Otherwise the escrow path would be
+      // a loophole around H1: reputation would drip to a realm with a possibly-swapped payout, and the client-side check
+      // (chain-provider.assertPayoutAttested) is bypassable with a hand-built client. We hold it on the server too.
       if (escrowTaskId && !ctx.channelPayoutAttested)
         throw new GameBusError(
           "PAYOUT_UNATTESTED",
-          "Payout канала не подтверждён подписью владельца — эскроу-задание привязать нельзя.",
+          "The realm's payout isn't confirmed by the owner's signature — the escrow task can't be bound.",
         );
       if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount, streamer }))) {
         throw new GameBusError(
           "ESCROW_INVALID",
-          "Ончейн-эскроу не найден или не совпадает (донор/сумма/mint/канал).",
+          "The on-chain escrow wasn't found or doesn't match (donor/amount/mint/realm).",
         );
       }
-      // CR-4: task_id обязан быть коммитментом к ЭТОМУ тексту (SHA-256(nonce ‖ text)). Иначе клиент мог бы
-      // профандить эскроу под один текст, а записать другой → жюри судило бы не то, что вшито в цепочку.
+      // CR-4: task_id must be a commitment to THIS text (SHA-256(nonce ‖ text)). Otherwise a client could fund
+      // an escrow under one text and record another → the jury would judge something other than what's baked into the chain.
       const textNonce = typeof p.textNonce === "string" ? p.textNonce : undefined;
       if (escrowTaskId && !(await ctx.verifyTextCommitment(escrowTaskId, text, textNonce))) {
         throw new GameBusError(
           "ESCROW_TEXT_MISMATCH",
-          "Ончейн-эскроу не привязан к этому тексту задания (коммитмент не совпал).",
+          "The on-chain escrow isn't bound to this task text (the commitment didn't match).",
         );
       }
       const task = M.createTask(
         {
-          // id используется в URL страницы спора → делаем URL-безопасным (id стора несёт ISO с «:»/«.»).
+          // The id is used in the dispute page URL → we make it URL-safe (the store's id carries an ISO with ":"/".").
           id: ctx.newId().replace(/[^a-zA-Z0-9_-]/g, ""),
           channelId: ctx.channelId,
           donor,
@@ -236,18 +236,18 @@ export const escrowTaskHandlers: GameHandlers = {
         },
         nowMs(ctx),
       );
-      // chain-режим: привязываем оффчейн-зеркало к ончейн-эскроу (провайдер уже отправил `fund`).
+      // chain mode: bind the off-chain mirror to the on-chain escrow (the provider already sent `fund`).
       const stored: typeof task = {
         ...task,
         ...(escrowTaskId ? { escrowTaskId } : {}),
         ...(typeof p.fundTx === "string" ? { fundTx: p.fundTx } : {}),
-        ...(textNonce ? { textNonce } : {}), // CR-4: соль для пересчёта коммитмента текста третьей стороной
+        ...(textNonce ? { textNonce } : {}), // CR-4: the salt for a third party to recompute the text commitment
       };
       saveTasks(ctx, [...loadTasks(ctx), stored]);
       return stored;
     },
 
-    // Стример: принять / отклонить / отметить «Готово».
+    // Streamer: accept / reject / mark "Done".
     accept: (ctx, payload) => {
       requireOwner(ctx);
       const tasks = loadTasks(ctx);
@@ -276,26 +276,26 @@ export const escrowTaskHandlers: GameHandlers = {
       );
     },
 
-    // Донор: отмена в грейс-окне.
+    // Donor: cancel within the grace window.
     cancel: (ctx, payload) => {
       const id = requireIdentity(ctx);
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);
-      if (id !== task.donor) throw new GameBusError("FORBIDDEN", "Отменить может только донор.");
+      if (id !== task.donor) throw new GameBusError("FORBIDDEN", "Only the donor can cancel.");
       return commit(ctx, tasks, M.cancel(task, nowMs(ctx)));
     },
 
-    // Стример «Отклонить»: прячем задание из фронтенда БЕЗ ончейн-tx и немедленного возврата. Эскроу вернётся
-    // донору сам по таймеру (no-show) — стример не платит газ. Оффчейн-only (в chain-провайдере уходит в
-    // default → api, транзакция не строится).
+    // Streamer "Reject": we hide the task from the frontend WITHOUT an on-chain tx and immediate refund. The escrow returns
+    // to the donor on its own by timer (no-show) — the streamer pays no gas. Off-chain only (in the chain provider it goes
+    // to default → api, no transaction is built).
     hide: (ctx, payload) => {
       requireOwner(ctx);
       const tasks = loadTasks(ctx);
       return commit(ctx, tasks, M.hide(findTask(tasks, idOf(payload), ctx.channelId)));
     },
 
-    // Зритель: жалоба на текст задания (публичный UGC). Дедуп/порог/авто-скрытие текста — в машине; деньги
-    // и эскроу не трогаем (§7). Возвращаем {reports,hidden} — как reportMessage, чтобы UI дал тот же тост.
+    // Viewer: report on a task's text (public UGC). Dedup/threshold/text auto-hide — in the machine; money and escrow
+    // are untouched (§7). We return {reports,hidden} — like reportMessage, so the UI gives the same toast.
     report: (ctx, payload) => {
       const reporter = requireIdentity(ctx);
       const p = (payload ?? {}) as { reason?: unknown };
@@ -311,56 +311,56 @@ export const escrowTaskHandlers: GameHandlers = {
       return { reports: updated.reports?.length ?? 0, hidden: updated.textState === "HIDDEN" };
     },
 
-    // Стример: показать/скрыть текст задания в ПУБЛИЧНОЙ ленте (очередь модерации). Деньги/эскроу — не трогаем (§7).
+    // Streamer: show/hide a task's text in the PUBLIC feed (moderation queue). Money/escrow — untouched (§7).
     setTextState: (ctx, payload) => {
       requireOwner(ctx);
       const p = (payload ?? {}) as { state?: unknown };
       const state = p.state === "SHOWN" ? "SHOWN" : "HIDDEN";
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);
-      // «Показать» можно только пока задание живо: таймер не истёк и оно не разрешено. Истекло → уходит в
-      // возврат донору сам, публиковать текст поздно.
+      // "Show" is only possible while the task is alive: the timer hasn't expired and it isn't resolved. Expired → it goes
+      // to a refund to the donor on its own, too late to publish the text.
       if (state === "SHOWN" && (task.status === "RESOLVED" || M.dueResolution(task, nowMs(ctx))))
-        throw new GameBusError("TEXT_LOCKED", "Срок задания истёк — текст уже нельзя показать.");
-      // ESC-19: «скрыть» можно только ДО принятия (PENDING) — пока к стримеру не может уйти ни рубля.
-      // После accept деньги могут утечь стримеру, поэтому текст обязан оставаться на виду у комьюнити
-      // (иначе спрятал текст → молча забрал → никто не знает, за что голосовали). Индексер всё равно
-      // раскрывает такой текст обратно по ончейн-состоянию — прятать его после accept и бессмысленно.
+        throw new GameBusError("TEXT_LOCKED", "The task's deadline has passed — the text can no longer be shown.");
+      // ESC-19: "hide" is only possible BEFORE acceptance (PENDING) — while not a cent can go to the streamer.
+      // After accept the money may leak to the streamer, so the text must stay visible to the community
+      // (otherwise: hid the text → quietly took it → nobody knows what they voted on). The indexer reveals such
+      // text back by the on-chain state anyway — hiding it after accept is pointless.
       if (state === "HIDDEN" && task.status !== "PENDING")
         throw new GameBusError(
           "TEXT_LOCKED",
-          "Задание принято — текст уже нельзя скрыть: его видит комьюнити.",
+          "The task is accepted — the text can no longer be hidden: the community sees it.",
         );
       return commit(ctx, tasks, M.setTextState(task, state));
     },
 
-    // Квалифицированный зритель поднимает спор (не стример; репутация ≥ порога).
+    // A qualified viewer raises a dispute (not the streamer; reputation ≥ threshold).
     raiseDispute: (ctx, payload) => {
       const id = requireIdentity(ctx);
       if (id === ctx.channelOwner)
-        throw new GameBusError("FORBIDDEN", "Стример не оспаривает своё выполнение.");
-      // §10: порог репутации на право поднять спор (рычаг стримера) — гейтит право, не вес голоса и не исход.
-      // Репутация = задонатенные каналу деньги → спам ложных споров требует реального статуса, не нулевого кошелька.
+        throw new GameBusError("FORBIDDEN", "The streamer doesn't dispute their own completion.");
+      // §10: the reputation threshold for the right to raise a dispute (a streamer lever) — gates the right, not the vote
+      // weight or the outcome. Reputation = money crowned to the realm → spamming false disputes requires real standing, not a zero wallet.
       if (ctx.reputationAsOf(id, ctx.now()) < ctx.minReputationToDispute)
-        throw new GameBusError("LOW_REP", "Недостаточно репутации, чтобы поднять спор.");
+        throw new GameBusError("LOW_REP", "Not enough Reign to raise a dispute.");
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);
       return commit(ctx, tasks, M.raiseDispute(task, id, quorumFor(task.amount), nowMs(ctx)));
     },
 
-    // Присяжный голосует; вес = репутация на снэпшоте (момент поднятия спора). Донор/стример исключены.
+    // A juror votes; weight = reputation at the snapshot (the moment the dispute was opened). Donor/streamer are excluded.
     vote: (ctx, payload) => {
       const id = requireIdentity(ctx);
       const p = (payload ?? {}) as { taskId?: unknown; choice?: unknown };
       const choice =
         p.choice === "completed" || p.choice === "not_completed" ? (p.choice as VoteChoice) : null;
-      if (!choice) throw new GameBusError("BAD_CHOICE", "Выбор: completed | not_completed.");
+      if (!choice) throw new GameBusError("BAD_CHOICE", "Choice: completed | not_completed.");
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, p.taskId, ctx.channelId);
       if (id === task.donor)
-        throw new GameBusError("FORBIDDEN", "Донор не голосует в своём споре.");
+        throw new GameBusError("FORBIDDEN", "The donor doesn't vote in their own dispute.");
       if (id === ctx.channelOwner)
-        throw new GameBusError("FORBIDDEN", "Стример не голосует в своём споре.");
+        throw new GameBusError("FORBIDDEN", "The streamer doesn't vote in their own dispute.");
       const weight = ctx.reputationAsOf(id, task.dispute?.openedAt ?? ctx.now());
       return commit(
         ctx,
@@ -369,22 +369,22 @@ export const escrowTaskHandlers: GameHandlers = {
       );
     },
 
-    // Получатель забирает деньги (claim-модель, ADR 0015): тут же разрешаем по времени + банкуем эффекты.
+    // The recipient claims the money (claim model, ADR 0015): here we resolve by time + bank the effects.
     claim: async (ctx, payload) => {
       const by = requireIdentity(ctx);
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);
       const settled = await settle(ctx, task);
-      // ESC-14: ПЕРСИСТИМ резолв (со всеми забанкованными эффектами) ДО проверки победителя. Иначе M.claim
-      // бросает NOT_WINNER до commit → статус не сохранён, а банковка (сайд-эффект settle) уже прошла →
-      // повторный claim неполучателем снова видит задание дозревшим и чеканит репутацию без предела.
+      // ESC-14: PERSIST the resolve (with all banked effects) BEFORE the winner check. Otherwise M.claim
+      // throws NOT_WINNER before commit → the status isn't saved, but the banking (settle's side effect) already
+      // happened → a repeated claim by a non-recipient again sees the task matured and mints reputation without limit.
       if (settled !== task) commit(ctx, tasks, settled);
       return commit(ctx, loadTasks(ctx), M.claim(settled, by, ctx.channelOwner ?? "", nowMs(ctx)));
     },
 
-    // PERMISSIONLESS: разрешить по времени + забанковать репутацию для ВСЕХ дозревших заданий канала, не
-    // дожидаясь claim (ADR 0015 §2 — репутация в момент резолва). Зовётся фоновым сеттлером (indexer-service)
-    // независимо от браузера. Идемпотентно: settle() не трогает уже RESOLVED. Деньги не двигает (claim-модель).
+    // PERMISSIONLESS: resolve by time + bank reputation for ALL matured tasks in the realm, without waiting for a claim
+    // (ADR 0015 §2 — reputation at the resolve moment). Called by a background settler (indexer-service)
+    // independently of the browser. Idempotent: settle() doesn't touch an already-RESOLVED task. Doesn't move money (claim model).
     settleDue: async (ctx) => {
       const tasks = loadTasks(ctx);
       let changed = 0;
@@ -394,9 +394,9 @@ export const escrowTaskHandlers: GameHandlers = {
           next.push(t);
           continue;
         }
-        // ESC-19: раскрыть текст, если стример принял ончейн (даже мимо UI), ДО попытки резолва.
+        // ESC-19: reveal the text if the streamer accepted on-chain (even bypassing the UI), BEFORE attempting the resolve.
         const revealed = await revealFromChain(ctx, t);
-        const s = await settle(ctx, revealed); // банкует эффекты при переходе в RESOLVED (bankLedger)
+        const s = await settle(ctx, revealed); // banks the effects on the transition to RESOLVED (bankLedger)
         if (s !== t) changed++;
         next.push(s);
       }
@@ -406,9 +406,9 @@ export const escrowTaskHandlers: GameHandlers = {
   },
 
   queries: {
-    // Задания этого канала («ожидаемый исход» по времени UI считает машиной сам). Аннотируем operatorBlocked
-    // из операторского override-набора — единый источник истины про тейкдаун (не в слайсе) — и редактируем
-    // приватный текст по роли вызывающего (§4.6): сырой HELD/HIDDEN-текст не уходит посторонним.
+    // Tasks of this realm (the UI computes the "expected outcome" by time with the machine itself). We annotate
+    // operatorBlocked from the operator override set — a single source of truth for takedowns (not in the slice) — and
+    // redact the private text by the caller's role (§4.6): raw HELD/HIDDEN text doesn't go to outsiders.
     list: (ctx) => ({
       tasks: loadTasks(ctx)
         .filter((t) => t.channelId === ctx.channelId)
@@ -419,10 +419,10 @@ export const escrowTaskHandlers: GameHandlers = {
       const t = loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId);
       return t ? redactTask(ctx, withOperatorBlock(ctx, t)) : null;
     },
-    // Голоса спора — ПОСТРАНИЧНО + фильтр по стороне + поиск по адресу + сортировка (чистая
-    // machine.disputeVotesView — её же зовёт icp-провайдер для споров канистры). Задачу редактируем
-    // как в list/get (§4.6): спор возможен только после accept (текст SHOWN), но операторский
-    // тейкдаун мог снять текст позже — не возвращаем снятый.
+    // Dispute votes — PAGINATED + filter by side + search by address + sorting (the pure
+    // machine.disputeVotesView — also called by the icp provider for canister disputes). We redact the task
+    // as in list/get (§4.6): a dispute is only possible after accept (text SHOWN), but an operator
+    // takedown may have pulled the text later — we don't return pulled text.
     disputeVotes: (ctx, payload) => {
       const id = idOf(payload);
       const raw = loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId);

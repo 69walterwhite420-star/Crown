@@ -27,9 +27,9 @@ interface AggUser {
 }
 
 /**
- * Admin → Users. Глобального списка юзеров в ядре нет (репутация локальна), поэтому собираем доноров из
- * лидербордов ВСЕХ realms (getLeaderboard по каждому) и агрегируем: суммарный crowned, Reign, число realms.
- * N запросов на N realms — ок для админ/дев-инструмента; для больших масштабов сюда сядет серверный агрегат.
+ * Admin → Users. There's no global user list in the core (Reign is local), so we collect supporters from
+ * the leaderboards of ALL realms (getLeaderboard for each) and aggregate: total crowned, Reign, number of realms.
+ * N requests for N realms — fine for an admin/dev tool; at large scale a server-side aggregate goes here.
  */
 export default function AdminUsersPage() {
   const provider = useData();
@@ -47,7 +47,7 @@ export default function AdminUsersPage() {
   const loading = realmsLoading || boards.some((b) => b.isLoading);
   const boardsError = boards.some((b) => b.isError);
 
-  // Агрегация дешёвая (демо-масштаб) — считаем на каждый рендер по свежим данным лидербордов.
+  // Aggregation is cheap (demo scale) — we compute it on every render from fresh leaderboard data.
   const users: AggUser[] = [];
   {
     const map = new Map<string, AggUser>();

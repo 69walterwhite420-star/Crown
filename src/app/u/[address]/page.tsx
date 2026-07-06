@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { DonorProfile } from "@/components/domain/donor-profile";
 import { AppHeader } from "@/components/layout/app-header";
 
-/** Публичный профиль донатёра (read-only): личность + деньги во времени + standing по каналам + активность.
- *  Дашборд в духе публичного профиля (как у polymarket), но в контексте донат-платформы. */
+/** Public supporter profile (read-only): identity + money over time + standing across realms + activity.
+ *  A dashboard in the spirit of a public profile (like polymarket), but in the context of a Crown platform. */
 export default function PublicProfilePage() {
   const params = useParams<{ address: string }>();
   const address = params.address ? decodeURIComponent(params.address) : "";

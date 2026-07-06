@@ -23,18 +23,18 @@ import {
 import type { EscrowTask, TaskVote } from "./types";
 
 /**
- * Тесты стейт-машины «задание-донат» — чистая логика по спеке §5/§6/§11: переходы, окна по времени,
- * подсчёт голосов по весу и эффекты на репутацию (ADR 0015). Время детерминировано (nowMs).
+ * Tests of the "task-for-a-crown" state machine — pure logic per spec §5/§6/§11: transitions, time windows,
+ * vote counting by weight, and reputation effects (ADR 0015). Time is deterministic (nowMs).
  */
 
 const T0 = Date.parse("2026-01-01T00:00:00.000Z");
-const AMOUNT = "5000000"; // 5 USDC → 5 очков (pointsForAmount)
+const AMOUNT = "5000000"; // 5 USDC → 5 points (pointsForAmount)
 const STREAMER = "Streamer1";
-const TD = T0 + WINDOWS.grace + 1; // время «Готово» — сразу ПОСЛЕ грейса отмены донора (ESC-13)
+const TD = T0 + WINDOWS.grace + 1; // "Done" time — right AFTER the donor's cancel grace (ESC-13)
 
 function newTask(executionMs?: number): EscrowTask {
   return createTask(
-    { id: "t1", channelId: "ch-1", donor: "Donor1", amount: AMOUNT, text: "сделай X", executionMs },
+    { id: "t1", channelId: "ch-1", donor: "Donor1", amount: AMOUNT, text: "do X", executionMs },
     T0,
   );
 }
@@ -44,7 +44,7 @@ const vote = (voter: string, choice: TaskVote["choice"], weight: number): TaskVo
   weight,
   at: "2026-01-01T00:00:00.000Z",
 });
-// Машина бросает GameBusError с кодом в .code (а .message — русский текст) → проверяем именно код.
+// The machine throws GameBusError with the code in .code (.message is human text) → we check the code specifically.
 function throwsCode(fn: () => unknown): string {
   try {
     fn();
@@ -54,28 +54,28 @@ function throwsCode(fn: () => unknown): string {
   return "NO_THROW";
 }
 
-describe("создание и принятие", () => {
-  it("createTask → PENDING с дедлайном СДАЧИ (от создания) и клампом срока", () => {
-    const t = newTask(999 * WINDOWS.executionMax); // выше потолка → клампится
+describe("creation and acceptance", () => {
+  it("createTask → PENDING with the DELIVERY deadline (from creation) and deadline clamping", () => {
+    const t = newTask(999 * WINDOWS.executionMax); // above the ceiling → clamped
     expect(t.status).toBe("PENDING");
-    // Дедлайн сдачи = создание + клампленный срок (от СОЗДАНИЯ = ончейн done_deadline от fund).
+    // Delivery deadline = creation + clamped duration (from CREATION = on-chain done_deadline from fund).
     expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionMax);
   });
 
-  it("accept → ACCEPTED; грейс и срок сдачи заданы при СОЗДАНИИ, accept их не сбрасывает", () => {
+  it("accept → ACCEPTED; grace and delivery deadline are set at CREATION, accept doesn't reset them", () => {
     const t = accept(newTask(), T0 + 1000);
     expect(t.status).toBe("ACCEPTED");
-    expect(Date.parse(t.graceUntil!)).toBe(T0 + WINDOWS.grace); // от создания (= ончейн accept_deadline), не от accept
-    expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionDefault); // от создания, не от accept
+    expect(Date.parse(t.graceUntil!)).toBe(T0 + WINDOWS.grace); // from creation (= on-chain accept_deadline), not from accept
+    expect(Date.parse(t.executionDeadline)).toBe(T0 + WINDOWS.executionDefault); // from creation, not from accept
   });
 
-  it("accept после срока сдачи → ACCEPT_EXPIRED", () => {
+  it("accept after the delivery deadline → ACCEPT_EXPIRED", () => {
     expect(throwsCode(() => accept(newTask(), T0 + WINDOWS.executionDefault + 1))).toBe(
       "ACCEPT_EXPIRED",
     );
   });
 
-  it("reject → возврат; cancel только в грейс-окне; после «Готово» нельзя", () => {
+  it('reject → refund; cancel only within the grace window; not after "Done"', () => {
     expect(reject(newTask(), T0 + 1).resolution).toMatchObject({
       outcome: "to_donor",
       reason: "rejected",
@@ -88,26 +88,26 @@ describe("создание и принятие", () => {
   });
 });
 
-describe("выполнение и спор", () => {
+describe("execution and dispute", () => {
   const accepted = () => accept(newTask(), T0);
 
-  it("markDone → DONE с окном оспаривания (без пруфа)", () => {
+  it("markDone → DONE with a dispute window (no proof)", () => {
     const d = markDone(accepted(), TD);
     expect(d.status).toBe("DONE");
     expect(Date.parse(d.disputeWindowEndsAt!)).toBe(TD + WINDOWS.disputeWindow);
   });
 
-  it("markDone в грейс-окне → GRACE_ACTIVE (ESC-13: стример не фронт-раннит отмену донора)", () => {
+  it("markDone within the grace window → GRACE_ACTIVE (ESC-13: the streamer doesn't front-run the donor's cancel)", () => {
     expect(throwsCode(() => markDone(accepted(), T0 + WINDOWS.grace - 1))).toBe("GRACE_ACTIVE");
   });
 
-  it("markDone после срока → EXEC_OVER (логика no-show — в dueResolution)", () => {
+  it("markDone after the deadline → EXEC_OVER (no-show logic — in dueResolution)", () => {
     expect(throwsCode(() => markDone(accepted(), T0 + WINDOWS.executionDefault + 1))).toBe(
       "EXEC_OVER",
     );
   });
 
-  it("raiseDispute → DISPUTED; повторный голос отклоняется", () => {
+  it("raiseDispute → DISPUTED; a repeated vote is rejected", () => {
     const done = markDone(accepted(), TD);
     let disp = raiseDispute(done, "Juror0", 100, TD + 1);
     expect(disp.status).toBe("DISPUTED");
@@ -118,7 +118,7 @@ describe("выполнение и спор", () => {
   });
 });
 
-describe("подсчёт голосов (tally) по весу", () => {
+describe("vote tally by weight", () => {
   const disp = (votes: TaskVote[], quorum: number) => ({
     by: "J0",
     openedAt: "x",
@@ -127,36 +127,36 @@ describe("подсчёт голосов (tally) по весу", () => {
     votes,
   });
 
-  it("вес «выполнил» > «не выполнил» → стримеру (vote_completed)", () => {
+  it('weight "completed" > "not completed" → to the streamer (vote_completed)', () => {
     expect(tally(disp([vote("a", "completed", 60), vote("b", "not_completed", 40)], 50))).toEqual({
       outcome: "to_streamer",
       reason: "vote_completed",
     });
   });
 
-  it("вес «не выполнил» больше → донору 100% (vote_not_completed)", () => {
+  it('weight "not completed" greater → 100% to the donor (vote_not_completed)', () => {
     expect(tally(disp([vote("a", "not_completed", 70), vote("b", "completed", 30)], 50))).toEqual({
       outcome: "to_donor",
       reason: "vote_not_completed",
     });
   });
 
-  it("суммарный вес ниже кворума → стримеру (no_quorum)", () => {
+  it("total weight below quorum → to the streamer (no_quorum)", () => {
     expect(tally(disp([vote("a", "not_completed", 10)], 100))).toMatchObject({
       reason: "no_quorum",
       outcome: "to_streamer",
     });
   });
 
-  it("ничья по весу → стримеру (презумпция §11)", () => {
+  it("tie by weight → to the streamer (presumption §11)", () => {
     expect(
       tally(disp([vote("a", "completed", 50), vote("b", "not_completed", 50)], 50)),
     ).toMatchObject({ reason: "tie", outcome: "to_streamer" });
   });
 });
 
-describe("разрешение по времени (dueResolution)", () => {
-  it("PENDING после окна → возврат донору (expired)", () => {
+describe("resolution by time (dueResolution)", () => {
+  it("PENDING after the window → refund to the donor (expired)", () => {
     expect(dueResolution(newTask(), T0 + WINDOWS.executionDefault + 1)).toMatchObject({
       reason: "expired",
       outcome: "to_donor",
@@ -164,14 +164,14 @@ describe("разрешение по времени (dueResolution)", () => {
     expect(dueResolution(newTask(), T0 + 1)).toBeNull();
   });
 
-  it("ACCEPTED после срока → no_show (возврат донору)", () => {
+  it("ACCEPTED after the deadline → no_show (refund to the donor)", () => {
     const acc = accept(newTask(), T0);
     expect(dueResolution(acc, T0 + WINDOWS.executionDefault + 1)).toMatchObject({
       reason: "no_show",
     });
   });
 
-  it("DONE после окна оспаривания без спора → стримеру (completed)", () => {
+  it("DONE after the dispute window with no dispute → to the streamer (completed)", () => {
     const done = markDone(accept(newTask(), T0), TD);
     expect(dueResolution(done, TD + WINDOWS.disputeWindow + 1)).toMatchObject({
       reason: "completed",
@@ -180,17 +180,17 @@ describe("разрешение по времени (dueResolution)", () => {
   });
 });
 
-describe("эффекты на репутацию (ADR 0015)", () => {
-  it("деньги стримеру → донор получает очки за дошедший донат", () => {
+describe("reputation effects (ADR 0015)", () => {
+  it("money to the streamer → the donor gets points for the delivered crown", () => {
     const fx = repEffects(newTask(), { outcome: "to_streamer", reason: "completed" });
     expect(fx).toEqual([{ address: "Donor1", type: "DONATION", pointsDelta: 5, amount: AMOUNT }]);
   });
 
-  it("возврат донору сам по себе очков не даёт", () => {
+  it("a refund to the donor by itself grants no points", () => {
     expect(repEffects(newTask(), { outcome: "to_donor", reason: "expired" })).toEqual([]);
   });
 
-  it("проигранный спор → списание инициатору; деньги стримеру → донор +очки", () => {
+  it("lost dispute → penalty to the initiator; money to the streamer → donor +points", () => {
     const done = markDone(accept(newTask(), T0), TD);
     const disp = raiseDispute(done, "Juror0", 1, TD + 1);
     const fx = repEffects(disp, { outcome: "to_streamer", reason: "vote_completed" });
@@ -207,7 +207,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
     });
   });
 
-  it("подтверждённый спор (донору) → бонус инициатору, доната нет", () => {
+  it("confirmed dispute (to the donor) → bonus to the initiator, no crown", () => {
     const done = markDone(accept(newTask(), T0), TD);
     const disp = raiseDispute(done, "Juror0", 1, TD + 1);
     const fx = repEffects(disp, { outcome: "to_donor", reason: "vote_not_completed" });
@@ -218,7 +218,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
 });
 
 describe("claim (ADR 0015)", () => {
-  it("забрать может только получатель и только раз", () => {
+  it("only the recipient can claim, and only once", () => {
     const done = markDone(accept(newTask(), T0), TD);
     const resolved = {
       ...done,
@@ -237,53 +237,53 @@ describe("claim (ADR 0015)", () => {
   });
 });
 
-describe("report (жалоба зрителя на текст задания)", () => {
-  it("на своё задание жаловаться нельзя", () => {
-    expect(throwsCode(() => report(newTask(), "Donor1", "спам", T0))).toBe("SELF_REPORT");
+describe("report (a viewer's report on the task text)", () => {
+  it("you can't report your own task", () => {
+    expect(throwsCode(() => report(newTask(), "Donor1", "spam", T0))).toBe("SELF_REPORT");
   });
 
-  it("дедуп по reporter — второй раз тем же нельзя", () => {
-    const t = report(newTask(), "Viewer1", "спам", T0);
+  it("dedup by reporter — can't do it twice with the same one", () => {
+    const t = report(newTask(), "Viewer1", "spam", T0);
     expect(t.reports).toHaveLength(1);
-    expect(throwsCode(() => report(t, "Viewer1", "ещё", T0))).toBe("ALREADY_REPORTED");
+    expect(throwsCode(() => report(t, "Viewer1", "more", T0))).toBe("ALREADY_REPORTED");
   });
 
-  it("порог REPORT_HIDE_THRESHOLD разных жалобщиков → авто-скрытие текста (деньги не трогаем)", () => {
+  it("REPORT_HIDE_THRESHOLD threshold of different reporters → text auto-hide (money untouched)", () => {
     let t = newTask();
     for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) t = report(t, `V${i}`, undefined, T0);
     expect(t.textState).not.toBe("HIDDEN");
     t = report(t, `V${REPORT_HIDE_THRESHOLD - 1}`, undefined, T0);
     expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD);
     expect(t.textState).toBe("HIDDEN");
-    expect(t.status).toBe("PENDING"); // жалоба на текст не двигает стадию/деньги
+    expect(t.status).toBe("PENDING"); // a report on the text doesn't move the stage/money
   });
 
-  it("ESC-19: после accept жалобы НЕ гасят текст (деньги ⟹ текст на виду) — только копятся", () => {
-    let t = accept(newTask(), T0); // ACCEPTED + SHOWN (деньги могут уйти стримеру)
+  it("ESC-19: after accept reports do NOT mute the text (money ⟹ text visible) — they only accumulate", () => {
+    let t = accept(newTask(), T0); // ACCEPTED + SHOWN (money may go to the streamer)
     for (let i = 0; i < REPORT_HIDE_THRESHOLD + 1; i++) t = report(t, `V${i}`, undefined, T0);
-    expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD + 1); // жалобы фиксируются (сигнал оператору)
-    expect(t.textState).toBe("SHOWN"); // но текст оплаченного задания не гаснет
+    expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD + 1); // reports are recorded (a signal to the operator)
+    expect(t.textState).toBe("SHOWN"); // but a paid task's text doesn't get muted
   });
 });
 
-describe("hide (отказ стримера — скрыть без резолва/ончейна)", () => {
-  it("ставит hidden; деньги/статус/резолюцию не трогает", () => {
+describe("hide (streamer rejection — hide without resolve/on-chain)", () => {
+  it("sets hidden; doesn't touch money/status/resolution", () => {
     const t = hide(newTask());
     expect(t.hidden).toBe(true);
     expect(t.status).toBe("PENDING");
     expect(t.resolution).toBeUndefined();
   });
-  it("на завершённом задании нельзя", () => {
+  it("not allowed on a finished task", () => {
     const resolved = reject(newTask(), T0 + 1); // RESOLVED to_donor
     expect(throwsCode(() => hide(resolved))).toBe("NOT_OPEN");
   });
-  it("ESC-19: на ПРИНЯТОМ задании отклонить нельзя (деньги ⟹ задание на виду)", () => {
+  it("ESC-19: can't reject an ACCEPTED task (money ⟹ task visible)", () => {
     expect(throwsCode(() => hide(accept(newTask(), T0)))).toBe("NOT_OPEN");
   });
 });
 
-describe("операторский тейкдаун (operatorBlocked) — перебивает публикацию", () => {
-  it("isTextPublic=false даже если текст SHOWN (снято оператором платформы)", () => {
+describe("operator takedown (operatorBlocked) — overrides publication", () => {
+  it("isTextPublic=false even if the text is SHOWN (removed by the platform operator)", () => {
     const shown = { ...accept(newTask(), T0), textState: "SHOWN" as const };
     expect(isTextPublic(shown)).toBe(true);
     expect(isTextPublic({ ...shown, operatorBlocked: true })).toBe(false);

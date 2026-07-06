@@ -10,7 +10,7 @@ import type { ChannelCard } from "@/lib/data/types";
 
 const PAGE_SIZES = [6, 12, 24, 48];
 
-/** Поиск по каналу: хэндл, имя, верхний тир, АДРЕС (payout) и id канала. Регистронезависимая подстрока. */
+/** Search a realm: handle, name, top tier, ADDRESS (payout) and realm id. Case-insensitive substring. */
 function matches(c: ChannelCard, q: string): boolean {
   if (!q) return true;
   return [c.handle, c.displayName ?? "", c.topTierName, c.payoutAddress, c.channelId]
@@ -19,7 +19,7 @@ function matches(c: ChannelCard, q: string): boolean {
     .includes(q);
 }
 
-/** Сетка карточек каналов с поиском и постраничной разбивкой. Сами карточки остаются прежними. */
+/** Grid of realm cards with search and pagination. The cards themselves stay the same. */
 export function ChannelBrowser({
   channels,
   initialQuery = "",
@@ -30,7 +30,7 @@ export function ChannelBrowser({
   const [pageSize, setPageSize] = useState(12);
   const [page, setPage] = useState(0);
 
-  // Запрос приходит из поиска в ШАПКЕ (?q) — отдельного поля на странице каналов нет.
+  // The query comes from the search in the HEADER (?q) — there's no separate field on the realms page.
   const q = initialQuery.trim().toLowerCase();
   const filtered = useMemo(() => channels.filter((c) => matches(c, q)), [channels, q]);
 

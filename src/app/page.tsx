@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
 import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -18,17 +19,27 @@ function usd(micro: bigint): string {
 }
 
 /**
- * Home `/` — каталог дворов для ВСЕХ (гость и залогиненный видят одно и то же). Личное пространство
- * (Dashboard / Customization / Settings) живёт на `/space`; вход туда — кнопкой «Personal Space» в шапке.
- * Каталог — не «выбери канал», а витрина, где репутации строятся прямо сейчас.
+ * Home `/` — a catalog of realms for EVERYONE (guest and logged-in see the same thing). The personal space
+ * (Dashboard / Customization / Settings) lives at `/space`; you get there via the "Personal Space" button in the header.
+ * The catalog is not "pick a realm" but a showcase where Reigns are being built right now.
  */
 export default function HomePage() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto w-full max-w-content px-4 py-8 sm:py-10">
+      {/* Atmosphere: a soft gold glow at the top, dissolving into black — so the background "breathes". */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-[var(--header-h)] -z-10 h-[520px]"
+        style={{
+          background:
+            "radial-gradient(60% 60% at 50% 0%, rgba(228,179,76,0.10) 0%, rgba(228,179,76,0.035) 38%, transparent 72%)",
+        }}
+      />
+      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:py-10 lg:px-6">
         <Home />
       </main>
+      <SiteFooter />
     </>
   );
 }
@@ -48,7 +59,7 @@ function Home() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Личный корт вынесен в «Personal Space» (шапка → /space); здесь у всех — витрина дворов. */}
+      {/* The personal court is moved into "Personal Space" (header → /space); here everyone sees the realms showcase. */}
       <RealmsShowcase />
     </div>
   );
@@ -60,8 +71,8 @@ function RealmsShowcase() {
   const [query, setQuery] = useState("");
   const [platforms, setPlatforms] = useState<Set<ChannelLinkPlatform>>(new Set());
 
-  // Показываем в фильтре только те платформы, что реально встречаются у дворов (без мёртвых опций),
-  // в порядке CHANNEL_PLATFORMS.
+  // Show in the filter only the platforms that actually appear among the realms (no dead options),
+  // in CHANNEL_PLATFORMS order.
   const availablePlatforms = useMemo(() => {
     const present = new Set<ChannelLinkPlatform>();
     for (const c of realms) for (const l of c.links ?? []) present.add(l.platform);
@@ -73,7 +84,7 @@ function RealmsShowcase() {
     const metric = (c: ChannelCard) => c.totalDonated;
     return realms
       .filter((c) => !q || `${c.handle} ${c.displayName ?? ""}`.toLowerCase().includes(q))
-      // Соц-фильтр: двор проходит, если у него есть ссылка на ЛЮБУЮ из выбранных платформ (union).
+      // Social filter: a realm passes if it has a link to ANY of the selected platforms (union).
       .filter((c) => platforms.size === 0 || (c.links ?? []).some((l) => platforms.has(l.platform)))
       .slice()
       .sort((a, b) => {
@@ -93,8 +104,8 @@ function RealmsShowcase() {
 
   const hasRealms = !isLoading && !error && realms.length > 0;
 
-  // Кроссфейд сетки при смене сортировки/фильтра/поиска: рендерим снимок `shown`; при изменении контролов
-  // старая раскладка гаснет (animate-list-out) → на onAnimationEnd подменяем на новую → каскад-вход.
+  // Grid crossfade on sort/filter/search change: we render a `shown` snapshot; when the controls change
+  // the old layout fades out (animate-list-out) → on onAnimationEnd we swap in the new one → cascade-in.
   const sig = `${q}|${[...platforms].sort().join(",")}`;
   const [shown, setShown] = useState<ChannelCard[]>(visible);
   const [shownSig, setShownSig] = useState(sig);
@@ -108,11 +119,11 @@ function RealmsShowcase() {
 
   useEffect(() => {
     if (sig === shownSig) {
-      // Контролы те же — но контент мог смениться (загрузка/рефетч данных): синхронизируем без анимации.
+      // The controls are the same — but the content may have changed (data load/refetch): sync without animation.
       if (shown !== visible) setShown(visible);
       return;
     }
-    // Пустые стороны (начальная загрузка / фильтр обнулил) — без кроссфейда, менять нечего плавно.
+    // Empty sides (initial load / filter zeroed it out) — no crossfade, there's nothing to transition smoothly.
     if (shown.length === 0 || visible.length === 0) {
       setShown(visible);
       setShownSig(sig);
@@ -122,7 +133,7 @@ function RealmsShowcase() {
     setLeaving(true);
   }, [sig, shownSig, shown, visible]);
 
-  // Страховка от «залипания»: если animationend не придёт — принудительная подмена через 500мс.
+  // Safeguard against "sticking": if animationend never fires — force the swap after 500ms.
   useEffect(() => {
     if (!leaving) return;
     const t = window.setTimeout(commitSwap, 500);
@@ -135,7 +146,7 @@ function RealmsShowcase() {
         <h2 className="text-h3 text-fg">The realms</h2>
         {hasRealms ? (
           <div className="flex flex-wrap items-center gap-2">
-            {/* Фильтр по соцсетям — свёрнут в дропдаун, чтобы не занимать ряд */}
+            {/* Social filter — collapsed into a dropdown so it doesn't take up a row */}
             {availablePlatforms.length > 0 ? (
               <PlatformFilterMenu
                 platforms={availablePlatforms}
@@ -169,7 +180,7 @@ function RealmsShowcase() {
       ) : (
         <div
           className={cn(
-            "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
+            "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
             leaving ? "animate-list-out" : "enter-stagger",
           )}
           onAnimationEnd={(e) => {
@@ -185,7 +196,7 @@ function RealmsShowcase() {
   );
 }
 
-/** Фильтр по соцсетям, свёрнутый в дропдаун: компактная кнопка «Platforms» + список-чеклист по клику. */
+/** Social filter collapsed into a dropdown: a compact "Platforms" button + a checklist that opens on click. */
 function PlatformFilterMenu({
   platforms,
   selected,
@@ -198,7 +209,7 @@ function PlatformFilterMenu({
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  // render держит меню в DOM во время анимации закрытия (размонтируем на onAnimationEnd, когда open=false).
+  // render keeps the menu in the DOM during the close animation (we unmount on onAnimationEnd, when open=false).
   const [render, setRender] = useState(false);
   const count = selected.size;
 
@@ -206,7 +217,7 @@ function PlatformFilterMenu({
     if (open) setRender(true);
   }, [open]);
 
-  // Esc закрывает меню.
+  // Esc closes the menu.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -313,7 +324,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
   const amount = realm.totalDonated;
   return (
     <div className="relative flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:border-money-dim hover:shadow-[0_8px_28px_-10px_rgba(228,179,76,0.30)]">
-      {/* Растянутая ссылка: вся карточка кликабельна во двор; соц-иконки лежат поверх (z-20). */}
+      {/* Stretched link: the whole card is clickable into the realm; the social icons sit on top (z-20). */}
       <Link
         href={`/c/${realm.handle}`}
         aria-label={`Enter realm @${realm.handle}`}
@@ -321,14 +332,20 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
       />
       <div className="flex items-center gap-3">
         <span
-          className="grid h-11 w-11 flex-none place-items-center rounded-lg font-display text-lg font-semibold"
+          className="relative grid h-11 w-11 flex-none place-items-center overflow-hidden rounded-lg font-display text-lg font-semibold"
           style={{
             color: `hsl(${hue} 55% 78%)`,
             background: `hsl(${hue} 45% 22% / 0.5)`,
             border: `1px solid hsl(${hue} 45% 40% / 0.5)`,
           }}
         >
-          {realm.handle.charAt(0).toUpperCase()}
+          {realm.avatarUrl ? (
+            // Avatar — an arbitrary external URL (next/image requires a host allowlist) → a plain <img>.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={realm.avatarUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            realm.handle.charAt(0).toUpperCase()
+          )}
         </span>
         <div className="flex min-w-0 flex-col">
           <span className="mono truncate text-fg">@{realm.handle}</span>
@@ -372,7 +389,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
 
 function CardGridSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 6 }).map((_, i) => (
         <Skeleton key={i} className="h-44 w-full rounded-lg" />
       ))}

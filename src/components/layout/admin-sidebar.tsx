@@ -18,8 +18,8 @@ const GROUP_OPS = [
 const GROUP_SETTINGS = [{ href: "/admin/settings", label: "Settings" }];
 
 /**
- * Сайдбар админки во всю высоту (как в референсе): логотип сверху, вертикальная граница справа (top-to-bottom).
- * Десктоп — липкая колонка на весь экран; мобила — верхний блок (лого + горизонтальный таб-бар).
+ * Full-height admin sidebar (as in the reference): logo on top, vertical border on the right (top-to-bottom).
+ * Desktop — a sticky full-screen column; mobile — a top block (logo + horizontal tab bar).
  */
 export function AdminSidebar({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname();
@@ -33,7 +33,7 @@ export function AdminSidebar({ collapsed = false }: { collapsed?: boolean }) {
         collapsed ? "md:w-14" : "md:w-56",
       )}
     >
-      {/* Логотип сверху — остаётся видимым и при сворачивании (в свёрнутом — только знак). */}
+      {/* Logo on top — stays visible even when collapsed (when collapsed — just the mark). */}
       <Link
         href="/"
         aria-label="CROWN — home"
@@ -53,7 +53,7 @@ export function AdminSidebar({ collapsed = false }: { collapsed?: boolean }) {
         </span>
       </Link>
 
-      {/* Навигация — скрыта в свёрнутом виде */}
+      {/* Navigation — hidden when collapsed */}
       <nav
         className={cn(
           "text-small flex flex-row gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none] md:flex-col md:overflow-visible md:pb-0 md:pt-2 [&::-webkit-scrollbar]:hidden",

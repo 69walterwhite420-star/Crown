@@ -1,48 +1,48 @@
 /**
- * Канонические типы ядра (docs/yellow-paper.md §13). Используются и фронтом (форма мок-данных),
- * и позже бэкендом (схема БД). Деньги — micro-USDC (bigint), очки — целые.
- * UI-специфичные типы (Session, DonationInput, ChannelCard, ...) — docs/yellow-paper.md §11.
+ * Canonical core types (docs/yellow-paper.md §13). Used both by the frontend (shape of mock data)
+ * and later by the backend (DB schema). Money — micro-USDC (bigint), points — integers.
+ * UI-specific types (Session, DonationInput, ChannelCard, ...) — docs/yellow-paper.md §11.
  */
 
-// — Базовые типы —
-export type Address = string; // Solana base58, напр. "7xKp...3fQa"
+// — Base types —
+export type Address = string; // Solana base58, e.g. "7xKp...3fQa"
 export type MicroUSDC = bigint; // 1 USDC = 1_000_000n
-export type Points = number; // очки репутации (дробные, 1:1 к USDC с копейками; micro-точность)
+export type Points = number; // Reign points (fractional, 1:1 to USDC down to cents; micro-precision)
 export type Iso = string; // ISO-8601 timestamp
-export type TxSignature = string; // подпись транзакции Solana (Фаза 3)
+export type TxSignature = string; // Solana transaction signature (Phase 3)
 
-// — Идентичность и профиль —
-// Профиль опционален: личность — это адрес; displayName/bio/links — надстройка.
+// — Identity and profile —
+// Profile is optional: identity is the address; displayName/bio/links are an add-on.
 export interface LightProfile {
   address: Address;
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
-  links?: ChannelLink[]; // ссылки на платформы (allowlist), как у канала — см. ChannelLink
+  links?: ChannelLink[]; // links to platforms (allowlist), same as a realm — see ChannelLink
 }
 
-// — Канал —
+// — Realm —
 export type ChannelStatus = "BASIC" | "ACTIVE" | "SUSPENDED" | "BANNED";
 
 export interface Channel {
   id: string; // creator_id
-  ownerAddress: Address; // логин-адрес владельца (один канал на кошелёк — ADR 0002)
-  payoutAddress: Address; // куда идут донаты (может != ownerAddress)
-  /** ed25519-подпись владельца (base64) над каноническим сообщением «payout канала — этот адрес»
-   *  (lib/chain/attestation.ts). Замок H1: сервер не источник истины по адресу выплат — клиент донора
-   *  проверяет подпись ДО сборки tx, ingest — при зачёте. Каналы до аттестации закрепляют адрес через
-   *  attestPayout (кнопка в настройках студии). */
+  ownerAddress: Address; // owner's login address (one realm per wallet — ADR 0002)
+  payoutAddress: Address; // where crowns go (may != ownerAddress)
+  /** ed25519 signature of the owner (base64) over the canonical message "this realm's payout is this address"
+   *  (lib/chain/attestation.ts). Lock H1: the server is not the source of truth for the payout address — the
+   *  donor client verifies the signature BEFORE assembling the tx, ingest — on crediting. Realms created before
+   *  attestation pin the address via attestPayout (button in space settings). */
   payoutAttestation?: string;
-  handle: string; // публичный slug
-  status: ChannelStatus; // BASIC до уплаты сбора активации
+  handle: string; // public slug
+  status: ChannelStatus; // BASIC until the activation fee is paid
   activatedAt?: Iso;
   configVersion: number;
   createdAt: Iso;
 }
 
-// — Конфиг канала —
-// Курс репутации ФИКСИРОВАН (1 USDC = 1 очко, ADR 0007), не настраивается. Стример настраивает только
-// тиры/пороги (Tier.threshold) — сколько очков нужно для перков/участия в мини-играх.
+// — Realm config —
+// The Reign rate is FIXED (1 USDC = 1 point, ADR 0007), not configurable. The streamer only configures
+// tiers/thresholds (Tier.threshold) — how many points are needed for perks/participation in mini-games.
 
 export interface Perk {
   label: string;
@@ -51,10 +51,10 @@ export interface Perk {
 
 export interface Tier {
   name: string;
-  threshold: Points; // порог в очках
-  color: string; // цвет ника
-  badge: string; // id/ключ бейджа
-  description?: string; // опц. описание тира (UGC; модерируется как описание канала; задел под перки/игры)
+  threshold: Points; // threshold in points
+  color: string; // nickname color
+  badge: string; // badge id/key
+  description?: string; // opt. tier description (UGC; moderated like the realm description; groundwork for perks/games)
   perks: Perk[];
 }
 
@@ -63,9 +63,9 @@ export interface ModeratorRef {
   scope: "queue" | "queue_and_block";
 }
 
-// — Публичная личность канала —
-// Платформа из фиксированного allowlist; url — каноничный https профиля/канала (валидируется доменом +
-// шаблоном пути в lib/channel-links.ts: произвольный URL/глубокую ссылку вписать нельзя).
+// — Public realm identity —
+// Platform from a fixed allowlist; url — canonical https of the profile/channel (validated by domain +
+// path pattern in lib/channel-links.ts: an arbitrary URL/deep link cannot be entered).
 export type ChannelLinkPlatform =
   | "youtube"
   | "twitch"
@@ -74,7 +74,8 @@ export type ChannelLinkPlatform =
   | "tiktok"
   | "instagram"
   | "discord"
-  | "telegram";
+  | "telegram"
+  | "onlyfans";
 
 export interface ChannelLink {
   platform: ChannelLinkPlatform;
@@ -84,48 +85,48 @@ export interface ChannelLink {
 export interface ChannelConfig {
   channelId: string;
   version: number;
-  hash: string; // версия конфига (метаданные; курс репутации фиксирован, не версионируется)
-  // Имя канала и ссылки — НЕ здесь: единый источник истины — профиль владельца (LightProfile.displayName/
-  // links по ownerAddress), чтобы у человека был один ник и один набор ссылок. Канальное — только описание
-  // (тэглайн канала). Модерируется как UGC; инертно для репутации (формула не читает, §4.4).
+  hash: string; // config version (metadata; the Reign rate is fixed, not versioned)
+  // Realm name and links are NOT here: the single source of truth is the owner's profile (LightProfile.displayName/
+  // links by ownerAddress), so that a person has one nickname and one set of links. Realm-specific is only the
+  // description (the realm tagline). Moderated as UGC; inert for Reign (the formula doesn't read it, §4.4).
   description?: string;
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
-  /** Мин. репутация (очки), чтобы прислать ЗАДАНИЕ-донат (§10 рычаг стримера): новички шлют простые
-   *  донаты и так набирают статус, задания — только с порога. Антиспам заданий. 0 = без порога. */
+  /** Min. Reign (points) to send a TASK crown (§10 streamer lever): newcomers send plain crowns and build
+   *  standing that way anyway, tasks — only from a threshold. Anti-spam for tasks. 0 = no threshold. */
   minReputationToTask: number;
-  /** Мин. репутация (очки), чтобы поднять СПОР (§10 рычаг «насколько эксклюзивно право судить мой канал»):
-   *  антитроллинг ↔ анти-цензура спора. Гейтит право поднять спор, НЕ вес голоса и НЕ исход. 0 = без порога. */
+  /** Min. Reign (points) to raise a DISPUTE (§10 lever "how exclusive is the right to judge my realm"):
+   *  anti-trolling ↔ anti-censorship of disputes. Gates the right to raise a dispute, NOT the vote weight or the outcome. 0 = no threshold. */
   minReputationToDispute: number;
   messageMaxLen: number;
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
   moderators: ModeratorRef[];
-  /** Включённые на канале мини-игры — id из реестра `src/games` (ADR 0016). По умолчанию пусто: стример
-   *  включает игру, когда комьюнити созрело (cold-start, спека игры §8). Хранится как непрозрачные строки —
-   *  ядро про конкретные игры не знает; валидация id — на слое игр (game-bus, G1.2). */
+  /** Mini-games enabled on the realm — ids from the `src/games` registry (ADR 0016). Empty by default: the streamer
+   *  enables a game when the community is ready (cold-start, game spec §8). Stored as opaque strings —
+   *  the core doesn't know about specific games; id validation is at the games layer (game-bus, G1.2). */
   enabledGames: string[];
   updatedAt: Iso;
 }
 
-// — Журнал репутации (источник истины) —
+// — Reign ledger (source of truth) —
 export type LedgerType =
-  | "DONATION" // (+) единственный источник роста в ядре
-  | "DISPUTE_WON" // (+) выигранный спор (игра escrow-task, ADR 0015)
-  | "DISPUTE_LOST" // (−) проигранный ложный спор — ЕДИНСТВЕННОЕ протокольное списание (игра escrow-task)
-  | "GAME" // зарезервировано под будущие игры
-  | "REFUND"; // зарезервировано (возврат)
+  | "DONATION" // (+) the only source of growth in the core
+  | "DISPUTE_WON" // (+) a won dispute (escrow-task game, ADR 0015)
+  | "DISPUTE_LOST" // (−) a lost false dispute — the ONLY protocol-level debit (escrow-task game)
+  | "GAME" // reserved for future games
+  | "REFUND"; // reserved (refund)
 
 export interface LedgerEvent {
   id: string;
   donor: Address;
   creator: string; // channelId
   type: LedgerType;
-  amount: MicroUSDC; // сумма доната (0 для не-донатных)
-  pointsDelta: Points; // вклад в репутацию (+/−)
-  configVersion: number; // по какой версии конфига забанковано
-  txSignature?: TxSignature; // Фаза 3
+  amount: MicroUSDC; // crown amount (0 for non-crown events)
+  pointsDelta: Points; // contribution to Reign (+/−)
+  configVersion: number; // which config version it was banked under
+  txSignature?: TxSignature; // Phase 3
   ts: Iso;
 }
 
@@ -133,24 +134,24 @@ export interface ViewerStanding {
   channelId: string;
   donor: Address;
   points: Points;
-  tier?: Tier; // undefined → очков меньше порога первого тира («без тира»)
+  tier?: Tier; // undefined → fewer points than the first tier's threshold ("no tier")
   nextTier?: Tier;
   progressToNext: number; // 0..1
   totalDonated: MicroUSDC;
   firstDonationAt?: Iso;
 }
 
-// — Донат и сообщение —
+// — Crown and message —
 export type MessageState = "HELD" | "SHOWN" | "HIDDEN" | "QUARANTINED";
 export type ModerationVerdict = "CLEAR" | "FLAG" | "HARD_BLOCK";
 
 export interface MessageRef {
-  id: string; // msg_ref (идёт в memo)
+  id: string; // msg_ref (goes in the memo)
   donationId: string;
   channelId: string;
-  text: string; // оффчейн, снимаемо
+  text: string; // offchain, removable
   lang?: string;
-  state: MessageState; // дефолт HELD
+  state: MessageState; // default HELD
   autoVerdict?: ModerationVerdict;
   contentHash: string;
   shownAt?: Iso;
@@ -158,20 +159,20 @@ export interface MessageRef {
 }
 
 export interface Donation {
-  id: string; // donation_id (идёт в memo)
+  id: string; // donation_id (goes in the memo)
   channelId: string;
   donor: Address;
-  amount: MicroUSDC; // полная сумма (до расщепления)
-  feeAmount: MicroUSDC; // ~3% в трежери
+  amount: MicroUSDC; // full amount (before the split)
+  feeAmount: MicroUSDC; // ~3% to the treasury
   netToStreamer: MicroUSDC; // ~97%
-  txSignature?: TxSignature; // Фаза 3
-  final: true; // в ядре всегда true
+  txSignature?: TxSignature; // Phase 3
+  final: true; // always true in the core
   ts: Iso;
   message?: MessageRef;
-  donorName?: string; // ник донора из лёгкого профиля (только для отображения; в журнал не пишется)
+  donorName?: string; // supporter's nickname from the light profile (display only; not written to the ledger)
 }
 
-// — Баны и блокировки —
+// — Bans and blocks —
 export interface ChannelBlock {
   channelId: string;
   blockedAddress: Address;
@@ -181,19 +182,19 @@ export interface ChannelBlock {
 }
 
 export type PenaltyAction =
-  | "HIDE_MESSAGE" // тейкдаун текста (видимость; деньги/репутацию не трогает)
-  | "CHANNEL_BLOCK" // блок кошелька на одном канале: не донатит-с-текстом, не заходит в игру там
-  | "SUSPEND_CHANNEL" // канал → SUSPENDED (временная приостановка, обратимо)
-  | "BAN_CREATOR_ROLE" // канал → BANNED (снятие роли креатора; кошелёк может завести новый канал)
-  | "BAN_WALLET_FULL" // полный бан кошелька: не голосует/не спорит/не донатит/не создаёт — вся ценность репутации обнуляется, но само число остаётся честным (§4.4)
-  | "REINSTATE_CHANNEL"; // обратное к suspend/ban: SUSPENDED|BANNED → ACTIVE (путь восстановления)
+  | "HIDE_MESSAGE" // text takedown (visibility; doesn't touch money/Reign)
+  | "CHANNEL_BLOCK" // wallet block on a single realm: can't crown-with-text, can't join a game there
+  | "SUSPEND_CHANNEL" // realm → SUSPENDED (temporary suspension, reversible)
+  | "BAN_CREATOR_ROLE" // realm → BANNED (removes the creator role; the wallet may start a new realm)
+  | "BAN_WALLET_FULL" // full wallet ban: doesn't vote/dispute/crown/create — all the value of Reign is zeroed, but the number itself stays honest (§4.4)
+  | "REINSTATE_CHANNEL"; // inverse of suspend/ban: SUSPENDED|BANNED → ACTIVE (recovery path)
 
 export interface OperatorAction {
   id: string;
   action: PenaltyAction;
   targetChannelId?: string;
   targetAddress?: Address;
-  targetContentId?: string; // HIDE_MESSAGE: id снимаемого с публикации задания ИЛИ донат-сообщения (тейкдаун)
+  targetContentId?: string; // HIDE_MESSAGE: id of the task OR crown message being unpublished (takedown)
   reason: string; // CSAM / flood / sanctions / repeat_tos
   byOperator: Address;
   preservation?: boolean;
@@ -204,15 +205,15 @@ export interface OperatorAction {
 export interface IncidentLog {
   id: string;
   channelId?: string;
-  address?: Address; // адрес АВТОРА контента (донора) — на кого направлено действие
+  address?: Address; // address of the content's AUTHOR (supporter) — who the action targets
   kind: "report" | "hard_block" | "sanction_hit" | "flood";
   detail: string;
-  text?: string; // оффенс-контент (за что инцидент); виден только оператору в /ops
+  text?: string; // offending content (what the incident is about); visible only to the operator in /ops
   resolution?: string;
   ts: Iso;
 }
 
-// — Лидерборд (производная) —
+// — Leaderboard (derived) —
 export type LeaderboardPeriod = "all_time" | "month";
 
 export interface LeaderboardEntry {
@@ -220,11 +221,11 @@ export interface LeaderboardEntry {
   donor: Address;
   displayName?: string;
   points: Points;
-  tier?: Tier; // undefined → ниже порога первого тира
+  tier?: Tier; // undefined → below the first tier's threshold
   totalDonated: MicroUSDC;
 }
 
-// — UI-специфичные типы (docs/yellow-paper.md §11) —
+// — UI-specific types (docs/yellow-paper.md §11) —
 export interface Page<T> {
   items: T[];
   cursor?: string;
@@ -236,45 +237,48 @@ export interface ListOpts {
 }
 
 export interface Session {
-  address: Address | null; // null = не подключён
-  isCreator: boolean; // владеет каналом (один на кошелёк — ADR 0002)
+  address: Address | null; // null = not connected
+  isCreator: boolean; // owns a realm (one per wallet — ADR 0002)
   isOperator: boolean;
 }
 
 export interface DonationInput {
   channelId: string;
-  amountUSDC: number; // ввод пользователя в USDC (UI); в micro конвертит провайдер
-  text?: string; // опц.; на BASIC-канале → отклоняется
+  amountUSDC: number; // user input in USDC (UI); the provider converts to micro
+  text?: string; // opt.; on a BASIC realm → rejected
 }
 
 export interface DonationResult {
   donation: Donation;
-  standing: ViewerStanding; // пересчитанная репутация донора СРАЗУ
-  tierChanged: boolean; // для FinalityMoment / tier-up анимации
+  standing: ViewerStanding; // the supporter's Reign, recomputed IMMEDIATELY
+  tierChanged: boolean; // for the FinalityMoment / tier-up animation
 }
 
 export interface ChannelCard {
   channelId: string;
   handle: string;
-  displayName?: string; // имя владельца (из его профиля), не ник донора
-  payoutAddress: Address; // кошелёк выплат — показываем + ссылка в проводник
-  links?: ChannelLink[]; // соцсети владельца (мини-иконки)
+  displayName?: string; // owner's name (from their profile), not the supporter's nickname
+  avatarUrl?: string; // owner's avatar (from the profile); none → monogram letter
+  payoutAddress: Address; // payout wallet — shown + link to the explorer
+  links?: ChannelLink[]; // owner's socials (mini-icons)
   topTierName: string;
   donorsCount: number;
-  totalDonated: MicroUSDC; // суммарный объём донатов (по лидерборду)
-  activated: boolean; // ACTIVE → галочка; BASIC показывается, но без галочки и без донатов-с-текстом
+  totalDonated: MicroUSDC; // total crown volume (from the leaderboard)
+  crowned7d?: MicroUSDC; // crown volume over the last 7 days (showcase sort / momentum). Computed by mock; real providers may omit.
+  isLive?: boolean; // realm currently «live» — mock-simulated; real providers have no liveness source yet.
+  activated: boolean; // ACTIVE → checkmark; BASIC is shown, but without a checkmark and without crowns-with-text
 }
 
 export interface CreateChannelInput {
   handle: string;
   payoutAddress: Address;
-  /** ed25519-подпись владельца над payout (H1, lib/chain/attestation.ts). В chain-режиме обязательна —
-   *  chain-провайдер подписывает кошельком прозрачно при создании канала. */
+  /** owner's ed25519 signature over the payout (H1, lib/chain/attestation.ts). Required in chain mode —
+   *  the chain provider signs with the wallet transparently when creating a realm. */
   payoutAttestation?: string;
 }
 
-// — Мини-игры: запрос через общий game-bus (ADR 0016). gameId/op — строки; ядро про конкретные игры не
-// знает, маршрутизация и валидация — на слое игр (`src/games/bus.ts`). —
+// — Mini-games: request via the shared game-bus (ADR 0016). gameId/op — strings; the core doesn't know about
+// specific games, routing and validation are at the games layer (`src/games/bus.ts`). —
 export interface GameRequest {
   gameId: string;
   channelId: string;
@@ -282,61 +286,61 @@ export interface GameRequest {
   payload?: unknown;
 }
 
-// — Профиль донатёра: агрегат по всем каналам (для публичной страницы /u/[address]) —
-// ВАЖНО (инвариант §4.3): глобального рейтинга нет. Деньги агрегируемы (сумма донатов — факт), но
-// очки репутации остаются ПОканальными — в overview суммы очков по каналам НЕ складываем.
+// — Supporter profile: aggregate across all realms (for the public page /u/[address]) —
+// IMPORTANT (invariant §4.3): there is no global ranking. Money is aggregatable (crown total is a fact), but
+// Reign points stay PER-realm — in the overview we do NOT sum points across realms.
 export interface DonorChannelStanding {
   channelId: string;
   handle: string;
-  channelName?: string; // имя владельца канала (его профиль), если задано
-  tier?: Tier; // undefined → ниже порога первого тира
-  points: Points; // локальная репутация в ЭТОМ канале
-  totalDonated: MicroUSDC; // задонатил этому каналу
+  channelName?: string; // realm owner's name (their profile), if set
+  tier?: Tier; // undefined → below the first tier's threshold
+  points: Points; // local Reign in THIS realm
+  totalDonated: MicroUSDC; // crowned to this realm
   donationCount: number;
   firstDonationAt?: Iso;
   lastDonationAt?: Iso;
 }
 
-// Событие журнала репутации донора для ленты «Активность»: за что НАЧИСЛИЛИ (+) или СПИСАЛИ (−) очки.
-// Сервер (mock/api/chain) отдаёт только DONATION; в icp-режиме детализацию даёт журнал канистры —
-// туда входят выплаты заданий (GAME_DONATION) и протокольные исходы споров (DISPUTE_*, M2).
-// Оператор очки не двигает (§4.5, CR-1): отрицательная дельта бывает только протокольной (DISPUTE_LOST).
+// A supporter's Reign ledger event for the "Activity" feed: what points were GRANTED (+) or DEBITED (−) for.
+// The server (mock/api/chain) returns only DONATION; in icp mode the detail comes from the canister ledger —
+// which includes task payouts (GAME_DONATION) and protocol dispute outcomes (DISPUTE_*, M2).
+// The operator doesn't move points (§4.5, CR-1): a negative delta can only be protocol-level (DISPUTE_LOST).
 export interface DonorPointEvent {
   id: string;
   channelId: string;
   type: "DONATION" | "GAME_DONATION" | "DISPUTE_WON" | "DISPUTE_LOST";
-  pointsDelta: Points; // знаковая дельта (DISPUTE_LOST < 0)
-  amount: MicroUSDC; // сумма денег события (0n у DISPUTE_*)
+  pointsDelta: Points; // signed delta (DISPUTE_LOST < 0)
+  amount: MicroUSDC; // money amount of the event (0n for DISPUTE_*)
   ts: Iso;
   txSignature?: TxSignature;
-  message?: MessageRef; // приватный текст доната/задания (если показан) — для строки активности
-  escrowTaskId?: string; // GAME_DONATION: seed эскроу-задания (CR-4) — ключ джойна текста в icp-режиме
-  disputeTaskId?: string; // DISPUTE_WON/LOST: off-chain id задания — ссылка на табло спора (пруф: кто открыл)
+  message?: MessageRef; // private crown/task text (if shown) — for the activity row
+  escrowTaskId?: string; // GAME_DONATION: escrow-task seed (CR-4) — the join key for the text in icp mode
+  disputeTaskId?: string; // DISPUTE_WON/LOST: off-chain task id — link to the dispute board (proof: who opened it)
 }
 
 export interface DonorOverview {
   address: Address;
-  totalDonated: MicroUSDC; // сумма по всем каналам (деньги — агрегируемы)
+  totalDonated: MicroUSDC; // sum across all realms (money is aggregatable)
   donationCount: number;
   channelsSupported: number;
-  firstDonationAt?: Iso; // «донатит с …» (самый ранний донат)
-  topStanding?: DonorChannelStanding; // канал с наивысшими ЛОКАЛЬНЫМИ очками (для «высший тир», не глобал)
-  ownedChannelHandle?: string; // если этот адрес ВЛАДЕЕТ каналом (один на кошелёк, ADR 0002) — его handle
-  standings: DonorChannelStanding[]; // позиции по каналам (по убыванию суммы донатов)
-  donations: Donation[]; // активность: все донаты по всем каналам, новые сверху (текст приватен до показа)
-  pointEvents: DonorPointEvent[]; // журнал очков: за что начислили (+донат) / списали (−void), новые сверху
+  firstDonationAt?: Iso; // "supporting since …" (earliest crown)
+  topStanding?: DonorChannelStanding; // realm with the highest LOCAL points (for "top tier", not global)
+  ownedChannelHandle?: string; // if this address OWNS a realm (one per wallet, ADR 0002) — its handle
+  standings: DonorChannelStanding[]; // positions across realms (by descending crown total)
+  donations: Donation[]; // activity: all crowns across all realms, newest first (text is private until shown)
+  pointEvents: DonorPointEvent[]; // points ledger: what was granted (+crown) / debited (−void), newest first
 }
 
-// — Главная как личная база (ADR 0018) —
-/** Стадия открытого цикла для дашборда главной (эскроу-задание). Порядок семантически = приоритет срочности. */
+// — Home as a personal base (ADR 0018) —
+/** Stage of an open cycle for the home dashboard (escrow-task). The order is semantically = urgency priority. */
 export type CycleKind =
-  | "claimable" // деньги ждут тебя сейчас (RESOLVED → возврат донору, ещё не забрано)
-  | "grace" // можно отменить (PENDING в грейс-окне)
-  | "dispute_window" // «Готово» — окно оспаривания открыто (оспорить или подождать)
-  | "voting" // спор идёт, голосование
-  | "awaiting"; // ждём выполнения (PENDING/ACCEPTED вне грейса)
+  | "claimable" // money is waiting for you now (RESOLVED → refund to the supporter, not yet claimed)
+  | "grace" // can be cancelled (PENDING in the grace window)
+  | "dispute_window" // "Done" — the dispute window is open (dispute or wait)
+  | "voting" // dispute in progress, voting
+  | "awaiting"; // waiting for completion (PENDING/ACCEPTED outside grace)
 
-/** Открытый цикл донора для дашборда `/`. `text` — ТВОЁ задание (донор), показываем себе (§4.6 не нарушается). */
+/** A supporter's open cycle for the `/` dashboard. `text` — YOUR task (supporter), shown to yourself (§4.6 not violated). */
 export interface OpenCycle {
   taskId: string;
   channelId: string;
@@ -344,20 +348,20 @@ export interface OpenCycle {
   kind: CycleKind;
   amount: MicroUSDC;
   text: string;
-  deadline?: Iso; // когда закрывается текущее окно; нет → действие доступно прямо сейчас (claimable)
-  actionable: boolean; // требует твоего действия сейчас vs ждём других
+  deadline?: Iso; // when the current window closes; none → the action is available right now (claimable)
+  actionable: boolean; // requires your action now vs waiting on others
 }
 
-/** Живой канал для полоски «прямо сейчас». Ранг — по РАЗНЫМ участникам, НЕ по сумме (анти-whale, §4.3/ADR 0018). */
+/** A live realm for the "right now" strip. Rank — by DISTINCT participants, NOT by amount (anti-whale, §4.3/ADR 0018). */
 export interface LiveChannel {
   channelId: string;
   handle: string;
-  activeCount: number; // живых заданий (не RESOLVED)
-  participants: number; // разных донатеров в живых циклах
-  lockedMicro: MicroUSDC; // заперто в живых циклах (показываем, НЕ ключ ранжирования)
+  activeCount: number; // live tasks (not RESOLVED)
+  participants: number; // distinct supporters in live cycles
+  lockedMicro: MicroUSDC; // locked in live cycles (shown, NOT the ranking key)
 }
 
-/** Лента главной (ADR 0018): свои открытые циклы (по срочности) + что кипит (по участникам). Личность — из сессии. */
+/** Home feed (ADR 0018): your own open cycles (by urgency) + what's hot (by participants). Identity — from the session. */
 export interface HomeFeed {
   cycles: OpenCycle[];
   live: LiveChannel[];

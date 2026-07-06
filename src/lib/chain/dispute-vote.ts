@@ -1,25 +1,25 @@
 /**
- * Споры в канистре (M2, ADR 0021) — канонические сообщения подписи кошелька: открытие спора
- * и голос. Изоморфный модуль без web3.js.
+ * Disputes in the canister (M2, ADR 0021) — canonical wallet-signature messages: opening a dispute
+ * and voting. An isomorphic module without web3.js.
  *
- * ВАЖНО: строки обязаны байт-в-байт совпадать с Rust (`canister/core/src/arbiter.rs`) —
- * парные пин-тесты: dispute-vote.test.ts ↔ arbiter.rs::canonical_messages_pinned.
- * Анти-replay: адрес эскроу-аккаунта + канал + (для голоса) выбор — внутри подписанного текста.
+ * IMPORTANT: the strings must match Rust byte-for-byte (`canister/core/src/arbiter.rs`) —
+ * paired pin tests: dispute-vote.test.ts ↔ arbiter.rs::canonical_messages_pinned.
+ * Anti-replay: the escrow account address + realm + (for a vote) the choice — inside the signed text.
  */
 
 export type DisputeVoteChoice = "completed" | "not_completed";
 
-/** Открытие спора: подписывает инициатор (вес ≥ порога канала проверяет канистра). */
+/** Opening a dispute: signed by the initiator (weight ≥ realm threshold is checked by the canister). */
 export function buildOpenDisputeMessage(
   escrowAccount: string,
   channelId: string,
   by: string,
 ): string {
   return [
-    "Standing: открытие спора по заданию-донату.",
+    "Standing: opening a dispute over a Crown-task.",
     "",
-    "Подписывая, вы оспариваете выполнение задания. Денег это не стоит,",
-    "но проигранный ложный спор снимет 50 очков вашей репутации.",
+    "By signing, you dispute completion of the task. This costs no money,",
+    "but a lost false dispute will deduct 50 points of your Reign.",
     "",
     `escrow: ${escrowAccount}`,
     `channel: ${channelId}`,
@@ -28,7 +28,7 @@ export function buildOpenDisputeMessage(
   ].join("\n");
 }
 
-/** Голос: вес = снимок репутации голосующего на канале в момент открытия спора (канистра). */
+/** Vote: weight = a snapshot of the voter's Reign on the realm at the moment the dispute opened (canister). */
 export function buildVoteMessage(
   escrowAccount: string,
   channelId: string,
@@ -36,9 +36,9 @@ export function buildVoteMessage(
   choice: DisputeVoteChoice,
 ): string {
   return [
-    "Standing: голос в споре по заданию-донату.",
+    "Standing: a vote in a dispute over a Crown-task.",
     "",
-    "Подписывая, вы голосуете весом своей репутации на этом канале.",
+    "By signing, you vote with the weight of your Reign on this realm.",
     "",
     `escrow: ${escrowAccount}`,
     `channel: ${channelId}`,
@@ -48,7 +48,7 @@ export function buildVoteMessage(
   ].join("\n");
 }
 
-// ─────────── вид спора из канистры (ответ GET /dispute, arbiter/http.rs::case_json) ───────────
+// ─────────── dispute view from the canister (response to GET /dispute, arbiter/http.rs::case_json) ───────────
 
 export interface CanisterDisputeVote {
   voter: string;
@@ -60,8 +60,8 @@ export interface CanisterDisputeVote {
 export interface CanisterDisputeView {
   escrowAccount: string;
   channelId: string;
-  escrowTaskId: string | null; // hex-seed эскроу-PDA — ключ соединения с задачей сервера (task.escrowTaskId)
-  status: string; // DISPUTED | RESOLVED (машина канистры)
+  escrowTaskId: string | null; // hex seed of the escrow PDA — the join key to the server task (task.escrowTaskId)
+  status: string; // DISPUTED | RESOLVED (canister machine)
   openedBy: string | null;
   openedAtMs: number | null;
   votingEndsAtMs: number | null;
@@ -75,7 +75,7 @@ export interface CanisterDisputeView {
   verdict: { outcome: "to_streamer" | "to_donor"; reason: string; finalizedAtMs: number } | null;
 }
 
-/** Сырой JSON канистры → типизированный вид (деньги/веса строками → bigint). */
+/** Raw canister JSON → typed view (money/weights as strings → bigint). */
 export function normalizeCanisterDispute(raw: {
   escrowAccount: string;
   channelId: string;

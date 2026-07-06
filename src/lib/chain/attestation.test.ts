@@ -3,7 +3,7 @@ import nacl from "tweetnacl";
 import { describe, expect, it } from "vitest";
 import { buildPayoutAttestationMessage, verifyPayoutAttestation } from "./attestation";
 
-/** Подпись сообщения реальным ed25519-ключом — то, что делает кошелёк владельца (signMessage). */
+/** Signing the message with a real ed25519 key — what the owner's wallet does (signMessage). */
 function sign(owner: nacl.SignKeyPair, payout: string): string {
   const msg = new TextEncoder().encode(
     buildPayoutAttestationMessage(bs58.encode(owner.publicKey), payout),
@@ -16,23 +16,23 @@ describe("payout attestation (H1)", () => {
   const ownerAddr = bs58.encode(owner.publicKey);
   const payout = bs58.encode(nacl.sign.keyPair().publicKey);
 
-  it("принимает подпись владельца над своим payout", () => {
+  it("accepts the owner's signature over their own payout", () => {
     expect(verifyPayoutAttestation(ownerAddr, payout, sign(owner, payout))).toBe(true);
   });
 
-  it("отклоняет подменённый payout (суть атаки H1)", () => {
+  it("rejects a swapped payout (the essence of the H1 attack)", () => {
     const attacker = bs58.encode(nacl.sign.keyPair().publicKey);
     expect(verifyPayoutAttestation(ownerAddr, attacker, sign(owner, payout))).toBe(false);
   });
 
-  it("отклоняет подпись чужим ключом (сервер не может подписать за владельца)", () => {
+  it("rejects a signature by a foreign key (the server cannot sign for the owner)", () => {
     const evil = nacl.sign.keyPair();
     expect(verifyPayoutAttestation(ownerAddr, payout, sign(evil, payout))).toBe(false);
   });
 
-  it("отклоняет мусор вместо подписи/адреса (fail-closed, без бросков)", () => {
+  it("rejects garbage instead of a signature/address (fail-closed, no throws)", () => {
     expect(verifyPayoutAttestation(ownerAddr, payout, "not-base64!!")).toBe(false);
     expect(verifyPayoutAttestation(ownerAddr, payout, "")).toBe(false);
-    expect(verifyPayoutAttestation("не-адрес", payout, sign(owner, payout))).toBe(false);
+    expect(verifyPayoutAttestation("not-an-address", payout, sign(owner, payout))).toBe(false);
   });
 });

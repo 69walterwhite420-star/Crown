@@ -13,15 +13,15 @@ import type { Donation } from "@/lib/data/types";
 const PAGE_SIZES = [10, 25, 50, 100];
 
 /**
- * Поиск по донату: ник (адрес донора), хеш (подпись транзакции), текст сообщения (если доступен — у
- * показанных публично, у всех — для менеджера канала), сумма и id. Регистронезависимая подстрока.
+ * Search a crown by: name (donor address), hash (transaction signature), message text (if available — for
+ * shown-public ones, and for everything if you manage the realm), amount and id. Case-insensitive substring.
  */
 function matches(d: Donation, q: string): boolean {
   if (!q) return true;
   const hay = [
-    d.donor, // адрес донора
-    d.donorName ?? "", // ник (отображаемое имя)
-    d.txSignature ?? "", // хеш транзакции
+    d.donor, // donor address
+    d.donorName ?? "", // name (display name)
+    d.txSignature ?? "", // transaction hash
     d.message?.text ?? "",
     d.id,
     String(fromMicro(d.amount)),
@@ -32,8 +32,8 @@ function matches(d: Donation, q: string): boolean {
 }
 
 /**
- * Список донатов с поиском и постраничной разбивкой (размер страницы выбирается). Данные — на клиенте.
- * СВОРАЧИВАЕМЫЙ (нативный <details>): по умолчанию свёрнут, заголовок-кнопка показывает счётчик.
+ * A list of crowns with search and pagination (page size is selectable). Data is client-side.
+ * COLLAPSIBLE (native <details>): collapsed by default, the header-button shows the counter.
  */
 export function DonationHistory({
   donations,
@@ -47,10 +47,10 @@ export function DonationHistory({
   donations: Donation[];
   title?: string;
   defaultOpen?: boolean;
-  reportable?: boolean; // показывать «Пожаловаться» на показанных сообщениях (для публичной ленты)
-  manageChannelId?: string; // задан → у каждого доната кнопка «Забанить» (владелец/модератор канала)
-  collapsible?: boolean; // false → без сворачивания (напр. в табах канала — там это уже лишнее), всегда раскрыт
-  plain?: boolean; // «воздушная» лента: без поиска/пагинации/рамки, заголовок-секция, строки с разделителями
+  reportable?: boolean; // show "Report" on shown messages (for the public feed)
+  manageChannelId?: string; // set → each crown gets a "Ban" button (realm owner/moderator)
+  collapsible?: boolean; // false → no collapsing (e.g. in realm tabs — redundant there), always expanded
+  plain?: boolean; // "airy" feed: no search/pagination/border, a section heading, rows with dividers
 }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
@@ -60,7 +60,7 @@ export function DonationHistory({
   const filtered = useMemo(() => donations.filter((d) => matches(d, q)), [donations, q]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1); // фильтр мог укоротить список → не зависаем на пустой стр.
+  const safePage = Math.min(page, pageCount - 1); // the filter may have shortened the list → don't get stuck on an empty page.
   const start = safePage * pageSize;
   const pageItems = filtered.slice(start, start + pageSize);
 
@@ -151,7 +151,7 @@ export function DonationHistory({
     </div>
   );
 
-  // «Воздушная» лента (страница канала): заголовок-секция + строки с разделителями, без поиска/пагинации/рамки.
+  // "Airy" feed (realm page): a section heading + rows with dividers, no search/pagination/border.
   if (plain) {
     return (
       <div className="flex flex-col gap-2">
@@ -177,7 +177,7 @@ export function DonationHistory({
     );
   }
 
-  // Несворачиваемо (напр. в табах канала) — заголовок-секция + контент, без рамки-карточки (airy-стиль).
+  // Non-collapsible (e.g. in realm tabs) — a section heading + content, no card border (airy style).
   if (!collapsible) {
     return (
       <div className="flex flex-col gap-3">

@@ -1,10 +1,10 @@
 /**
- * Стейт-машина «задание-донат» — ЧИСТАЯ логика (без IO/React), по спеке §5/§6/§11. Все функции
- * детерминированы: время приходит параметром `nowMs`, переходы возвращают НОВЫЙ объект (иммутабельно).
+ * The "task-for-a-crown" state machine — PURE logic (no IO/React), per spec §5/§6/§11. All functions are
+ * deterministic: time arrives as the `nowMs` parameter, and transitions return a NEW object (immutably).
  *
- * Разделение ответственности: машина проверяет СТОЯНИЕ и ВРЕМЯ; авторизацию (владелец/донор/допуск
- * присяжного) и вычисление веса/кворума делает обработчик (game-bus, G1.3 part 2) — у него есть конфиг
- * канала и журнал. Эффекты на репутацию (ADR 0015) машина только ВЫЧИСЛЯЕТ; банкует их обработчик.
+ * Separation of concerns: the machine checks STATE and TIME; authorization (owner/donor/juror eligibility) and
+ * computing the weight/quorum is done by the handler (game-bus, G1.3 part 2) — it has the channel config and the
+ * ledger. Reputation effects (ADR 0015) are only COMPUTED by the machine; the handler banks them.
  */
 import { pointsForAmount } from "@/lib/reputation";
 import { GameBusError } from "../bus";
@@ -23,58 +23,58 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
-// ⚠️ ВРЕМЕННО (тест ончейн-цикла): короткие окна, чтобы прогонять задание за минуты. ВЕРНУТЬ В ПРОД
-// ОДНИМ ИЗМЕНЕНИЕМ — `FAST_TEST_WINDOWS = false`. ВАЖНО: ончейн-константы (DISPUTE_WINDOW/VOTING_WINDOW/
-// CANCEL_GRACE в anchor/programs/escrow-task/src/lib.rs) должны совпадать с этими — при возврате их тоже
-// вернуть + редеплой. Отдельного «окна принятия» НЕТ ни здесь, ни ончейн: все дедлайны идут от СОЗДАНИЯ.
+// ⚠️ TEMPORARY (on-chain-cycle testing): short windows so a task can run through in minutes. RETURN TO PROD WITH
+// ONE CHANGE — `FAST_TEST_WINDOWS = false`. IMPORTANT: the on-chain constants (DISPUTE_WINDOW/VOTING_WINDOW/
+// CANCEL_GRACE in anchor/programs/escrow-task/src/lib.rs) must match these — when reverting, revert them too
+// + redeploy. There is NO separate "accept window" here or on-chain: all deadlines run from CREATION.
 const FAST_TEST_WINDOWS = true;
 
-/** Окна процесса (спека §5/§10). Стартовые дефолты — калибруются на тестнете (спека §16). */
+/** Process windows (spec §5/§10). Starting defaults — calibrated on testnet (spec §16). */
 export const WINDOWS = FAST_TEST_WINDOWS
   ? {
       grace: 1 * MIN,
       executionDefault: 2 * MIN,
-      executionMin: 2 * MIN, // ESC-17: > grace, иначе окно mark_done (после грейса) вырождается
+      executionMin: 2 * MIN, // ESC-17: > grace, otherwise the mark_done window (after grace) degenerates
       executionMax: 90 * DAY,
       disputeWindow: 2 * MIN,
       voting: 2 * MIN,
     }
   : {
-      grace: 2 * MIN, // окно отмены донором после принятия
+      grace: 2 * MIN, // the donor's cancel window after accept
       executionDefault: 24 * HOUR,
-      // ESC-17: минимальный срок сдачи ОБЯЗАН превышать грейс (иначе окно mark_done после грейса пустое/
-      // вырожденное → гарантированный no-show). Держим заметный запас над grace (2 мин).
+      // ESC-17: the minimum delivery deadline MUST exceed the grace (otherwise the mark_done window after grace is
+      // empty/degenerate → a guaranteed no-show). We keep a noticeable margin over grace (2 min).
       executionMin: 5 * MIN,
-      executionMax: 90 * DAY, // потолок срока выполнения — до 3 месяцев (донор вписывает число вручную)
-      disputeWindow: 12 * HOUR, // от «Готово» — окно поднять спор
+      executionMax: 90 * DAY, // ceiling on the execution deadline — up to 3 months (the donor types the number by hand)
+      disputeWindow: 12 * HOUR, // from "Done" — the window to raise a dispute
       voting: 24 * HOUR,
     };
 
-/** Изменение репутации за спор (спека §8/§16: калибровка так, чтобы clawback был EV-отрицателен). */
-export const DISPUTE_WIN_BONUS = 10; // подтверждённый спор (поднял, комьюнити согласилось)
-export const DISPUTE_LOSS_PENALTY = 50; // проигранный спор (списание инициатору)
+/** Reputation change for a dispute (spec §8/§16: calibrated so a clawback is EV-negative). */
+export const DISPUTE_WIN_BONUS = 10; // confirmed dispute (raised, community agreed)
+export const DISPUTE_LOSS_PENALTY = 50; // lost dispute (penalty to the initiator)
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const ms = (isoStr: string) => Date.parse(isoStr);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-// ───────────────────────── переходы (действия) ─────────────────────────
+// ───────────────────────── transitions (actions) ─────────────────────────
 
 export interface CreateTaskInput {
   id: string;
   channelId: string;
   donor: string;
-  amount: string; // micro-USDC строкой
+  amount: string; // micro-USDC as a string
   text: string;
-  textState?: "SHOWN" | "HELD" | "HIDDEN"; // видимость текста в публичной ленте (решает обработчик по textShowMode)
-  executionMs?: number; // предложенный донором срок выполнения (в пределах окна)
+  textState?: "SHOWN" | "HELD" | "HIDDEN"; // text visibility in the public feed (the handler decides by textShowMode)
+  executionMs?: number; // execution deadline proposed by the donor (within the window)
 }
 
 export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
-  // Срок СДАЧИ задаёт донор и он отсчитывается ОТ СОЗДАНИЯ (= ончейн done_deadline от `fund`). «Принять» —
-  // бесплатная оффчейн-пометка, отдельного окна принятия и сброса срока нет (упрощение UX, см. переписку).
-  // ESC-17: нижняя граница срока сдачи ОБЯЗАНА превышать грейс (паритет с ончейн require execution_window >
-  // CANCEL_GRACE) — иначе окно mark_done (после грейса, ESC-13) пустое и задание всегда уходит в no-show.
+  // The DELIVERY deadline is set by the donor and counted FROM CREATION (= on-chain done_deadline from `fund`). "Accept"
+  // is a free off-chain mark; there is no separate accept window and no deadline reset (a UX simplification, see the thread).
+  // ESC-17: the lower bound of the delivery deadline MUST exceed the grace (parity with the on-chain require execution_window
+  // > CANCEL_GRACE) — otherwise the mark_done window (after grace, ESC-13) is empty and the task always goes to no-show.
   const proposed = clamp(
     input.executionMs ?? WINDOWS.executionDefault,
     Math.max(WINDOWS.executionMin, WINDOWS.grace + 1),
@@ -88,52 +88,52 @@ export function createTask(input: CreateTaskInput, nowMs: number): EscrowTask {
     amount: input.amount,
     text: input.text,
     createdAt: iso(nowMs),
-    executionDeadline: deliverBy, // срок сдачи от создания (= ончейн done_deadline)
-    // Грейс-окно отмены донора — ОТ СОЗДАНИЯ (= ончейн accept_deadline = fund + CANCEL_GRACE), как и проверка
-    // в cancel/markDone. Задаётся один раз при создании, accept не сбрасывает.
+    executionDeadline: deliverBy, // delivery deadline from creation (= on-chain done_deadline)
+    // The donor's cancel grace window — FROM CREATION (= on-chain accept_deadline = fund + CANCEL_GRACE), just like the
+    // check in cancel/markDone. Set once at creation; accept does not reset it.
     graceUntil: iso(nowMs + WINDOWS.grace),
     status: "PENDING",
-    textState: input.textState, // undefined = SHOWN (совместимость)
+    textState: input.textState, // undefined = SHOWN (compatibility)
   };
 }
 
 export function accept(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING")
-    throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
+    throw new GameBusError("NOT_PENDING", "This task is no longer awaiting a response.");
   if (nowMs > ms(task.executionDeadline))
-    throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
-  // ESC-19: принятие РАСКРЫВАЕТ текст (SHOWN). Ончейн `accept` обязателен перед `mark_done`, а по accept-tx
-  // индексер раскроет текст и мимо UI — так «спрятал текст, но забрал деньги» невозможно (шов ончейн↔офчейн).
+    throw new GameBusError("ACCEPT_EXPIRED", "The delivery deadline has passed — the crown will return to the donor.");
+  // ESC-19: accepting REVEALS the text (SHOWN). An on-chain `accept` is required before `mark_done`, and from the accept-tx
+  // the indexer reveals the text even outside the UI — so "hid the text but took the money" is impossible (on-chain↔off-chain seam).
   return { ...task, status: "ACCEPTED", textState: "SHOWN" };
 }
 
 export function reject(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
-    throw new GameBusError("NOT_OPEN", "Отклонить можно только до «Готово».");
+    throw new GameBusError("NOT_OPEN", 'You can only reject before "Done".');
   return applyResolution(task, { outcome: "to_donor", reason: "rejected" }, nowMs);
 }
 
 export function cancel(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
-    throw new GameBusError("NOT_OPEN", "Отменить можно только до «Готово».");
-  // Грейс-окно от создания (совпадает с ончейн accept_deadline = fund + CANCEL_GRACE; аудит #5) — чтобы
-  // донор не обнулял уже сделанную работу отменой в любой момент.
+    throw new GameBusError("NOT_OPEN", 'You can only cancel before "Done".');
+  // Grace window from creation (matches the on-chain accept_deadline = fund + CANCEL_GRACE; audit #5) — so the
+  // donor can't wipe out already-done work by canceling at an arbitrary moment.
   if (nowMs > ms(task.createdAt) + WINDOWS.grace)
-    throw new GameBusError("GRACE_OVER", "Окно отмены закрыто.");
+    throw new GameBusError("GRACE_OVER", "The cancel window is closed.");
   return applyResolution(task, { outcome: "to_donor", reason: "canceled" }, nowMs);
 }
 
 export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
-    throw new GameBusError("NOT_OPEN", "Отметить «Готово» можно только до разрешения.");
-  // ESC-13: нельзя сдать в грейс-окне отмены донора (совпадает с ончейн accept_deadline = fund + grace) —
-  // иначе стример фронт-раннит «Готово» сразу после fund и обнуляет аварийную отмену донора.
+    throw new GameBusError("NOT_OPEN", 'You can only mark "Done" before resolution.');
+  // ESC-13: you can't submit during the donor's cancel grace window (matches the on-chain accept_deadline = fund + grace) —
+  // otherwise the streamer front-runs "Done" right after fund and nullifies the donor's emergency cancel.
   if (nowMs <= ms(task.createdAt) + WINDOWS.grace)
-    throw new GameBusError("GRACE_ACTIVE", "Сдать можно после грейс-окна отмены донора.");
+    throw new GameBusError("GRACE_ACTIVE", "You can only submit after the donor's cancel grace window.");
   if (nowMs > ms(task.executionDeadline))
-    throw new GameBusError("EXEC_OVER", "Срок сдачи истёк — донат вернётся донору (no-show).");
-  // Пруфа нет: у контентмейкеров доказательство — сам стрим/VOD, комьюнити его и так мониторит. «Готово» —
-  // просто декларация, открывающая окно оспаривания; не сделано → комьюнити поднимает спор.
+    throw new GameBusError("EXEC_OVER", "The delivery deadline has passed — the crown will return to the donor (no-show).");
+  // There's no proof: for content creators the proof is the stream/VOD itself, which the community already monitors. "Done"
+  // is just a declaration that opens the dispute window; if it wasn't done — the community raises a dispute.
   return {
     ...task,
     status: "DONE",
@@ -148,9 +148,9 @@ export function raiseDispute(
   nowMs: number,
 ): EscrowTask {
   if (task.status !== "DONE")
-    throw new GameBusError("NOT_DONE", "Спор можно поднять только после «Готово».");
+    throw new GameBusError("NOT_DONE", 'A dispute can only be raised after "Done".');
   if (nowMs > ms(task.disputeWindowEndsAt ?? task.createdAt))
-    throw new GameBusError("DISPUTE_WINDOW_OVER", "Окно оспаривания закрыто.");
+    throw new GameBusError("DISPUTE_WINDOW_OVER", "The dispute window is closed.");
   const dispute: TaskDispute = {
     by,
     openedAt: iso(nowMs),
@@ -163,17 +163,17 @@ export function raiseDispute(
 
 export function castVote(task: EscrowTask, vote: TaskVote, nowMs: number): EscrowTask {
   if (task.status !== "DISPUTED" || !task.dispute)
-    throw new GameBusError("NOT_DISPUTED", "Голосовать можно только в активном споре.");
+    throw new GameBusError("NOT_DISPUTED", "You can only vote in an active dispute.");
   if (nowMs > ms(task.dispute.votingEndsAt))
-    throw new GameBusError("VOTING_OVER", "Голосование завершено.");
+    throw new GameBusError("VOTING_OVER", "Voting has ended.");
   if (task.dispute.votes.some((v) => v.voter === vote.voter))
-    throw new GameBusError("ALREADY_VOTED", "Ты уже голосовал в этом споре.");
+    throw new GameBusError("ALREADY_VOTED", "You have already voted in this dispute.");
   return { ...task, dispute: { ...task.dispute, votes: [...task.dispute.votes, vote] } };
 }
 
-// ───────────────────────── разрешение (время + голоса) ─────────────────────────
+// ───────────────────────── resolution (time + votes) ─────────────────────────
 
-/** Итог голосования по весу. Кворум — в очках репутации; ничья/нет кворума → стримеру (презумпция §11). */
+/** Voting outcome by weight. The quorum is in reputation points; a tie/no quorum → to the streamer (presumption §11). */
 export function tally(d: TaskDispute): { outcome: TaskOutcome; reason: ResolutionReason } {
   let completed = 0;
   let not = 0;
@@ -187,7 +187,7 @@ export function tally(d: TaskDispute): { outcome: TaskOutcome; reason: Resolutio
   return { outcome: "to_streamer", reason: "tie" };
 }
 
-/** Терминальный исход, наступивший ПО ВРЕМЕНИ (или по завершении голосования). null — ещё рано. */
+/** The terminal outcome reached BY TIME (or at the end of voting). null — still too early. */
 export function dueResolution(
   task: EscrowTask,
   nowMs: number,
@@ -226,11 +226,11 @@ export function applyResolution(
 }
 
 /**
- * Эффекты на репутацию по разрешению (ADR 0015, спека §8):
- *  - деньги дошли стримеру → донор получает статус за дошедший донат (DONATION, +);
- *  - проигранный спор → списание инициатору (DISPUTE_LOST, −);
- *  - подтверждённый спор → бонус инициатору (DISPUTE_WON, +).
- * Возврат донору сам по себе репутации не даёт (спека §8).
+ * Reputation effects on resolution (ADR 0015, spec §8):
+ *  - money reached the streamer → the donor gets standing for the delivered crown (DONATION, +);
+ *  - lost dispute → penalty to the initiator (DISPUTE_LOST, −);
+ *  - confirmed dispute → bonus to the initiator (DISPUTE_WON, +).
+ * A refund to the donor by itself grants no reputation (spec §8).
  */
 export function repEffects(
   task: EscrowTask,
@@ -259,10 +259,10 @@ export function repEffects(
 }
 
 /**
- * Постраничный вид голосов спора (страница «Участники и голоса»): агрегат по ВСЕМ голосам +
- * фильтр по стороне, поиск по адресу, сортировка, пагинация. Чистая функция: её зовёт и
- * серверный обработчик (game-bus `disputeVotes`), и icp-провайдер (спор канистры, влитый в
- * задачу тем же видом) — один вид, два источника. Задача приходит уже отредактированной (§4.6).
+ * Paginated view of a dispute's votes (the "Participants and votes" page): an aggregate over ALL votes +
+ * filter by side, search by address, sorting, pagination. A pure function: called by both the server handler
+ * (game-bus `disputeVotes`) and the icp provider (a canister dispute merged into the task by the same view) —
+ * one view, two sources. The task arrives already redacted (§4.6).
  */
 export function disputeVotesView(task: EscrowTask, payload: unknown): DisputeVotesResult {
   const notFound = { found: false, votes: [], total: 0, page: 0, pageSize: 50 };
@@ -328,31 +328,31 @@ export function disputeVotesView(task: EscrowTask, payload: unknown): DisputeVot
 
 // ───────────────────────── claim (ADR 0015) ─────────────────────────
 
-/** Забрать деньги из эскроу. Получатель = стример (to_streamer) или донор (to_donor); только он, один раз. */
+/** Take the money out of escrow. Recipient = the streamer (to_streamer) or the donor (to_donor); only them, once. */
 export function claim(
   task: EscrowTask,
   by: string,
   streamerAddress: string,
   nowMs: number,
 ): EscrowTask {
-  void nowMs; // в claim-модели время не двигает состояние, но держим единую сигнатуру переходов
+  void nowMs; // in the claim model time doesn't move state, but we keep a uniform transition signature
   if (task.status !== "RESOLVED" || !task.resolution)
-    throw new GameBusError("NOT_RESOLVED", "Забирать пока нечего — задание не разрешено.");
-  if (task.resolution.claimed) throw new GameBusError("ALREADY_CLAIMED", "Уже забрано.");
+    throw new GameBusError("NOT_RESOLVED", "There's nothing to claim yet — the task isn't resolved.");
+  if (task.resolution.claimed) throw new GameBusError("ALREADY_CLAIMED", "Already claimed.");
   const winner = task.resolution.outcome === "to_streamer" ? streamerAddress : task.donor;
-  if (by !== winner) throw new GameBusError("NOT_WINNER", "Забрать может только получатель.");
+  if (by !== winner) throw new GameBusError("NOT_WINNER", "Only the recipient can claim.");
   return { ...task, resolution: { ...task.resolution, claimed: true } };
 }
 
-// ───────────────────────── жалобы на текст задания ─────────────────────────
+// ───────────────────────── reports on task text ─────────────────────────
 
-/** Порог авто-скрытия текста задания по жалобам (как у сообщений доната, mock-provider). */
+/** Threshold for auto-hiding a task's text by reports (like donation messages, mock-provider). */
 export const REPORT_HIDE_THRESHOLD = 3;
 const REASON_MAX = 500;
 
 /**
- * Жалоба зрителя на текст задания. Дедуп по reporter; на своё задание жаловаться нельзя. При достижении
- * порога текст авто-скрывается (textState=HIDDEN) — деньги/эскроу НЕ трогаем (§7 «скрытие текста ≠ деньги»).
+ * A viewer's report on a task's text. Deduped by reporter; you can't report your own task. On reaching the
+ * threshold the text is auto-hidden (textState=HIDDEN) — money/escrow is NOT touched (§7 "hiding text ≠ money").
  */
 export function report(
   task: EscrowTask,
@@ -361,19 +361,19 @@ export function report(
   nowMs: number,
 ): EscrowTask {
   if (reporter === task.donor)
-    throw new GameBusError("SELF_REPORT", "На своё задание пожаловаться нельзя.");
+    throw new GameBusError("SELF_REPORT", "You can't report your own task.");
   const reports = task.reports ?? [];
   if (reports.some((r) => r.reporter === reporter))
-    throw new GameBusError("ALREADY_REPORTED", "Ты уже пожаловался на это задание.");
+    throw new GameBusError("ALREADY_REPORTED", "You've already reported this task.");
   const next: TaskReport[] = [
     ...reports,
     { reporter, reason: reason?.slice(0, REASON_MAX), ts: iso(nowMs) },
   ];
-  // Порог жалоб → авто-скрытие текста, НО только ДО принятия (PENDING): пока к стримеру не может уйти ни
-  // рубля, гасить спорный текст безопасно (эскроу вернётся донору). После accept деньги МОГУТ уйти стримеру,
-  // поэтому текст обязан оставаться на виду (ESC-19) — иначе жулик самоделными жалобами (сокпаппеты) прячет
-  // задание и молча забирает. Пост-accept жалобы всё равно копятся (сигнал стримеру/оператору), но не гасят
-  // текст; крайняя мера для нелегальщины на оплаченном задании — операторский тейкдаун + бан, не тихое скрытие.
+  // Report threshold → auto-hide the text, BUT only BEFORE acceptance (PENDING): while not a cent can go to the
+  // streamer, muting disputed text is safe (the escrow returns to the donor). After accept the money MAY go to the
+  // streamer, so the text must stay visible (ESC-19) — otherwise a crook, via self-made reports (sockpuppets), hides
+  // the task and quietly takes it. Post-accept reports still accumulate (a signal to the streamer/operator) but don't
+  // mute the text; the last resort for illegal content on a paid task is an operator takedown + ban, not a quiet hide.
   const autoHide = task.status === "PENDING" && next.length >= REPORT_HIDE_THRESHOLD;
   return {
     ...task,
@@ -382,26 +382,26 @@ export function report(
   };
 }
 
-/** Стример показывает/скрывает текст задания в публичной ленте (модерация публикации; деньги/эскроу — §7). */
+/** The streamer shows/hides a task's text in the public feed (publication moderation; money/escrow — §7). */
 export function setTextState(task: EscrowTask, state: "SHOWN" | "HIDDEN"): EscrowTask {
   return { ...task, textState: state };
 }
 
 /**
- * Стример «отклоняет» задание: прячем из фронтенда БЕЗ ончейн-tx и без немедленного резолва — эскроу останется
- * и вернётся донору сам по таймеру (no-show/expired). Деньги/статус не трогаем; только для незавершённого.
+ * The streamer "rejects" a task: we hide it from the frontend WITHOUT an on-chain tx and without an immediate resolve — the
+ * escrow stays and returns to the donor on its own by timer (no-show/expired). Money/status untouched; only for an unfinished task.
  */
 export function hide(task: EscrowTask): EscrowTask {
-  // «Отклонить» законно только ДО принятия: пока к стримеру не может уйти ни рубля, убрать задание из ленты
-  // безопасно (эскроу вернётся донору по таймеру). После accept деньги МОГУТ уйти стримеру — прятать задание
-  // из ленты нельзя, иначе комьюнити не увидит его и не оспорит (ESC-19: деньги ⟹ задание на виду).
+  // "Reject" is only legitimate BEFORE acceptance: while not a cent can go to the streamer, removing the task from the
+  // feed is safe (the escrow returns to the donor by timer). After accept the money MAY go to the streamer — hiding the
+  // task from the feed is not allowed, otherwise the community won't see it and won't dispute it (ESC-19: money ⟹ task visible).
   if (task.status !== "PENDING")
-    throw new GameBusError("NOT_OPEN", "Задание уже принято — отклонить нельзя (исход решают таймер или спор).");
+    throw new GameBusError("NOT_OPEN", "The task is already accepted — it can't be rejected (the outcome is decided by the timer or a dispute).");
   return { ...task, hidden: true };
 }
 
-/** Виден ли текст задания в ПУБЛИЧНОЙ ленте (без учёта роли смотрящего). Пусто = SHOWN (совместимость).
- * Операторский тейкдаун (operatorBlocked) перебивает всё — снятый оператором текст не публичен никогда. */
+/** Whether a task's text is visible in the PUBLIC feed (ignoring the viewer's role). Empty = SHOWN (compatibility).
+ * An operator takedown (operatorBlocked) overrides everything — text pulled by the operator is never public. */
 export function isTextPublic(task: EscrowTask): boolean {
   return !task.operatorBlocked && (task.textState ?? "SHOWN") === "SHOWN";
 }

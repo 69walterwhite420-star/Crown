@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 type Verdict = "CLEAR" | "FLAG" | "HARD_BLOCK";
 
 const VERDICT: Record<Verdict, { cls: string; note: string }> = {
-  CLEAR: { cls: "border-money text-money", note: "Проходит — публикуется/разрешено." },
-  FLAG: { cls: "border-warn text-warn", note: "В HELD — на ручное решение стримера." },
-  HARD_BLOCK: { cls: "border-danger text-danger", note: "Блок + карантин + инцидент в T&S." },
+  CLEAR: { cls: "border-money text-money", note: "Passes — published/allowed." },
+  FLAG: { cls: "border-warn text-warn", note: "In HELD — awaiting the streamer's manual decision." },
+  HARD_BLOCK: { cls: "border-danger text-danger", note: "Block + quarantine + T&S incident." },
 };
 
 interface ModCheck {
@@ -24,9 +24,9 @@ interface ModCheck {
 }
 
 /**
- * Песочница модерации: вписал текст → прогон через ТОТ ЖЕ боевой конвейер (серверный /api/dev/moderation:
- * политика донат-сообщения + политика текста задания) → вердикт CLEAR | FLAG | HARD_BLOCK. С серверным
- * OPENAI_API_KEY судит OpenAI/ChatGPT, без — локальный словарь (подсвечивается). Ничего не сохраняется.
+ * Moderation sandbox: type in text → run it through the SAME production pipeline (server-side /api/dev/moderation:
+ * crown-message policy + task-text policy) → a CLEAR | FLAG | HARD_BLOCK verdict. With a server-side
+ * OPENAI_API_KEY, OpenAI/ChatGPT judges; without one, a local dictionary (highlighted). Nothing is saved.
  */
 export function ModerationSandbox() {
   const [text, setText] = useState("");
@@ -44,12 +44,12 @@ export function ModerationSandbox() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast({ variant: "error", title: "Не удалось проверить", description: data?.error ?? String(res.status) });
+        toast({ variant: "error", title: "Couldn't check", description: data?.error ?? String(res.status) });
         return;
       }
       setResult(data as ModCheck);
     } catch (e) {
-      toast({ variant: "error", title: "Ошибка", description: String(e) });
+      toast({ variant: "error", title: "Error", description: String(e) });
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export function ModerationSandbox() {
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
       <Textarea
         label="Text to check"
-        placeholder="e.g. great stream! · убей его · детское порно"
+        placeholder="e.g. great stream! · kill him · child porn"
         maxLength={2000}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -94,8 +94,8 @@ export function ModerationSandbox() {
           </div>
           {!result.usingOpenAi ? (
             <p className="rounded border border-border bg-surface-raised p-2 text-caption text-fg-muted">
-              Сейчас активен локальный словарь (пара явных маркеров + CSAM-regex). Чтобы проверять через
-              OpenAI/ChatGPT — задай серверный <span className="mono">OPENAI_API_KEY</span>.
+              A local dictionary is currently active (a couple of explicit markers + a CSAM regex). To check via
+              OpenAI/ChatGPT, set a server-side <span className="mono">OPENAI_API_KEY</span>.
             </p>
           ) : null}
         </div>

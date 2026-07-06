@@ -3,15 +3,15 @@ import { type EscrowAccount, decodeEscrow, escrowPda } from "@/lib/chain/escrow-
 import { getMeta } from "@/server/store-db";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-/** M3: префикс meta-ключа, под которым event-индексер пишет ончейн-исход эскроу по его PDA (base58). */
+/** M3: prefix of the meta-key under which the event indexer writes the on-chain escrow outcome by its PDA (base58). */
 export const ESCROW_OUTCOME_META_PREFIX = "escrowOutcome:";
 
 type EscrowOutcome = "to_streamer" | "to_donor";
 
 /**
- * Прочитать эскроу-аккаунт по hex `task_id`. Возвращает `{ pda, escrow }` — `escrow=null`, если аккаунт
- * закрыт (заклеймлен) или не принадлежит программе. Возвращает `null`, если эскроу не настроен, `task_id`
- * битый или RPC недоступен. PDA нужен и при закрытом аккаунте (для M3-записи), поэтому отдаём его отдельно.
+ * Read the escrow account by hex `task_id`. Returns `{ pda, escrow }` — `escrow=null` if the account is
+ * closed (claimed) or does not belong to the program. Returns `null` if escrow is not configured, `task_id`
+ * is malformed, or RPC is unavailable. The PDA is needed even for a closed account (for the M3 record), so we return it separately.
  */
 async function readEscrowAccount(
   escrowTaskId: string,
@@ -23,14 +23,14 @@ async function readEscrowAccount(
     const info = await new Connection(DEVNET_RPC, "confirmed").getAccountInfo(pda);
     return { pda, escrow: info && info.owner.equals(programId) ? decodeEscrow(info.data) : null };
   } catch {
-    return null; // сбой RPC / decode
+    return null; // RPC / decode failure
   }
 }
 
 /**
- * Трастлесс-сверка ончейн-эскроу задания (G3a, ADR 0017). Сервер НЕ верит клиенту, что `fund` прошёл:
- * читает аккаунт из devnet и сверяет донора, сумму, mint, payout-стримера (ESC-6) и что он СВЕЖИЙ
- * (state == Pending). Любое несовпадение / сбой / закрытый аккаунт → false (fail-closed).
+ * Trustless verification of a task's on-chain escrow (G3a, ADR 0017). The server does NOT trust the client that `fund` succeeded:
+ * it reads the account from devnet and checks the donor, amount, mint, streamer payout (ESC-6), and that it is FRESH
+ * (state == Pending). Any mismatch / failure / closed account → false (fail-closed).
  */
 export async function verifyEscrowOnChain(
   escrowTaskId: string,
@@ -43,23 +43,23 @@ export async function verifyEscrowOnChain(
     e.donor.toBase58() === expect.donor &&
     e.amount === BigInt(expect.amount) &&
     (!DEVNET_USDC_MINT || e.mint.toBase58() === DEVNET_USDC_MINT) &&
-    // ESC-6: эскроу обязан указывать на payout именно ЭТОГО канала; state==Pending — свежий, не пере-использован.
+    // ESC-6: the escrow must point at the payout of exactly THIS realm; state==Pending means fresh, not reused.
     (!expect.streamer || e.streamer.toBase58() === expect.streamer) &&
     e.state === 0 // 0 = Pending (TaskState)
   );
 }
 
 /**
- * ESC-12/M3 — ончейн-исход эскроу для реконсайла репутации (деньги = истина). Сеттлер банкует репутацию
- * только при ИЗВЕСТНОМ исходе. Живая `resolution` (ToStreamer|ToDonor) — пока аккаунт открыт; после закрытия
- * (claim) исход берём из M3-записи event-индексера. `null` — исход неизвестен (Unresolved / ещё не
- * проиндексирован / сбой RPC) → банковку откладываем (не угадываем по офчейн-таймеру).
+ * ESC-12/M3 — on-chain escrow outcome for reconciling Reign (money = truth). The settler banks Reign
+ * only for a KNOWN outcome. A live `resolution` (ToStreamer|ToDonor) applies while the account is open; after closing
+ * (claim) we take the outcome from the event indexer's M3 record. `null` — outcome unknown (Unresolved / not yet
+ * indexed / RPC failure) → we defer banking (we do not guess from an off-chain timer).
  */
 export async function readEscrowOutcome(escrowTaskId: string): Promise<EscrowOutcome | null> {
   const r = await readEscrowAccount(escrowTaskId);
-  if (!r) return null; // не настроено / битый id / сбой RPC → откладываем
+  if (!r) return null; // not configured / malformed id / RPC failure → defer
   if (!r.escrow) {
-    // Аккаунт закрыт → зафиксированный event-индексером исход claim'а (истина денег переживает закрытие).
+    // Account closed → the claim outcome recorded by the event indexer (the money truth outlives closure).
     const rec = await getMeta(ESCROW_OUTCOME_META_PREFIX + r.pda.toBase58());
     return rec === "to_streamer" || rec === "to_donor" ? rec : null;
   }
@@ -67,9 +67,9 @@ export async function readEscrowOutcome(escrowTaskId: string): Promise<EscrowOut
 }
 
 /**
- * ESC-19 — сырое ончейн-состояние эскроу (0 Pending, 1 Accepted, 2 Done, 3 Resolved, 4 Disputed). `null` —
- * не настроено / битый id / сбой RPC / аккаунт закрыт (заклеймлен). Индексер по нему раскрывает текст задания
- * при ончейн-`accept` (state≥Accepted) НЕЗАВИСИМО от UI: денег стримеру без accept нет, а accept обнажает текст.
+ * ESC-19 — raw on-chain escrow state (0 Pending, 1 Accepted, 2 Done, 3 Resolved, 4 Disputed). `null` —
+ * not configured / malformed id / RPC failure / account closed (claimed). The indexer uses it to reveal the task text
+ * on an on-chain `accept` (state≥Accepted) REGARDLESS of the UI: no money reaches the streamer without accept, and accept exposes the text.
  */
 export async function readEscrowState(escrowTaskId: string): Promise<number | null> {
   const r = await readEscrowAccount(escrowTaskId);

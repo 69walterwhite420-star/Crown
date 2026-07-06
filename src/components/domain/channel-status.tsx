@@ -9,15 +9,15 @@ import { ACTIVATION_FEE_MICRO } from "@/lib/chain/addresses";
 import { useActivateChannel, useMyChannel } from "@/lib/data/hooks";
 
 /**
- * Контекстное напоминание о статусе канала в студии (показывается во ВСЕХ вкладках через layout, а не
- * отдельной страницей). BASIC → активация прямо тут (инлайн-кнопка, без перехода). SUSPENDED/BANNED → инфо.
- * ACTIVE или нет канала → ничего. Самодостаточен: сам берёт канал из useMyChannel.
+ * A contextual reminder about the realm's status in the studio (shown across ALL tabs via layout, not as a
+ * separate page). BASIC → activation right here (inline button, no navigation). SUSPENDED/BANNED → info.
+ * ACTIVE or no realm → nothing. Self-contained: it pulls the realm from useMyChannel itself.
  */
 export function ChannelStatusBanner() {
   const { data: channel } = useMyChannel();
   const activate = useActivateChannel();
-  // Локальный скрыт-стейт: крестик прячет напоминание только в текущем сеансе. На reload / повторном заходе
-  // в студию компонент перемонтируется → dismissed сбрасывается → баннер снова появляется (не персистим).
+  // Local dismissed state: the close button hides the reminder only for the current session. On reload / returning
+  // to the studio the component remounts → dismissed resets → the banner appears again (not persisted).
   const [dismissed, setDismissed] = useState(false);
 
   if (!channel || channel.status === "ACTIVE") return null;

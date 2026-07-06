@@ -4,9 +4,9 @@ import { GAME_PANELS } from "./panels";
 import type { GameId } from "./types";
 
 /**
- * Левый таб «Активные»: активные партии включённых на канале игр (мониторинг). Выбор игры, правила и форма
- * действия переехали в пикер правого рейла (GameActionRail) — тут больше нет карточек-селекторов и правил.
- * Рендерит Hub'ы, перебирая реестр GAME_PANELS: включил игру → её активные партии появляются автоматически.
+ * Left "Active" tab: active rounds of the games enabled in this realm (monitoring). Game selection, rules, and the
+ * action form moved to the right rail's picker (GameActionRail) — there are no more selector cards or rules here.
+ * Renders Hubs by iterating the GAME_PANELS registry: enable a game → its active rounds appear automatically.
  */
 export function ChannelGames({
   channelId,

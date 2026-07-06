@@ -3,9 +3,9 @@ import { resolveToken } from "@/server/auth";
 import { getDb } from "@/server/db";
 
 /**
- * Данные таблиц Postgres для смотрелки /dev/db — ТОЛЬКО для оператора (в таблицах есть приватный текст
- * сообщений, инциденты, жалобы). POST с session-токеном; пускаем, лишь если токен резолвится в адрес
- * оператора (OPERATOR_ADDRESS). Имена таблиц — фиксированный список, интерполяция в SQL безопасна.
+ * Postgres table data for the /dev/db viewer — OPERATOR ONLY (the tables contain private message
+ * text, incidents, reports). POST with a session token; we allow it only if the token resolves to the
+ * operator address (OPERATOR_ADDRESS). Table names are a fixed list, so SQL interpolation is safe.
  */
 const TABLES = [
   "channels",
@@ -22,12 +22,12 @@ const TABLES = [
 ] as const;
 
 export async function POST(request: Request) {
-  // Паритет с /dev/* (layout → notFound): в проде dev-поверхности не существует, включая этот API.
+  // Parity with /dev/* (layout → notFound): in prod the dev surface does not exist, including this API.
   if (IS_PROD) return new Response(null, { status: 404 });
   const body = (await request.json().catch(() => null)) as { token?: string } | null;
   const addr = resolveToken(body?.token);
   if (!OPERATOR_ADDRESS || addr !== OPERATOR_ADDRESS) {
-    return Response.json({ error: "Только для оператора. Подключи операторский кошелёк." }, { status: 403 });
+    return Response.json({ error: "Operator only. Connect the operator wallet." }, { status: 403 });
   }
 
   const db = await getDb();

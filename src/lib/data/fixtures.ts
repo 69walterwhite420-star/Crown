@@ -1,51 +1,51 @@
 /**
- * Дефолты для НОВЫХ каналов. Стаб-каналы (lumi/nova/kebab) и dev-личности удалены: теперь личность —
- * реальный адрес кошелька, каналы создают реальные пользователи (Фаза 3, ADR 0004/0005).
+ * Defaults for NEW realms. Stub realms (lumi/nova/kebab) and dev identities have been removed: an identity
+ * is now a real wallet address, and realms are created by real users (Phase 3, ADR 0004/0005).
  */
 import { toMicro } from "../utils";
 import type { ChannelConfig, Tier } from "./types";
 
-// Потолок числа тиров на канал (анти-«бесконечный список»). Дефолтных — 5, потолок — 20.
+// Cap on the number of tiers per realm (anti-"infinite list"). Default is 5, cap is 20.
 export const MAX_TIERS = 20;
 
-// Лимит длины описания тира (UGC, опц.). Короче описания канала — это подпись к тиру, не блок текста.
+// Length limit for a tier description (UGC, optional). Shorter than a realm description — it's a caption for a tier, not a block of text.
 export const TIER_DESC_MAX = 140;
 
-// — Тиры по умолчанию (yellow-paper §9.1, цвета — design-system.md §2). Пороги — в очках (= USDC при
-// курсе 1:1, ADR 0007): $5 / $50 / $500 / $2000 суммарных донатов. Стартовые дефолты, калибруются. —
+// — Default tiers (yellow-paper §9.1, colors — design-system.md §2). Thresholds are in points (= USDC at
+// a 1:1 rate, ADR 0007): $5 / $50 / $500 / $2000 of total crowns. Starting defaults, to be calibrated. —
 export const DEFAULT_TIERS: Tier[] = [
-  { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },
+  { name: "Rookie", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },
   {
-    name: "Свой",
+    name: "Regular",
     threshold: 5,
     color: "#7FA7C9",
     badge: "regular",
-    perks: [{ label: "Цветной ник" }],
+    perks: [{ label: "Colored nickname" }],
   },
   {
-    name: "Постоянный",
+    name: "Frequent",
     threshold: 50,
     color: "#6FC3A6",
     badge: "frequent",
-    perks: [{ label: "Эмодзи в чате" }],
+    perks: [{ label: "Chat emoji" }],
   },
   {
     name: "VIP",
     threshold: 500,
     color: "#C9A24B",
     badge: "vip",
-    perks: [{ label: "Приоритет алерта" }],
+    perks: [{ label: "Alert priority" }],
   },
   {
-    name: "Легенда",
+    name: "Legend",
     threshold: 2_000,
     color: "#E8B04B",
     badge: "legend",
-    perks: [{ label: "Закреплённый бейдж" }],
+    perks: [{ label: "Pinned badge" }],
   },
 ];
 
-/** Конфиг нового канала по умолчанию (курс фиксирован: 1 USDC = 1 очко, ADR 0007; настраиваются тиры и минимумы). */
+/** Default config for a new realm (rate is fixed: 1 USDC = 1 point, ADR 0007; tiers and minimums are configurable). */
 export function defaultChannelConfig(channelId: string): ChannelConfig {
   return {
     channelId,
@@ -54,13 +54,13 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     tiers: DEFAULT_TIERS,
     minDonation: toMicro(0.1),
     minDonationWithText: toMicro(0.5),
-    minReputationToTask: 0, // §10: по умолчанию без порога; стример поднимает для антиспама заданий
-    minReputationToDispute: 1, // §10: право поднять спор — от 1 очка (≈ 1 USDC доната), стример настраивает
+    minReputationToTask: 0, // §10: no threshold by default; the streamer raises it to anti-spam tasks
+    minReputationToDispute: 1, // §10: the right to raise a dispute starts at 1 point (≈ 1 USDC crown), the streamer configures it
     messageMaxLen: 200,
     nameMode: "addresses_only",
     textShowMode: "manual",
     moderators: [],
-    enabledGames: [], // мини-игры по умолчанию выключены (cold-start; ADR 0016)
+    enabledGames: [], // mini-games are disabled by default (cold-start; ADR 0016)
     updatedAt: new Date().toISOString(),
   };
 }

@@ -7,7 +7,7 @@ import { resolveTier } from "@/lib/reputation";
 import { cn, formatPoints, formatPointsCompact } from "@/lib/utils";
 import type { Tier, ViewerStanding } from "@/lib/data/types";
 
-/** Компактный бейдж тира рядом с ником/в ленте/лидерборде. */
+/** Compact tier badge shown next to a handle / in the feed / on the leaderboard. */
 export function TierBadge({ tier, className }: { tier: Tier; className?: string }) {
   return (
     <span
@@ -24,9 +24,9 @@ export function TierBadge({ tier, className }: { tier: Tier; className?: string 
 }
 
 /**
- * Сигнатура продукта: «отчеканенная печать статуса». Standing зрителя плотным тактильным знаком,
- * который визуально НЕЛЬЗЯ купить-и-продать (вычисленная печать, не токен). Рядом — НИКОГДА нет
- * действий «передать/продать» (инвариант §4.3 + юр.-замок).
+ * The product's signature: a "minted seal of status". A viewer's standing as a dense, tactile mark
+ * that visually CAN'T be bought and sold (a computed seal, not a token). Alongside it there are NEVER
+ * any "transfer/sell" actions (invariant §4.3 + legal lock).
  */
 export function StandingSeal({
   standing,
@@ -72,9 +72,9 @@ export function StandingSeal({
   );
 }
 
-/** Прогресс до следующего тира (0..1) + «осталось N очков». */
+/** Progress to the next tier (0..1) + "N points remaining". */
 export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
-  if (!standing.nextTier) return null; // высший тир — без отдельной плашки
+  if (!standing.nextTier) return null; // top tier — no separate bar
   const remaining = Math.max(0, standing.nextTier.threshold - standing.points);
   return (
     <div className="flex flex-col gap-1.5">
@@ -95,13 +95,13 @@ export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
   );
 }
 
-/** Серо-зелёный — цвет прогноза «что получишь при донате» (отличается от яркого --money). */
+/** Gray-green — the forecast color for "what you'll get from a crown" (distinct from the bright --money). */
 const PREVIEW_COLOR = "#6e9c86";
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
 /**
- * Плавный «перекат» числа от текущего значения к target (requestAnimationFrame, easeOutCubic). При смене
- * target анимация продолжается с уже показанного значения. Уважает prefers-reduced-motion.
+ * A smooth "roll" of a number from its current value to target (requestAnimationFrame, easeOutCubic). When
+ * target changes, the animation continues from the already-shown value. Respects prefers-reduced-motion.
  */
 function useCountUp(target: number, duration = 650): number {
   const [value, setValue] = useState(target);
@@ -139,9 +139,9 @@ function useCountUp(target: number, duration = 650): number {
 }
 
 /**
- * Лаконичный заголовок standing — без «карточки в карточке»: подпись, число очков и бейдж тира прямо на
- * фоне родителя. С предпросмотром: ввёл сумму (gain > 0) → число «перекатывается» к прогнозу, а полоска
- * плавно дотягивается серо-зелёным до «что получишь». Снизу — прогресс до следующего тира или подсказка.
+ * A concise standing headline — no "card within a card": label, points count and tier badge right on
+ * the parent's background. With a preview: enter an amount (gain > 0) → the number "rolls" to the forecast,
+ * and the bar smoothly extends in gray-green to "what you'll get". Below — progress to the next tier or a hint.
  */
 export function StandingHeadline({
   standing,
@@ -156,7 +156,7 @@ export function StandingHeadline({
 }) {
   const currentPoints = standing?.points ?? 0;
   const newPoints = currentPoints + gain;
-  const rolled = useCountUp(newPoints); // хук — всегда до early-return
+  const rolled = useCountUp(newPoints); // hook — always before the early return
 
   if (loading) return <Skeleton className="h-20 w-full rounded-lg" />;
   if (tiers.length === 0) return null;
@@ -164,11 +164,11 @@ export function StandingHeadline({
   const active = gain > 0;
   const cur = resolveTier(currentPoints, tiers);
   const proj = resolveTier(newPoints, tiers);
-  const tier = active ? proj.tier : cur.tier; // при вводе показываем тир, в который попадёшь (или его нет)
+  const tier = active ? proj.tier : cur.tier; // while typing, show the tier you'll land in (or none)
   const isNew = !standing;
 
   const next = cur.nextTier;
-  const floor = cur.tier?.threshold ?? 0; // «без тира» → пол прогресса = 0
+  const floor = cur.tier?.threshold ?? 0; // "no tier" → progress floor = 0
   const span = next ? Math.max(1, next.threshold - floor) : 1;
   const curFrac = next ? clamp01((currentPoints - floor) / span) : 1;
   const projFrac = next ? clamp01((newPoints - floor) / span) : 1;
@@ -201,12 +201,12 @@ export function StandingHeadline({
       {next ? (
         <div className="flex flex-col gap-1.5">
           <div className="relative h-2 overflow-hidden rounded-pill bg-surface-raised">
-            {/* прогноз — серо-зелёный, плавно дотягивается при вводе суммы */}
+            {/* forecast — gray-green, smoothly extends as an amount is entered */}
             <div
               className="absolute inset-y-0 left-0 rounded-pill transition-[width] duration-700 ease-ease"
               style={{ width: `${projFrac * 100}%`, backgroundColor: PREVIEW_COLOR }}
             />
-            {/* текущий прогресс — цвет следующего тира */}
+            {/* current progress — the next tier's color */}
             <div
               className="absolute inset-y-0 left-0 rounded-pill transition-[width] duration-700 ease-ease"
               style={{ width: `${curFrac * 100}%`, backgroundColor: next.color }}
@@ -232,7 +232,7 @@ export function StandingHeadline({
   );
 }
 
-/** Лестница тиров канала с порогами и перками. */
+/** The realm's tier ladder with thresholds and perks. */
 export function TierLadder({ tiers, currentTierName }: { tiers: Tier[]; currentTierName?: string }) {
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
   return (

@@ -16,7 +16,7 @@ function fullDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 }
 
-/** Вкладка «About»: реквизиты двора, которых нет в hero — payout-адрес, минимумы короны, политика текста. */
+/** "About" tab: realm details not shown in the hero — payout address, crown minimums, text policy. */
 export function ChannelAbout({ channel, config }: { channel: Channel; config?: ChannelConfig }) {
   return (
     <div className="flex flex-col rounded-xl border border-border bg-surface px-5">

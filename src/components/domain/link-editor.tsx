@@ -13,13 +13,13 @@ import {
 } from "@/lib/channel-links";
 import type { ChannelLink, ChannelLinkPlatform } from "@/lib/data/types";
 
-/** Одна строка ввода: платформа + сырой URL/ник. Список (не Record) → можно несколько ссылок на платформу. */
+/** A single input row: platform + raw URL/handle. A list (not a Record) → multiple links per platform are allowed. */
 export type LinkInputRow = { platform: ChannelLinkPlatform; url: string };
 export type LinkInputs = LinkInputRow[];
 
 const FALLBACK_PLATFORM: ChannelLinkPlatform = CHANNEL_PLATFORMS[0]!.key;
 
-/** Строки ввода → каноничные ссылки (пустые/невалидные отброшены, точные дубли убраны, не больше лимита). */
+/** Input rows → canonical links (empty/invalid dropped, exact duplicates removed, no more than the limit). */
 export function linksFromInputs(inputs: LinkInputs): ChannelLink[] {
   const out: ChannelLink[] = [];
   const seen = new Set<string>();
@@ -35,15 +35,15 @@ export function linksFromInputs(inputs: LinkInputs): ChannelLink[] {
   return out;
 }
 
-/** Существующие ссылки → строки ввода (порядок сохраняется). */
+/** Existing links → input rows (order preserved). */
 export function inputsFromLinks(links: ChannelLink[] | undefined): LinkInputs {
   return (links ?? []).map((l) => ({ platform: l.platform, url: l.url }));
 }
 
 /**
- * Редактор ссылок на внешние платформы (allowlist + инлайн-валидация). Вместо статичного списка всех
- * платформ — «добавляй по мере надобности»: строка = выбор платформы + поле ссылки + удалить, плюс кнопка
- * «+ Добавить ссылку» до потолка. Можно несколько ссылок на одно приложение. Общий для профиля и канала.
+ * Editor for links to external platforms (allowlist + inline validation). Instead of a static list of all
+ * platforms — "add as needed": a row = platform picker + link field + remove, plus a
+ * "+ Add link" button up to the cap. Multiple links to a single app are allowed. Shared by profile and realm.
  */
 export function LinkEditor({
   value,

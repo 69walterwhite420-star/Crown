@@ -4,12 +4,12 @@ import type { GameId } from "./types";
 import { TargetIcon } from "@/components/ui/icons";
 
 /**
- * Реестр ЭКРАНОВ игр (UI), отдельно от data-манифеста (`registry.ts`). Каждая игра даёт поверхности:
- *  - Rail  — правый рейл страницы канала: действие (создать/играть);
- *  - Hub   — левая часть («Активные»): активные партии игры (мониторинг);
- *  - Rules — правила игры (в модалке «i» пикера игр, GameActionRail);
- *  - Icon  — иконка в пикере игр.
- * Раздел игр и пикер рендерят их, перебирая реестр. Добавить экран новой игры = одна строка.
+ * Registry of game SCREENS (UI), separate from the data manifest (`registry.ts`). Each game provides surfaces:
+ *  - Rail  — the realm page's right rail: the action (create/play);
+ *  - Hub   — the left part ("Active"): the game's active rounds (monitoring);
+ *  - Rules — the game's rules (in the "i" modal of the game picker, GameActionRail);
+ *  - Icon  — the icon in the game picker.
+ * The games section and the picker render them by iterating the registry. Adding a new game's screen = one line.
  */
 export interface GamePanelProps {
   channelId: string;

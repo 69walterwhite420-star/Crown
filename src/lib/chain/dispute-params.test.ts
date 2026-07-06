@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildDisputeParamsMessage, normalizeDisputeParams } from "./dispute-params";
 
-describe("dispute-params (кросс-языковой пин с канистрой)", () => {
+describe("dispute-params (cross-language pin with the canister)", () => {
   /**
-   * ТА ЖЕ строка, что в Rust-тесте `governance.rs::canonical_message_pinned`.
-   * Разошлись — подпись из студии перестанет приниматься канистрой. Менять только парой + `v:`.
+   * THE SAME string as in the Rust test `governance.rs::canonical_message_pinned`.
+   * If they diverge, a signature from the space stops being accepted by the canister. Change only as a pair + `v:`.
    */
-  it("каноническое сообщение байт-в-байт совпадает с Rust", () => {
+  it("canonical message matches Rust byte-for-byte", () => {
     const msg = buildDisputeParamsMessage("chan-1", "OWNER", 1, {
       minReputationToDisputeMicro: 1_000_000n,
       minWeightToVoteMicro: 1_000_000n,
@@ -18,11 +18,11 @@ describe("dispute-params (кросс-языковой пин с канистро
       disputeLossPenaltyMicro: 50_000_000n,
     });
     const expected =
-      "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\ndisputeWinBonusMicro: 10000000\ndisputeLossPenaltyMicro: 50000000\nv: 3";
+      "Standing: realm dispute parameters.\n\nBy signing, you set the dispute rules for your realm.\nChanges take effect after the timelock — ongoing disputes play out under the previous rules.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\ndisputeWinBonusMicro: 10000000\ndisputeLossPenaltyMicro: 50000000\nv: 3";
     expect(msg).toBe(expected);
   });
 
-  it("нормализация ответа канистры: строки денег → bigint, ns → ms", () => {
+  it("normalizing the canister response: money strings → bigint, ns → ms", () => {
     const info = normalizeDisputeParams({
       channelId: "c",
       owner: "O",

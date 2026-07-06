@@ -26,9 +26,10 @@ const taskHay = (t: EscrowTask): string =>
     .toLowerCase();
 
 /**
- * Единая лента двора: обычные донаты + донаты-с-заданиями (игры) в ОДНОМ таймлайне по времени. Каждый ряд —
- * аватар донора, ник + локальный тир, сумма, текст (если показан), время. Поиск — растущая лупа; пагинация
- * появляется только когда донатов много (Pager сам прячется). Тир донора берём из лидерборда (дедуп-запрос).
+ * A unified realm feed: regular crowns + crowns-with-tasks (games) in ONE timeline by time. Each row —
+ * the donor's avatar, name + local tier, amount, text (if shown), time. Search — an expanding magnifier;
+ * pagination appears only when there are many crowns (the Pager hides itself). The donor's tier comes from the
+ * leaderboard (deduped request).
  */
 export function ChannelFeed({
   donations,
@@ -40,16 +41,16 @@ export function ChannelFeed({
 }: {
   donations: Donation[];
   tasks: EscrowTask[];
-  handle: string; // для ссылки на детали спора задания (/c/<handle>/dispute/<taskId>)
-  channelId?: string; // для тир-бейджей донаторов (лидерборд); опц. — без него просто без бейджей
-  reportable?: boolean; // «Пожаловаться» на показанных сообщениях
-  manageChannelId?: string; // задан → «Забанить» донора (владелец/модератор)
+  handle: string; // for the link to a task dispute's details (/c/<handle>/dispute/<taskId>)
+  channelId?: string; // for donors' tier badges (leaderboard); optional — without it, just no badges
+  reportable?: boolean; // "Report" on shown messages
+  manageChannelId?: string; // set → "Ban" the donor (owner/moderator)
 }) {
-  const viewer = useSession().data?.address ?? null; // для «Пожаловаться» на заданиях
+  const viewer = useSession().data?.address ?? null; // for "Report" on tasks
   const [query, setQuery] = useState("");
 
-  // Локальный тир донора (для бейджа в ленте) — из лидерборда канала. Тот же ключ, что и полная страница
-  // донатёров/Realm roll → React Query дедупит запрос.
+  // The donor's local tier (for the badge in the feed) — from the realm's leaderboard. Same key as the full
+  // donors page/Realm roll → React Query dedupes the request.
   const board = useLeaderboard(channelId, "all_time").data;
   const tierByDonor = useMemo(() => {
     const m = new Map<string, Tier>();
@@ -66,7 +67,7 @@ export function ChannelFeed({
       d,
     }));
     const ts = tasks
-      .filter((t) => !t.hidden) // отклонённые стримером не показываем в ленте (вернутся донору по таймеру)
+      .filter((t) => !t.hidden) // ones rejected by the streamer aren't shown in the feed (returned to the donor on a timer)
       .map<FeedItem>((t) => ({
         kind: "task",
         key: `t:${t.id}`,
@@ -74,7 +75,7 @@ export function ChannelFeed({
         hay: taskHay(t),
         t,
       }));
-    return [...ds, ...ts].sort((a, b) => b.ts - a.ts); // новее сверху
+    return [...ds, ...ts].sort((a, b) => b.ts - a.ts); // newest on top
   }, [donations, tasks]);
 
   const q = query.trim().toLowerCase();

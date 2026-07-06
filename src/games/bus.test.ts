@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { dispatchGame, GameBusError, type GameContext, type GameHandlerRegistry } from "./bus";
 
 /**
- * Тесты game-bus (ADR 0016): маршрутизация операций в обработчик нужной игры, понятные ошибки на неизвестную
- * игру/операцию, и что обработчик получает контекст (личность/канал/payload) и читает-пишет свой слайс
- * состояния. Реестр передаётся параметром → подсовываем фейковую игру, без сайд-эффектов регистрации.
+ * Tests of the game-bus (ADR 0016): routing operations to the right game's handler, clear errors for an unknown
+ * game/operation, and that the handler receives the context (identity/channel/payload) and reads/writes its own state
+ * slice. The registry is passed as a parameter → we inject a fake game, without registration side effects.
  */
 
-// — простой in-memory слайс состояния для контекста —
+// — a simple in-memory state slice for the context —
 function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
   let slice: unknown;
   return {
@@ -41,7 +41,7 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
 const registry: GameHandlerRegistry = {
   "test-game": {
     actions: {
-      // кладёт payload в состояние, возвращает кто и когда
+      // puts the payload into state, returns who and when
       save: (ctx, payload) => {
         const prev = ctx.state.get<number>() ?? 0;
         ctx.state.set(prev + (payload as { add: number }).add);
@@ -54,8 +54,8 @@ const registry: GameHandlerRegistry = {
   },
 };
 
-describe("dispatchGame — маршрутизация game-bus", () => {
-  it("action идёт в нужный обработчик, видит payload/личность и пишет состояние", async () => {
+describe("dispatchGame — game-bus routing", () => {
+  it("an action goes to the right handler, sees payload/identity and writes state", async () => {
     const ctx = makeCtx();
     const r = (await dispatchGame(registry, "test-game", "action", "save", ctx, { add: 5 })) as {
       by: string;
@@ -67,7 +67,7 @@ describe("dispatchGame — маршрутизация game-bus", () => {
     expect(r.total).toBe(5);
   });
 
-  it("query читает состояние, записанное action (один слайс на игру)", async () => {
+  it("a query reads the state written by an action (one slice per game)", async () => {
     const ctx = makeCtx();
     await dispatchGame(registry, "test-game", "action", "save", ctx, { add: 3 });
     await dispatchGame(registry, "test-game", "action", "save", ctx, { add: 4 });
@@ -79,19 +79,19 @@ describe("dispatchGame — маршрутизация game-bus", () => {
     expect(r.channelId).toBe("chan-1");
   });
 
-  it("неизвестная игра → GameBusError(UNKNOWN_GAME)", async () => {
+  it("unknown game → GameBusError(UNKNOWN_GAME)", async () => {
     await expect(
       dispatchGame(registry, "no-such-game", "action", "save", makeCtx(), {}),
     ).rejects.toMatchObject({ code: "UNKNOWN_GAME" });
   });
 
-  it("неизвестная операция → GameBusError(UNKNOWN_OP)", async () => {
+  it("unknown operation → GameBusError(UNKNOWN_OP)", async () => {
     await expect(
       dispatchGame(registry, "test-game", "action", "nope", makeCtx(), {}),
     ).rejects.toMatchObject({ code: "UNKNOWN_OP" });
   });
 
-  it("action и query — разные таблицы: op из action не виден как query", async () => {
+  it("actions and queries — different tables: an action op isn't visible as a query", async () => {
     const err = await dispatchGame(registry, "test-game", "query", "save", makeCtx(), {}).catch(
       (e: unknown) => e,
     );

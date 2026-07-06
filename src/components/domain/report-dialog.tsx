@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useReportMessage } from "@/lib/data/hooks";
 
-// Конкретные причины — чтобы оператор/стример сразу понимали, на что жалоба.
+// Specific reasons — so the operator/streamer immediately understand what the report is about.
 const REASONS = [
   "Spam / advertising",
   "Insults, harassment",
@@ -28,7 +28,7 @@ const REASONS = [
   "Other",
 ];
 
-/** Кнопка + диалог жалобы: выбор причины и комментарий. Шлёт reportMessage(messageId, "причина: коммент"). */
+/** Report button + dialog: pick a reason and a comment. Sends reportMessage(messageId, "reason: comment"). */
 export function ReportDialog({
   messageId,
   channelId,
@@ -43,11 +43,11 @@ export function ReportDialog({
   messageId?: string;
   channelId: string;
   label?: string;
-  open?: boolean; // управляемый режим (напр. открыть из меню «…»)
+  open?: boolean; // controlled mode (e.g. open from the "…" menu)
   onOpenChange?: (open: boolean) => void;
-  trigger?: ReactNode; // кастомный триггер; null → без триггера (открывают извне)
-  // Задан → шлём жалобу СЮДА вместо reportMessage(messageId). Для целей, отличных от сообщения доната
-  // (напр. жалоба на текст задания игры). Возвращает тот же {reports,hidden}, что reportMessage — для тоста.
+  trigger?: ReactNode; // custom trigger; null → no trigger (opened externally)
+  // Set → send the report HERE instead of reportMessage(messageId). For targets other than a crown message
+  // (e.g. a report on a game task's text). Returns the same {reports,hidden} as reportMessage — for the toast.
   onSubmit?: (fullReason: string) => Promise<{ reports?: number; hidden?: boolean }>;
   title?: string;
   description?: string;
@@ -82,7 +82,7 @@ export function ReportDialog({
 
   async function submit() {
     const full = comment.trim() ? `${reason}: ${comment.trim()}` : reason;
-    // Кастомный таргет (напр. жалоба на текст задания игры) — вместо reportMessage(messageId).
+    // Custom target (e.g. a report on a game task's text) — instead of reportMessage(messageId).
     if (onSubmit) {
       setBusy(true);
       try {

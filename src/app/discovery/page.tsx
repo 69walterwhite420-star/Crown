@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDiscovery } from "@/lib/data/hooks";
 
-// Каталог каналов. С главной (`/`) понижен сюда (ADR 0018): discovery — «на выходе/в простое», не на входе.
+// Realm catalog. Demoted here from home (`/`) (ADR 0018): discovery is "on the way out / at idle", not at the entrance.
 export default function DiscoveryPage() {
   return (
     <>
@@ -22,7 +22,7 @@ export default function DiscoveryPage() {
   );
 }
 
-/** Использует useSearchParams (?q из поиска в шапке) → отдельный компонент под Suspense. */
+/** Uses useSearchParams (?q from the header search) → a separate component under Suspense. */
 function DiscoveryList() {
   const query = useSearchParams().get("q") ?? "";
   const { data, isLoading, error, refetch } = useDiscovery();
@@ -47,6 +47,6 @@ function DiscoveryList() {
       />
     );
   }
-  // key={query} — при новом поиске из шапки ремоунтим со свежим начальным запросом.
+  // key={query} — on a new search from the header, remount with a fresh initial query.
   return <ChannelBrowser key={query} channels={data.items} initialQuery={query} />;
 }

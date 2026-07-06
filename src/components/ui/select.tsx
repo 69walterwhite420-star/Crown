@@ -19,16 +19,16 @@ interface OptionData {
 }
 
 /**
- * Кастомный селект в стиле сайта (нативный <select> рисует выпадашку силами ОС — выбивается из тёмной темы).
- * API совместим с прежним нативным: принимает <option>-детей и зовёт onChange({target:{value}}), поэтому
- * места вызова не меняются. Выпадашка — обычный DOM (стилизуется), с клавиатурой и закрытием по клику вне.
+ * Custom select styled to match the site (a native <select> renders its dropdown via the OS — clashes with the dark theme).
+ * API-compatible with the old native one: accepts <option> children and calls onChange({target:{value}}), so
+ * call sites don't change. The dropdown is plain DOM (styleable), with keyboard support and close-on-outside-click.
  */
 export interface SelectProps {
   label?: string;
   helper?: string;
   value?: string;
   onChange?: (e: { target: { value: string } }) => void;
-  className?: string; // на триггер (напр. ширина)
+  className?: string; // applied to the trigger (e.g. width)
   disabled?: boolean;
   id?: string;
   placeholder?: string;

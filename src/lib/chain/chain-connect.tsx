@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/data/hooks";
 
 /**
- * Кнопка подключения/входа. Состояния (они разные!):
- *  - не подключён → «Войти» открывает СВОЙ пикер кошельков (wallet-picker): установленный подключается,
- *    отсутствующий ведёт на сайт кошелька, окно остаётся (дефолтную модалку под это перехватить нельзя);
- *  - выбран installed, но ещё не подключён → спиннер «Вход…» (+ выход, если завис);
- *  - подключён без серверной сессии (автоподпись из bridge не прошла) → «Войти (подпись)» повторяет SIWS;
- *  - подключён + сессия → штатная кнопка с дропдауном (копировать адрес / выйти).
+ * Connect / sign-in button. States (they differ!):
+ *  - not connected → "Sign in" opens OUR OWN wallet picker (wallet-picker): an installed wallet connects,
+ *    a missing one leads to the wallet's site, the window stays open (the default modal can't be intercepted for this);
+ *  - an installed wallet is selected but not connected yet → "Signing in…" spinner (+ cancel if it hangs);
+ *  - connected without a server session (auto-sign from the bridge didn't go through) → "Sign in (signature)" retries SIWS;
+ *  - connected + session → the regular button with a dropdown (copy address / sign out).
  */
 export function ChainConnect() {
   const wallet = useWallet();
@@ -26,14 +26,14 @@ export function ChainConnect() {
   const installed = selected?.readyState === WalletReadyState.Installed;
   const { select, connected, connecting } = wallet;
 
-  // Самолечение: в localStorage мог остаться выбор кошелька, которого нет (напр. Trust с прошлой попытки).
-  // autoConnect к нему заблокирован (гейт installed, см. wallet-provider) → он бы висел «выбранным» без
-  // подключения. Тихо забываем такой выбор → вернётся обычная «Войти». Пикер сам не выбирает не-installed.
+  // Self-healing: localStorage may retain a selection for a wallet that isn't present (e.g. Trust from a past attempt).
+  // autoConnect to it is blocked (installed gate, see wallet-provider) → it would hang "selected" without
+  // connecting. We quietly forget such a selection → the regular "Sign in" returns. The picker itself never selects a non-installed one.
   useEffect(() => {
     if (selectedName && !installed && !connected && !connecting) select(null);
   }, [selectedName, installed, connected, connecting, select]);
 
-  // Установленный кошелёк подключается пару секунд — спиннер. Если завис дольше, дадим аварийный выход.
+  // An installed wallet connects within a couple of seconds — spinner. If it hangs longer, we offer an emergency exit.
   const [showBail, setShowBail] = useState(false);
   const connectingInstalled = !!selected && installed && !connected;
   useEffect(() => {
@@ -54,41 +54,41 @@ export function ChainConnect() {
           try {
             await wallet.disconnect();
           } catch {
-            // мог быть и не подключён
+            // it may not have been connected
           }
           select(null);
         }}
       >
-        Отменить вход
+        Cancel sign-in
       </Button>
     ) : (
       <Button size="sm" loading disabled>
-        Вход…
+        Signing in…
       </Button>
     );
   }
 
-  // Подключён, но сессии ещё нет: подпись SIWS уже запускается АВТОМАТИЧЕСКИ (ChainWalletBridge при
-  // подключении). Показываем НЕкликабельный спиннер — раньше тут была кнопка «Войти (подпись)», клик по
-  // которой запускал непонятную загрузку, и таких кнопок было несколько (хедер+панель) → можно было
-  // нажать все разом. Кликать нечего: подпиши в кошельке. Отказ от подписи отключает кошелёк → «Войти».
+  // Connected, but there's no session yet: the SIWS signature already starts AUTOMATICALLY (ChainWalletBridge on
+  // connect). We show a NON-clickable spinner — there used to be a "Sign in (signature)" button here, clicking
+  // which triggered an opaque load, and there were several such buttons (header+panel) → you could
+  // press them all at once. There's nothing to click: sign in your wallet. Declining the signature disconnects the wallet → "Sign in".
   const connectedNoSession = connected && !session.data?.address;
   if (connectedNoSession) {
     return (
       <Button size="sm" loading disabled>
-        Вход…
+        Signing in…
       </Button>
     );
   }
 
-  // Подключён + сессия (залогинен) → аватар аккаунта с меню (профиль/студия/копировать/выйти).
+  // Connected + session (signed in) → account avatar with a menu (profile/studio/copy/sign out).
   if (connected) return <AccountMenu />;
 
-  // Не подключён → «Войти» открывает свой пикер.
+  // Not connected → "Sign in" opens our own picker.
   return (
     <>
       <Button size="sm" onClick={() => setPickerOpen(true)}>
-        Войти
+        Sign in
       </Button>
       <WalletPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} />
     </>

@@ -1,12 +1,12 @@
 /**
- * Серверные runtime-флаги (НЕ NEXT_PUBLIC — недоступны клиенту, не подделать из браузера). Единая точка
- * истины для C1-гейта (route) и M2-зачёта по finalized (ingest), чтобы формула chain-режима не дублировалась.
+ * Server runtime flags (NOT NEXT_PUBLIC — unavailable to the client, unspoofable from the browser). Single source
+ * of truth for the C1 gate (route) and the M2 finalized-based crediting (ingest), so the chain-mode formula isn't duplicated.
  */
-import { IS_PROD } from "@/lib/chain/addresses"; // единый источник prod-гейта (без дубля формулы)
+import { IS_PROD } from "@/lib/chain/addresses"; // single source of the prod gate (no duplicated formula)
 
 export { IS_PROD };
 
-// Явный серверный chain-режим. Fail-safe: в production включён ПО УМОЛЧАНИЮ, пока не задан CHAIN_MODE=off.
-// on → оффчейн-симуляция доната запрещена (C1) и зачёт ждёт finalized, а не confirmed (M2, защита от реорга).
+// Explicit server chain mode. Fail-safe: in production it's on BY DEFAULT unless CHAIN_MODE=off is set.
+// on → off-chain Crown simulation is forbidden (C1) and crediting waits for finalized, not confirmed (M2, reorg protection).
 export const CHAIN_MODE =
   process.env.CHAIN_MODE === "on" || (IS_PROD && process.env.CHAIN_MODE !== "off");

@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 const JSON_HEADERS = { "content-type": "application/json" };
 
 /**
- * Публичный экспорт канала — инвариант §4.4 «репутация перевычислима» как кнопка, а не декларация:
- * канал (с payout-аттестацией H1) + все версии конфига + журнал репутации + текущий лидерборд как
- * сверяемая цифра. Только публичные данные (журнал текстов не содержит, §4.6). Независимый пересчёт —
+ * Public realm export — invariant §4.4 "Reign is recomputable" as a button, not a declaration:
+ * the realm (with H1 payout attestation) + all config versions + the Reign ledger + the current leaderboard as
+ * a verifiable figure. Public data only (the ledger contains no text, §4.6). Independent recomputation —
  * scripts/verify-export.ts.
  */
 export async function GET(

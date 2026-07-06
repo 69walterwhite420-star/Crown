@@ -4,28 +4,28 @@ import { buildSiwsMessage, type SiwsFields } from "@/lib/chain/siws";
 import { makeSaver, readSnapshot } from "@/server/persist";
 
 /**
- * Серверная аутентификация (закрывает дыру: раньше личностью был НЕПРОВЕРЕННЫЙ `address` из тела запроса).
+ * Server-side authentication (closes the hole: identity used to be the UNVERIFIED `address` from the request body).
  *
- * Поток SIWS:
- *   1. `issueNonce(address)` — сервер выдаёт одноразовый nonce с TTL и каноническое сообщение.
- *   2. клиент подписывает сообщение кошельком (signMessage), шлёт подпись.
- *   3. `verifyAndIssueToken(address, sigB64)` — сервер проверяет ed25519-подпись над тем же сообщением,
- *      гасит nonce (one-time), выдаёт session-токен.
- *   4. последующие RPC несут токен; `resolveToken(token)` → проверенный address (или null).
+ * SIWS flow:
+ *   1. `issueNonce(address)` — the server issues a one-time nonce with a TTL and a canonical message.
+ *   2. the client signs the message with their wallet (signMessage) and sends the signature.
+ *   3. `verifyAndIssueToken(address, sigB64)` — the server verifies the ed25519 signature over the same message,
+ *      burns the nonce (one-time), and issues a session token.
+ *   4. subsequent RPCs carry the token; `resolveToken(token)` → verified address (or null).
  *
- * Проверка подписи — без новых зависимостей: встроенный node:crypto (ed25519) поверх сырого 32-байтного
- * Solana-pubkey (оборачиваем в SPKI DER). In-memory сторы nonce/сессий — стенд-ин под Postgres/Redis,
- * как и сам store; в проде переносятся в общий слой персистентности.
+ * Signature verification uses no new dependencies: built-in node:crypto (ed25519) over the raw 32-byte
+ * Solana pubkey (wrapped in SPKI DER). The in-memory nonce/session stores are a stand-in for Postgres/Redis,
+ * like the store itself; in production they move to a shared persistence layer.
  */
 
-const NONCE_TTL_MS = 5 * 60_000; // 5 минут на подпись
-const SESSION_TTL_MS = 12 * 60 * 60_000; // 12 часов
-// M1 (аудит): домен в SIWS-сообщении — пользователь видит, куда входит, и подпись не переносится меж-app.
+const NONCE_TTL_MS = 5 * 60_000; // 5 minutes to sign
+const SESSION_TTL_MS = 12 * 60 * 60_000; // 12 hours
+// M1 (audit): the domain in the SIWS message — the user sees where they're signing in, and the signature doesn't carry across apps.
 const SIWS_DOMAIN = process.env.APP_DOMAIN ?? "standing.local";
-// M1: жёсткие потолки на in-memory сторы — `__authNonce` неаутентифицирован, иначе рост памяти безграничен.
-// B5: `prune` чистит ПРОТУХШИЕ первыми, поэтому честный nonce вытесняется (FIFO) лишь при > MAX_NONCES ЖИВЫХ
-// одновременно — это требует устойчивого спрея многими адресами. Держим запас (записи крошечные); НАСТОЯЩАЯ
-// защита неаутентифицированного эндпоинта от флуда — рейт-лимит на краю (Cloudflare/nginx), не в app-коде.
+// M1: hard caps on the in-memory stores — `__authNonce` is unauthenticated, otherwise memory growth is unbounded.
+// B5: `prune` clears EXPIRED entries first, so an honest nonce is evicted (FIFO) only when > MAX_NONCES are LIVE
+// at once — which requires a sustained spray across many addresses. We keep headroom (records are tiny); the REAL
+// protection of the unauthenticated endpoint against flooding is a rate limit at the edge (Cloudflare/nginx), not in app code.
 const MAX_NONCES = 50_000;
 const MAX_SESSIONS = 50_000;
 
@@ -48,9 +48,9 @@ const g = globalThis as unknown as {
 const nonces = (g.__standingNonces ??= new Map());
 const sessions = (g.__standingSessions ??= new Map());
 
-// Персистентность сессий (ADR 0013): SIWS-сессии переживают рестарт сервера → не нужно переподписываться
-// после каждого перезапуска. nonce'ы НЕ сохраняем (живут 5 мин, транзиентны). Грузим один раз на процесс,
-// отбрасывая протухшие. Сейвер — на globalThis, чтобы переживал HMR.
+// Session persistence (ADR 0013): SIWS sessions survive a server restart → no need to re-sign
+// after every restart. We do NOT persist nonces (they live 5 min, transient). We load once per process,
+// discarding expired ones. The saver lives on globalThis so it survives HMR.
 if (!g.__authLoaded) {
   g.__authLoaded = true;
   const persisted = readSnapshot<[string, SessionRec][]>("auth.json");
@@ -59,7 +59,7 @@ if (!g.__authLoaded) {
 }
 const saveSessions = (g.__authSave ??= makeSaver("auth.json", () => [...sessions.entries()]));
 
-/** Чистка протухших + ограничение размера (вытеснение старейших по insertion order) — анти-DoS памяти. */
+/** Clear expired + cap the size (evict oldest by insertion order) — memory anti-DoS. */
 function prune<T extends { exp: number }>(map: Map<string, T>, max: number): void {
   const now = Date.now();
   for (const [k, v] of map) if (v.exp < now) map.delete(k);
@@ -70,7 +70,7 @@ function prune<T extends { exp: number }>(map: Map<string, T>, max: number): voi
   }
 }
 
-/** SIWS-поля из меток времени nonce — одинаковы при выдаче и проверке → сообщение байт-в-байт совпадает. */
+/** SIWS fields from the nonce timestamps — identical at issue and verify → the message matches byte for byte. */
 function siwsFields(issuedAt: number, exp: number): SiwsFields {
   return {
     domain: SIWS_DOMAIN,
@@ -79,17 +79,17 @@ function siwsFields(issuedAt: number, exp: number): SiwsFields {
   };
 }
 
-/** Валидный ли это base58 Solana-адрес на кривой ed25519 (авторитетная проверка, в отличие от формата). */
+/** Whether this is a valid base58 Solana address on the ed25519 curve (an authoritative check, unlike a format check). */
 function isValidAddress(address: string): boolean {
   try {
-    // PublicKey бросает на кривом base58; isOnCurve отсекает PDA/мусор (у входящего кошелька ключ на кривой).
+    // PublicKey throws on malformed base58; isOnCurve rejects PDAs/garbage (an incoming wallet's key is on the curve).
     return PublicKey.isOnCurve(new PublicKey(address).toBytes());
   } catch {
     return false;
   }
 }
 
-/** Шаг 1: выдать nonce + сообщение для подписи. */
+/** Step 1: issue a nonce + the message to sign. */
 export function issueNonce(address: string): { nonce: string; message: string } | null {
   if (!isValidAddress(address)) return null;
   prune(nonces, MAX_NONCES);
@@ -102,10 +102,10 @@ export function issueNonce(address: string): { nonce: string; message: string } 
 
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
-/** ed25519-проверка подписи сообщения сырым 32-байтным pubkey (Solana-адрес). */
+/** ed25519 verification of a message signature with a raw 32-byte pubkey (Solana address). */
 function verifySignature(address: string, message: string, signatureB64: string): boolean {
   try {
-    const raw = Buffer.from(new PublicKey(address).toBytes()); // 32 байта
+    const raw = Buffer.from(new PublicKey(address).toBytes()); // 32 bytes
     const keyObj = createPublicKey({
       key: Buffer.concat([SPKI_ED25519_PREFIX, raw]),
       format: "der",
@@ -119,7 +119,7 @@ function verifySignature(address: string, message: string, signatureB64: string)
   }
 }
 
-/** Шаг 3: проверить подпись против выданного nonce, погасить nonce, выдать session-токен. */
+/** Step 3: verify the signature against the issued nonce, burn the nonce, issue a session token. */
 export function verifyAndIssueToken(
   address: string,
   signatureB64: string,
@@ -129,7 +129,7 @@ export function verifyAndIssueToken(
     nonces.delete(address);
     return null;
   }
-  nonces.delete(address); // one-time: nonce гасится в любом исходе (нет реюза/перебора)
+  nonces.delete(address); // one-time: the nonce is burned in every outcome (no reuse/brute-forcing)
   const message = buildSiwsMessage(address, rec.nonce, siwsFields(rec.issuedAt, rec.exp));
   if (!verifySignature(address, message, signatureB64)) return null;
 
@@ -137,11 +137,11 @@ export function verifyAndIssueToken(
   const token = randomBytes(32).toString("hex");
   const exp = Date.now() + SESSION_TTL_MS;
   sessions.set(token, { address, exp });
-  saveSessions(); // сессия переживёт рестарт (ADR 0013)
+  saveSessions(); // the session survives a restart (ADR 0013)
   return { token, exp };
 }
 
-/** Шаг 4: токен → проверенный address (или null, если нет/просрочен). */
+/** Step 4: token → verified address (or null if missing/expired). */
 export function resolveToken(token: string | null | undefined): string | null {
   if (!token) return null;
   const rec = sessions.get(token);
@@ -153,7 +153,7 @@ export function resolveToken(token: string | null | undefined): string | null {
   return rec.address;
 }
 
-/** Явный выход — инвалидировать токен. */
+/** Explicit sign-out — invalidate the token. */
 export function revokeToken(token: string | null | undefined): void {
   if (token) {
     sessions.delete(token);

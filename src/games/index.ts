@@ -1,7 +1,7 @@
 /**
- * Точка сборки слоя игр: регистрирует обработчики каждой игры в реестр шины и ре-экспортирует то, что нужно
- * провайдеру. Регистрация живёт ЗДЕСЬ (а не в bus.ts), чтобы шина не импортировала конкретные игры — иначе
- * был бы цикл bus → handlers → machine → bus. Добавить игру = импортировать её обработчики и зарегистрировать.
+ * Assembly point of the games layer: registers each game's handlers into the bus registry and re-exports what the
+ * provider needs. Registration lives HERE (not in bus.ts), so the bus doesn't import specific games — otherwise
+ * there'd be a cycle bus → handlers → machine → bus. Adding a game = importing its handlers and registering them.
  */
 import { GAME_HANDLERS } from "./bus";
 import { escrowTaskHandlers } from "./escrow-task/handlers";

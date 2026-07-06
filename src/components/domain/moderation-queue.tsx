@@ -18,7 +18,7 @@ import {
 } from "@/lib/data/hooks";
 import { collapseWhitespace, shortAddress } from "@/lib/utils";
 
-/** Очередь модерации (Personal Space → My Realm). Каналы: владелец ИЛИ модератор (useManagedChannels). */
+/** Moderation queue (Personal Space → My Realm). Realms: owner OR moderator (useManagedChannels). */
 export function ModerationQueue() {
   const managedQ = useManagedChannels();
   const channels = managedQ.data ?? [];

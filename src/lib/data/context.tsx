@@ -15,11 +15,11 @@ export function DataProviderProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-/** Единственный способ для компонентов добраться до данных (CLAUDE.md §3). */
+/** The only way for components to reach the data (CLAUDE.md §3). */
 export function useData(): DataProvider {
   const provider = useContext(Ctx);
   if (!provider) {
-    throw new Error("useData() должен использоваться внутри <Providers>");
+    throw new Error("useData() must be used inside <Providers>");
   }
   return provider;
 }

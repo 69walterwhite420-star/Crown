@@ -1,7 +1,7 @@
 import { splitAmount } from "@/lib/chain/addresses";
 import { cn, formatUSDC } from "@/lib/utils";
 
-/** Денежная сумма: моно, tabular-nums. variant="money" — для подтверждённого/финального (design-system §2). */
+/** A monetary amount: mono, tabular-nums. variant="money" — for confirmed/final (design-system §2). */
 export function Amount({
   micro,
   variant = "default",
@@ -18,7 +18,7 @@ export function Amount({
   );
 }
 
-/** Разбивка комиссии 97/3 прямо в виджете доната (screens.md). */
+/** The 97/3 fee split right in the crown widget (screens.md). */
 export function FeeSplit({ amount }: { amount: bigint }) {
   const { fee, net } = splitAmount(amount);
   return (

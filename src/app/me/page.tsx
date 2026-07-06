@@ -6,7 +6,7 @@ import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { useSession } from "@/lib/data/hooks";
 
-/** Своя страница профиля: тот же дашборд, что и публичный /u/[address], плюс карандашик-редактор. */
+/** Own profile page: the same dashboard as the public /u/[address], plus a pencil editor. */
 export default function ProfilePage() {
   const sessionQ = useSession();
   const address = sessionQ.data?.address ?? null;

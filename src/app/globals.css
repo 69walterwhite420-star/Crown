@@ -3,44 +3,44 @@
 @tailwind utilities;
 
 /*
- * Дизайн-токены — единственный источник истины (design-system.md).
- * Dark-first: :root уже несёт тёмные значения. Светлая тема позже = переопределение
- * этих же семантических переменных, без правки компонентов.
+ * Design tokens — the single source of truth (design-system.md).
+ * Dark-first: :root already carries the dark values. A light theme later = overriding
+ * these same semantic variables, without touching components.
  */
 :root {
   color-scheme: dark;
 
-  /* CROWN — чёрный с золотом: база чисто чёрная, поверхности НЕЙТРАЛЬНО-тёмные (без тёплого подтона —
-     золото живёт в тексте/акцентах, не в фоне) */
+  /* CROWN — black with gold: the base is pure black, surfaces are NEUTRALLY dark (no warm undertone —
+     gold lives in the text/accents, not in the background) */
   --bg: #000000;
-  --surface: #0f0f0f; /* карточки/панели — приподняты над чёрным фоном */
-  --surface-2: #191919; /* оверлеи/дорожки/наведение */
-  --border: #8f7536; /* рамки — приглушённое золото */
-  --border-strong: #c9a24a; /* акцент/hover — яркое золото */
+  --surface: #0f0f0f; /* cards/panels — raised above the black background */
+  --surface-2: #191919; /* overlays/tracks/hover */
+  --border: #8f7536; /* borders — muted gold */
+  --border-strong: #c9a24a; /* accent/hover — bright gold */
 
-  /* Текст — пергамент (тёплый королевский белый) */
+  /* Text — parchment (warm royal white) */
   --text: #f3ecdd;
   --text-muted: #ada491;
   --text-faint: #726a5a;
 
-  /* Акцент СТАТУСА (Reign / ранги) — античное золото, приглушено под money */
+  /* STATUS accent (Reign / ranks) — antique gold, muted relative to money */
   --status: #c9a24a;
   --status-dim: #8f7536;
   --status-bg: #221b10;
 
-  /* Акцент ДЕНЕГ (Crown / транзакции / финальность) — яркое золото, рационировано */
+  /* MONEY accent (Crown / transactions / finality) — bright gold, rationed */
   --money: #e4b34c;
   --money-dim: #b5832f;
   --money-bg: #241b07;
-  --money-bright: #f6d778; /* блик короны / hover */
+  --money-bright: #f6d778; /* crown glint / hover */
 
-  /* Семантика (отдельно от акцента) */
+  /* Semantics (separate from the accent) */
   --danger: #cf5a4d;
   --danger-bg: #2a1512;
   --warn: #e0a94b;
   --info: #6e8bff;
 
-  /* Пространство, ритм, форма */
+  /* Space, rhythm, shape */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -50,8 +50,8 @@
   --space-7: 48px;
   --space-8: 64px;
 
-  /* Высота липкой шапки. Один источник истины: к ней привязаны и сама шапка, и offset `top`
-     липких сайдбаров — так они «стукаются» об шапку без зазора (box-sizing: border-box → бордюр внутри). */
+  /* Sticky header height. Single source of truth: both the header itself and the `top` offset of the
+     sticky sidebars are tied to it — so they "butt up" against the header with no gap (box-sizing: border-box → border inside). */
   --header-h: 60px;
 
   --radius-sm: 6px;
@@ -60,7 +60,7 @@
   --radius-pill: 999px;
   --maxw: 1200px;
 
-  /* Движение */
+  /* Motion */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --dur-fast: 120ms;
   --dur: 200ms;
@@ -86,7 +86,7 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Видимый фокус с клавиатуры на всех интерактивных элементах (design-system.md §6). */
+  /* Visible keyboard focus on all interactive elements (design-system.md §6). */
   :focus-visible {
     outline: 2px solid var(--info);
     outline-offset: 2px;
@@ -100,7 +100,7 @@
 }
 
 @layer components {
-  /* Типографическая шкала (1.250 — major third). display-роль с плотным трекингом. */
+  /* Typographic scale (1.250 — major third). display role with tight tracking. */
   .text-display-xl {
     font-family: var(--font-body), "Inter", system-ui, sans-serif;
     font-size: 3.05rem;
@@ -149,15 +149,15 @@
     color: var(--text-muted);
   }
 
-  /* Числа/адреса/суммы — всегда моноширинные, tabular (design-system.md §3). */
+  /* Numbers/addresses/amounts — always monospace, tabular (design-system.md §3). */
   .mono {
     font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
 
-  /* Мобильная адаптация шкалы: на узких экранах (≤640px) крупные display-роли ужимаем — иначе заголовки
-     страниц и большие числа (оборот, standing) вылезают за край телефона. Одно место → действует везде. */
+  /* Mobile scale adaptation: on narrow screens (≤640px) we shrink the large display roles — otherwise page
+     headings and big numbers (turnover, standing) spill off the edge of the phone. One place → applies everywhere. */
   @media (max-width: 640px) {
     .text-display-xl {
       font-size: 2.25rem;
@@ -171,7 +171,7 @@
   }
 }
 
-/* Оркестрованные моменты (design-system.md §5): финальность доната и тир-ап. */
+/* Orchestrated moments (design-system.md §5): Crown finality and tier-up. */
 @keyframes standing-stamp {
   0% {
     transform: scale(0.82);
@@ -202,9 +202,9 @@
   animation: standing-rise var(--dur) var(--ease);
 }
 
-/* Вход на страницу (template.tsx): плавное проявление контента при заходе на сайт и при навигации.
-   ВАЖНО — только opacity: transform на обёртке-предке сломал бы position: sticky (шапка) и position:
-   fixed (липкая плашка hero, модалки), сделав обёртку containing-block'ом. Подъём — на детях (ниже). */
+/* Page entrance (template.tsx): a smooth fade-in of content on arriving at the site and on navigation.
+   IMPORTANT — opacity only: a transform on an ancestor wrapper would break position: sticky (the header) and position:
+   fixed (the sticky hero bar, modals) by turning the wrapper into a containing block. The rise is on the children (below). */
 @keyframes page-fade {
   from {
     opacity: 0;
@@ -213,12 +213,12 @@
     opacity: 1;
   }
 }
-.animate-enter {
-  animation: page-fade var(--dur-slow) var(--ease) both;
+.animate-page-in {
+  animation: page-fade 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Каскадное появление детей (сетки карточек / списки секций): fade + лёгкий подъём со сдвигом по времени.
-   fill-mode backwards → после анимации transform снимается (никаких застрявших transform на элементах). */
+/* Cascading appearance of children (card grids / section lists): fade + slight rise, time-staggered.
+   fill-mode backwards → after the animation the transform is removed (no stuck transforms left on elements). */
 .enter-stagger > * {
   animation: standing-rise var(--dur-slow) var(--ease) backwards;
 }
@@ -244,9 +244,9 @@
   animation-delay: 340ms;
 }
 
-/* Меню / дропдауны: СИММЕТРИЧНЫЕ появление и исчезание — fade + лёгкий подъём/скейл от якоря.
-   Появление и исчезание — зеркальные (одна и та же анимация, обратно). Закрытие проигрывается до
-   размонтирования (delayed unmount на onAnimationEnd). transform-origin задаётся на элементе. */
+/* Menus / dropdowns: SYMMETRIC appearance and disappearance — fade + slight rise/scale from the anchor.
+   Appearance and disappearance are mirror images (the same animation, reversed). The close plays before
+   unmount (delayed unmount on onAnimationEnd). transform-origin is set on the element. */
 @keyframes menu-in {
   from {
     opacity: 0;
@@ -274,8 +274,8 @@
   animation: menu-out var(--dur-fast) var(--ease) forwards;
 }
 
-/* Список (сетка дворов) при смене сортировки/фильтра: старая раскладка гаснет (fade-out), затем контент
-   подменяется и новая въезжает каскадом (.enter-stagger). Симметрия «исчезание ↔ появление». */
+/* List (realm grid) when sort/filter changes: the old layout fades out (fade-out), then the content
+   is swapped and the new one cascades in (.enter-stagger). Symmetry of "disappearance ↔ appearance". */
 @keyframes list-fade-out {
   from {
     opacity: 1;
@@ -288,8 +288,8 @@
   animation: list-fade-out var(--dur) var(--ease) forwards;
 }
 
-/* The Crown (топ-1 в Realm roll): корона мягко «дышит» — тонкое золотое свечение + едва заметный масштаб.
-   Очень низкая амплитуда, медленный цикл — не отвлекает; reduced-motion гасит глобально. */
+/* The Crown (top-1 in the Realm roll): the crown softly "breathes" — a subtle gold glow + a barely noticeable scale.
+   Very low amplitude, slow cycle — not distracting; reduced-motion disables it globally. */
 @keyframes crown-glow {
   0%,
   100% {
@@ -305,8 +305,8 @@
   animation: crown-glow 2.6s var(--ease) infinite;
 }
 
-/* Скелетоны: вместо пульсации — золотистый блик, пробегающий слева направо (в тон металлу). База —
-   surface-2; поверх бежит полупрозрачная золотая полоса. reduced-motion гасит (блик уезжает за край). */
+/* Skeletons: instead of a pulse — a golden glint running left to right (matching the metal). Base —
+   surface-2; a semi-transparent gold band runs over the top. reduced-motion disables it (the glint slides off the edge). */
 @keyframes skeleton-shimmer {
   from {
     background-position: -100% 0;
@@ -328,21 +328,10 @@
   animation: skeleton-shimmer 1.5s var(--ease) infinite;
 }
 
-/* Кроссфейд между страницами: нативный View Transitions API (триггерит PageTransitions при клиентской
-   навигации). Дефолт браузера — кросс-фейд снимков old→new; подгоняем длительность под токен. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: var(--dur-slow);
-  animation-timing-function: var(--ease);
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none;
-  }
-}
+/* Page transitions are handled by template.tsx (a light opacity fade, .animate-page-in); we don't use View
+   Transitions — their full-page snapshot caused "jank" and held the old frame during dev compilation. */
 
-/* Лишняя анимация = ощущение «сгенерировано AI». Уважаем reduced-motion везде. */
+/* Excess animation = a "generated by AI" feel. We respect reduced-motion everywhere. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -354,17 +343,17 @@
   }
 }
 
-/* Прикреплённые панели: position: sticky в ПОТОКЕ грида (top = --header-h, прижато под хедер). Стоит на
-   месте при скролле; физически не может налезть на футер (футер идёт после неё в потоке), а у низа колонки
-   сама уезжает вверх — её верх уходит ПОД хедер (хедер sticky z-30, перекрывает). Без fixed/JS/калибровок
-   под вьюпорт, поэтому не трогает кнопки хедера и не плывёт. Высокая панель — внутренний скролл со скрытым
-   ползунком. items-start на гридах не даёт растягиваться. Десктоп; на мобиле — обычным блоком в потоке. */
+/* Pinned panels: position: sticky in the grid FLOW (top = --header-h, pinned under the header). It stays in
+   place on scroll; it physically cannot ride over the footer (the footer comes after it in the flow), and at the bottom of the column
+   it slides up on its own — its top goes UNDER the header (the header is sticky z-30, overlapping). No fixed/JS/viewport
+   calibrations, so it doesn't touch the header buttons and doesn't drift. A tall panel — inner scroll with a hidden
+   thumb. items-start on the grids keeps it from stretching. Desktop; on mobile — as an ordinary block in the flow. */
 @media (min-width: 1024px) {
   .rail-pinned-right {
     position: sticky;
-    /* точка прилипания = стартовая позиция (header-h + верхний отступ pt-4) → постоянный отступ под хедером,
-       без «проезда» до прилипания. БЕЗ max-height/overflow: липкий блок не клипает выпадашку селекта и не
-       делает карточку внутренним скролл-контейнером (иначе высокая форма задания давала скролл + обрезала дроп). */
+    /* the pinning point = the starting position (header-h + top padding pt-4) → a constant offset under the header,
+       without a "slide" before pinning. NO max-height/overflow: the sticky block doesn't clip the select dropdown and doesn't
+       make the card an inner scroll container (otherwise a tall task form produced a scroll + clipped the dropdown). */
     top: calc(var(--header-h) + var(--space-4));
     align-self: start;
   }
@@ -383,8 +372,8 @@
   }
 }
 
-/* Тонкий аккуратный скроллбар (для полей ввода и т.п.) вместо грубого системного: тонкая дорожка,
-   скруглённый «бегунок» в цвет рамки, без кнопок-стрелок и уголка-ресайза. */
+/* A thin, tidy scrollbar (for input fields and the like) instead of the crude system one: a thin track,
+   a rounded "thumb" in the border color, without arrow buttons and a resize corner. */
 .scroll-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -414,8 +403,8 @@
   background: transparent;
 }
 
-/* Чекбокс — кастомный, в тон тёмным полям: тёмный квадрат с рамкой; при выборе — галочка-SVG (background-
-   image, т.к. ::before/::after на input не рендерятся в большинстве браузеров). */
+/* Checkbox — custom, matching the dark fields: a dark square with a border; when selected — an SVG checkmark (background-
+   image, since ::before/::after on an input don't render in most browsers). */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -442,7 +431,7 @@ input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--info);
   outline-offset: 1px;
 }
-/* Радио — нейтральный акцент (в приложении пока не используется, на будущее). */
+/* Radio — neutral accent (not used in the app yet, kept for the future). */
 input[type="radio"] {
   accent-color: var(--fg-muted);
 }

@@ -3,28 +3,35 @@
 import { keepPreviousData, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { PaletteSwitcher } from "@/components/dev/palette-switcher";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { IS_CHAIN } from "@/lib/chain/addresses";
 import { DataProviderProvider } from "@/lib/data/context";
 import { createDataProvider } from "@/lib/data/provider";
 
-// Chain-провайдеры — отдельным чанком (грузятся только в режиме chain), чтобы Solana-стек не утяжелял
-// bundle mock/api. ssr:false — wallet-adapter трогает window.
+// Chain providers — in a separate chunk (loaded only in chain mode), so the Solana stack doesn't bloat
+// the mock/api bundle. ssr:false — wallet-adapter touches window.
 const ChainProviders = dynamic(
   () => import("@/lib/chain/chain-providers").then((m) => m.ChainProviders),
   { ssr: false },
 );
 
 /**
- * Корневые провайдеры. Селектор по ENV: chain → отдельное дерево с кошельком; иначе — оффчейн
- * (TanStack Query + mock/api DataProvider). Компоненты не знают, какая реализация под ними (CLAUDE.md §3).
+ * Root providers. Selected by ENV: chain → a separate tree with the wallet; otherwise — off-chain
+ * (TanStack Query + mock/api DataProvider). Components don't know which implementation is under them (CLAUDE.md §3).
  */
 export function Providers({ children }: { children: React.ReactNode }) {
-  return IS_CHAIN ? (
-    <ChainProviders>{children}</ChainProviders>
-  ) : (
-    <OffchainProviders>{children}</OffchainProviders>
+  return (
+    <>
+      {IS_CHAIN ? (
+        <ChainProviders>{children}</ChainProviders>
+      ) : (
+        <OffchainProviders>{children}</OffchainProviders>
+      )}
+      {/* Dev tester for the dark background (🎨, bottom right). Not rendered in prod. */}
+      {process.env.NODE_ENV !== "production" ? <PaletteSwitcher /> : null}
+    </>
   );
 }
 
@@ -38,7 +45,7 @@ function OffchainProviders({ children }: { children: React.ReactNode }) {
             gcTime: 10 * 60_000,
             retry: 1,
             refetchOnWindowFocus: false,
-            placeholderData: keepPreviousData, // навигация/смена параметров без мигания скелетонов
+            placeholderData: keepPreviousData, // navigation/param changes without skeletons flickering
           },
         },
       }),

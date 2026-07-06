@@ -1,6 +1,6 @@
 /**
- * Минималистичные stroke-иконки (24×24, currentColor, без заливки). Размер задаётся через className (h-/w-).
- * Без иконочной библиотеки — чтобы не тащить зависимость ради пары глифов.
+ * Minimal stroke icons (24×24, currentColor, no fill). Size is set via className (h-/w-).
+ * No icon library — so we don't pull in a dependency for a couple of glyphs.
  */
 type IconProps = { className?: string };
 
@@ -14,7 +14,7 @@ const stroke = {
   "aria-hidden": true,
 };
 
-/** Лупа — для поисковых полей. */
+/** Magnifier — for search fields. */
 export function SearchIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -24,7 +24,7 @@ export function SearchIcon({ className }: IconProps) {
   );
 }
 
-/** Крестик — очистить/закрыть. */
+/** Cross — clear/close. */
 export function XIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -33,7 +33,7 @@ export function XIcon({ className }: IconProps) {
   );
 }
 
-/** Шеврон вправо — пагинация/«вперёд». */
+/** Chevron right — pagination/"next". */
 export function ChevronRightIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -42,7 +42,7 @@ export function ChevronRightIcon({ className }: IconProps) {
   );
 }
 
-/** Шеврон влево — пагинация/«назад». */
+/** Chevron left — pagination/"back". */
 export function ChevronLeftIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -51,7 +51,7 @@ export function ChevronLeftIcon({ className }: IconProps) {
   );
 }
 
-/** Шеврон вниз — раскрытие селекта. */
+/** Chevron down — expanding the select. */
 export function ChevronDownIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -60,7 +60,7 @@ export function ChevronDownIcon({ className }: IconProps) {
   );
 }
 
-/** Щит — действия модерации (скрыть/бан). */
+/** Shield — moderation actions (hide/ban). */
 export function ShieldIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -69,7 +69,7 @@ export function ShieldIcon({ className }: IconProps) {
   );
 }
 
-/** Внешняя ссылка (открыть в новой вкладке) — напр. транзакция в проводнике. */
+/** External link (open in a new tab) — e.g. a transaction in the explorer. */
 export function ExternalLinkIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -80,7 +80,7 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
-/** Флажок — жалоба/репорт. */
+/** Flag — complaint/report. */
 export function FlagIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -90,7 +90,7 @@ export function FlagIcon({ className }: IconProps) {
   );
 }
 
-/** Копирование (две накладки) — скопировать адрес/хэш. */
+/** Copy (two overlapping cards) — copy an address/hash. */
 export function CopyIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -100,7 +100,7 @@ export function CopyIcon({ className }: IconProps) {
   );
 }
 
-/** Галочка — успех/скопировано. */
+/** Checkmark — success/copied. */
 export function CheckIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -109,7 +109,7 @@ export function CheckIcon({ className }: IconProps) {
   );
 }
 
-/** Карандаш — редактировать. */
+/** Pencil — edit. */
 export function PencilIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -119,7 +119,7 @@ export function PencilIcon({ className }: IconProps) {
   );
 }
 
-/** Глаз — показать. */
+/** Eye — show. */
 export function EyeIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -129,7 +129,7 @@ export function EyeIcon({ className }: IconProps) {
   );
 }
 
-/** Зачёркнутый глаз — скрыть. */
+/** Crossed-out eye — hide. */
 export function EyeOffIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -141,7 +141,7 @@ export function EyeOffIcon({ className }: IconProps) {
   );
 }
 
-/** Замок — «непередаваемо». */
+/** Lock — "non-transferable". */
 export function LockIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -151,7 +151,7 @@ export function LockIcon({ className }: IconProps) {
   );
 }
 
-/** Корона — высший тир. */
+/** Crown — the top tier. */
 export function CrownIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -160,7 +160,7 @@ export function CrownIcon({ className }: IconProps) {
   );
 }
 
-/** Три точки — меню «ещё». */
+/** Three dots — the "more" menu. */
 export function MoreIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -171,7 +171,7 @@ export function MoreIcon({ className }: IconProps) {
   );
 }
 
-/** «i» в круге — правила/справка. */
+/** "i" in a circle — rules/help. */
 export function InfoIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -182,7 +182,7 @@ export function InfoIcon({ className }: IconProps) {
   );
 }
 
-/** Подарок — обычный донат. */
+/** Gift — a regular crown. */
 export function GiftIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
@@ -194,7 +194,7 @@ export function GiftIcon({ className }: IconProps) {
   );
 }
 
-/** Мишень — игра «задание за донат». */
+/** Target — the "task-for-a-crown" game. */
 export function TargetIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>

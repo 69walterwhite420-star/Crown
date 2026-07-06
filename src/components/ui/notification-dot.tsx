@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Синяя точка «требует внимания» — ведёт пользователя по UI к тому, что нужно проверить (новый донат-с-текстом
- * в очереди и т.п.). Вешается на пункт навигации/триггер по пути к цели; гаснет, когда дел не осталось.
+ * A blue "needs attention" dot — guides the user through the UI to what needs review (a new crown-with-text
+ * in the queue, etc.). Attached to a nav item/trigger along the path to the goal; fades out when nothing is left to do.
  */
 export function NotificationDot({ className, title }: { className?: string; title?: string }) {
   return (

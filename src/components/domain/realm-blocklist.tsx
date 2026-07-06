@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toast";
 import { useAddBlock, useChannelBlocklist, useMyChannel, useRemoveBlock } from "@/lib/data/hooks";
 import { isLikelyBase58Address, shortAddress, timeAgo } from "@/lib/utils";
 
-// Готовые причины канальной блокировки (почему стример закрыл этому кошельку донаты-с-сообщениями).
+// Ready-made reasons for a realm block (why the streamer closed off crowns-with-messages to this wallet).
 const BLOCK_REASONS = [
   "Spam / advertising",
   "Insults, harassment",
@@ -20,7 +20,7 @@ const BLOCK_REASONS = [
   "Other",
 ];
 
-/** Personal Space → My Realm → «Blocklist». Канальный блок-лист (не платформенный бан). */
+/** Personal Space → My Realm → "Blocklist". A realm blocklist (not a platform ban). */
 export function RealmBlocklist() {
   const myChannelQ = useMyChannel();
   const channelId = myChannelQ.data?.id;

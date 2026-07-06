@@ -1,15 +1,15 @@
 import type { GameModule } from "../types";
 
 /**
- * Манифест первой мини-игры — «задание-донат с проверкой комьюнити». Полная спека —
- * `yellow-paper §7`, шов с ядром репутации — ADR 0015. Статус `available`:
- * канал включает игру тумблером в студии (enabledGames).
+ * Manifest of the first mini-game — "task-for-a-crown with community verification". Full spec —
+ * `yellow-paper §7`, the seam with the reputation core — ADR 0015. Status `available`:
+ * a channel enables the game with a toggle in the studio (enabledGames).
  */
 export const escrowTask: GameModule = {
   id: "escrow-task",
-  title: "Задания за донат",
+  title: "Tasks for a Crown",
   tagline:
-    "Донат с заданием в эскроу: стример выполняет, комьюнити проверяет, иначе — возврат донору.",
+    "A crown with a task in escrow: the streamer completes it, the community verifies, otherwise — a refund to the donor.",
   status: "available",
   specDoc: "docs/yellow-paper.md",
 };

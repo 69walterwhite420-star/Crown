@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Флаг «скопировано» с авто-сбросом. Таймер очищается при размонтировании — иначе `setCopied(false)`
- * стрелял бы по уже размонтированному компоненту (закрытое меню / уход со страницы). Возвращает [copied, mark]:
- * `mark()` зовётся после успешного `clipboard.writeText`.
+ * A "copied" flag with auto-reset. The timer is cleared on unmount — otherwise `setCopied(false)`
+ * would fire on an already-unmounted component (closed menu / navigating away). Returns [copied, mark]:
+ * `mark()` is called after a successful `clipboard.writeText`.
  */
 export function useCopied(resetMs = 1500): [boolean, () => void] {
   const [copied, setCopied] = useState(false);

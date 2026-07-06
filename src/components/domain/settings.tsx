@@ -6,8 +6,8 @@ import { MAX_TIERS, TIER_DESC_MAX } from "@/lib/data/fixtures";
 import type { Tier } from "@/lib/data/types";
 
 /**
- * Редактор тиров/порогов. Курс репутации фиксирован (1 USDC = 1 очко, ADR 0007) — здесь стример
- * задаёт ПОРОГИ в очках: сколько нужно для тира/перков/участия в мини-играх. Имя, порог, цвет.
+ * Tier/threshold editor. The Reign rate is fixed (1 USDC = 1 point, ADR 0007) — here the streamer
+ * sets THRESHOLDS in points: how much is needed for a tier/perks/participation in mini-games. Name, threshold, color.
  */
 export function TierEditor({ value, onChange }: { value: Tier[]; onChange: (t: Tier[]) => void }) {
   const update = (i: number, patch: Partial<Tier>) =>

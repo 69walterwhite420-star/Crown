@@ -14,67 +14,67 @@ import { CHAIN_MODE } from "@/server/runtime";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
 
 /**
- * Доверенный приём ончейн-доната по подписи: сервер САМ достаёт транзакцию из devnet, валидирует пару
- * 97/3 + memo, сверяет, что 97%-нога ушла на payout-ATA канала (трастлесс — не верит клиенту), и
- * идемпотентно записывает донат в стор. Зовётся из RPC (клиент после отправки) и из индексер-сервиса.
- * Только серверный модуль (web3.js не попадает в клиентские bundle mock/api).
+ * Trusted intake of an on-chain Crown by signature: the server ITSELF fetches the transaction from devnet, validates the
+ * 97/3 + memo pair, checks that the 97% leg went to the realm's payout-ATA (trustless — it does not trust the client), and
+ * idempotently records the Crown into the store. Called from RPC (the client after sending) and from the indexer service.
+ * Server-only module (web3.js does not end up in the client mock/api bundle).
  */
 export async function ingestSignature(
   store: MockDataProvider,
   signature: string,
   text?: string,
 ): Promise<{ ok: boolean; pending?: boolean; reason?: string; points?: number }> {
-  assertMoneyConfig(); // fail-closed: на mainnet без явной денежной конфигурации донат не принимаем (C2)
+  assertMoneyConfig(); // fail-closed: on mainnet, without explicit money configuration we do not accept the Crown (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
 
-  // M2: в chain-режиме зачёт ждёт "finalized" (анти-реорг). Финализация наступает на ~15-30с ПОЗЖЕ
-  // клиентского "confirmed" → tx может быть ещё не видна. Это НЕ ошибка: возвращаем pending, клиент повторит
-  // (иначе деньги ушли, а зачёта нет). null ПОСЛЕ фетча = реально невалидная tx — не повторяем.
+  // M2: in chain mode the credit waits for "finalized" (anti-reorg). Finalization happens ~15-30s LATER than
+  // the client's "confirmed" → the tx may not be visible yet. This is NOT an error: we return pending, the client retries
+  // (otherwise the money left but there's no credit). null AFTER the fetch = a genuinely invalid tx — we don't retry.
   const commitment = CHAIN_MODE ? "finalized" : "confirmed";
   const tx = await connection.getParsedTransaction(signature, {
     commitment,
     maxSupportedTransactionVersion: 0,
   });
   if (!tx) {
-    return { ok: false, pending: true, reason: "транзакция ещё не подтверждена на нужном уровне — повторим" };
+    return { ok: false, pending: true, reason: "transaction not yet confirmed at the required level — we'll retry" };
   }
   const indexed = extractDonation(tx, signature, { mint, treasuryAta });
-  if (!indexed) return { ok: false, reason: "не валидная донат-транзакция (нет пары 97/3 + memo)" };
+  if (!indexed) return { ok: false, reason: "invalid Crown transaction (no 97/3 + memo pair)" };
 
   const channelId = indexed.memo.c;
   const channel = store.__getChannelById(channelId);
-  if (!channel) return { ok: false, reason: `канал ${channelId} не найден` };
+  if (!channel) return { ok: false, reason: `realm ${channelId} not found` };
 
-  // Трастлесс-проверка: 97%-нога должна уйти именно на payout-ATA канала.
+  // Trustless check: the 97% leg must go exactly to the realm's payout-ATA.
   const expectedStreamerAta = (
     await getAssociatedTokenAddress(mint, new PublicKey(channel.payoutAddress))
   ).toBase58();
   if (indexed.streamerAta !== expectedStreamerAta) {
-    return { ok: false, reason: "97%-нога ушла не на payout канала" };
+    return { ok: false, reason: "the 97% leg went somewhere other than the realm's payout" };
   }
 
-  // H1 (второй рубеж после клиентской проверки в chain-provider): зачитываем донат только каналу, чей
-  // payout закреплён ed25519-подписью владельца. Подмена payout в БД без ключа владельца даёт невалидную
-  // подпись → зачёта нет (деньги при этом ушли туда, куда донор реально подписал — п.1 держит клиент).
+  // H1 (a second line after the client-side check in chain-provider): we credit the Crown only to a realm whose
+  // payout is fixed by the owner's ed25519 signature. Swapping the payout in the DB without the owner's key yields an invalid
+  // signature → no credit (the money in that case went where the donor actually signed — point 1 is held by the client).
   if (
     CHAIN_MODE &&
     (!channel.payoutAttestation ||
       !verifyPayoutAttestation(channel.ownerAddress, channel.payoutAddress, channel.payoutAttestation))
   ) {
-    return { ok: false, reason: "payout канала не подтверждён подписью владельца (attestPayout)" };
+    return { ok: false, reason: "the realm's payout is not confirmed by the owner's signature (attestPayout)" };
   }
 
   const cfg = await store.getChannelConfig(channelId);
-  // B7: ниже минимума канала донат не принимаем (паритет с off-chain createDonation — анти-спам). Деньги
-  // реальны, но политику спам-порога держим одинаковой на обоих путях.
+  // B7: below the realm's minimum we do not accept the Crown (parity with off-chain createDonation — anti-spam). The money
+  // is real, but we keep the spam-threshold policy identical on both paths.
   if (indexed.amountMicro < cfg.minDonation) {
-    return { ok: false, reason: "сумма доната ниже минимума канала" };
+    return { ok: false, reason: "the Crown amount is below the realm's minimum" };
   }
-  // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш совпал
-  // с ончейн-memo (донор подписал именно его), длина в пределах лимита канала (R5/ADR 0012) И сумма ≥
-  // minDonationWithText (как off-chain — текст требует порога). Иначе текст игнорируем — деньги/репутация не зависят.
+  // Trustless text binding: memo.m carries contentHash(text). We accept the text ONLY if its hash matched
+  // the on-chain memo (the donor signed exactly it), the length is within the realm's limit (R5/ADR 0012) AND the amount ≥
+  // minDonationWithText (as off-chain — text requires a threshold). Otherwise we ignore the text — money/Reign do not depend on it.
   const textHash = text ? await hashContent(text) : null;
   const verifiedText =
     text &&
@@ -94,44 +94,44 @@ export async function ingestSignature(
     netMicro: indexed.netMicro,
     text: verifiedText,
   });
-  if (!res) return { ok: false, reason: "уже принято или канал отсутствует" };
+  if (!res) return { ok: false, reason: "already accepted or the realm is missing" };
   return { ok: true, points: res.standing.points };
 }
 
 /**
- * Доверенный приём ончейн-сбора активации по подписи: сервер сам достаёт tx, проверяет перевод
- * payer→treasuryATA ≥ ACTIVATION_FEE и memo `{act}`, сверяет payer === владелец канала (трастлесс — не
- * верит клиенту) и идемпотентно переводит канал в ACTIVE. Деньги сбора — оператору, не возврат (§4.1).
+ * Trusted intake of an on-chain activation fee by signature: the server itself fetches the tx, checks the transfer
+ * payer→treasuryATA ≥ ACTIVATION_FEE and the memo `{act}`, verifies payer === the realm's owner (trustless — it does not
+ * trust the client) and idempotently moves the realm to ACTIVE. The fee money goes to the operator, not a refund (§4.1).
  */
 export async function ingestActivation(
   store: MockDataProvider,
   signature: string,
 ): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
-  assertMoneyConfig(); // fail-closed: на mainnet без денежной конфигурации сбор не принимаем (C2)
+  assertMoneyConfig(); // fail-closed: on mainnet, without money configuration we do not accept the fee (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const mint = mintPubkey();
   const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
 
-  // M2: см. ingestSignature — finalized в chain-режиме. tx не видна сразу после client-confirmed → pending
-  // (клиент повторит), иначе сбор уплачен, а канал не активирован (ровно этот баг и был).
+  // M2: see ingestSignature — finalized in chain mode. The tx is not visible right after client-confirmed → pending
+  // (the client retries), otherwise the fee is paid but the realm is not activated (this was exactly the bug).
   const commitment = CHAIN_MODE ? "finalized" : "confirmed";
   const tx = await connection.getParsedTransaction(signature, {
     commitment,
     maxSupportedTransactionVersion: 0,
   });
   if (!tx) {
-    return { ok: false, pending: true, reason: "транзакция активации ещё не финализирована — повторим" };
+    return { ok: false, pending: true, reason: "the activation transaction is not finalized yet — we'll retry" };
   }
   const indexed = extractActivation(tx, signature, { mint, treasuryAta });
-  if (!indexed) return { ok: false, reason: "не валидная транзакция активации (нет перевода + memo {act})" };
+  if (!indexed) return { ok: false, reason: "invalid activation transaction (no transfer + memo {act})" };
 
   const channel = store.__getChannelById(indexed.channelId);
-  if (!channel) return { ok: false, reason: `канал ${indexed.channelId} не найден` };
+  if (!channel) return { ok: false, reason: `realm ${indexed.channelId} not found` };
   if (indexed.payer !== channel.ownerAddress) {
-    return { ok: false, reason: "сбор уплачен не владельцем канала" };
+    return { ok: false, reason: "the fee was paid by someone other than the realm's owner" };
   }
   if (indexed.amountMicro < ACTIVATION_FEE_MICRO) {
-    return { ok: false, reason: "сумма сбора активации ниже требуемой" };
+    return { ok: false, reason: "the activation fee amount is below the required one" };
   }
 
   store.activateFromChain(indexed.channelId);

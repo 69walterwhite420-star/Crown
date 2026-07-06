@@ -21,11 +21,11 @@ import {
 import { fromMicro, toMicro } from "@/lib/utils";
 
 /**
- * Personal Space → My Realm → «Mini-games». Единое место ВСЕХ настроек игр (ADR 0016): каталог из реестра
- * (`src/games`, включение в `enabledGames`), лимиты-пороги репутации §10 (кто шлёт задания / поднимает
- * споры), исход спора по репутации (протокольные константы), и — в icp-режиме — governance-параметры
- * споров из канистры. Раньше пороги жили на `/studio/games`, а параметры споров — в Customization; сведены
- * сюда по решению владельца.
+ * Personal Space → My Realm → "Mini-games". The single place for ALL game settings (ADR 0016): the catalog
+ * from the registry (`src/games`, toggled in `enabledGames`), the §10 Reign thresholds/limits (who can send
+ * tasks / raise disputes), the dispute outcome by Reign (protocol constants), and — in icp mode — the
+ * dispute governance parameters from the canister. Thresholds used to live at `/studio/games` and dispute
+ * parameters in Customization; they were consolidated here by the owner's decision.
  */
 export function RealmGamesSettings() {
   const myChannelQ = useMyChannel();
@@ -34,8 +34,8 @@ export function RealmGamesSettings() {
   const config = configQ.data;
   const update = useUpdateConfig(channelId ?? "");
 
-  // Пороги репутации (задания/споры) — локальный черновик + явное «Save» (не дёргаем сеть на каждый ввод).
-  // Синхронизируем из конфига. Хуки — ДО ранних return (правила хуков).
+  // Reign thresholds (tasks/disputes) — a local draft + an explicit "Save" (we don't hit the network on
+  // every keystroke). Synced from the config. Hooks go BEFORE any early return (rules of hooks).
   const cfgRepTask = config?.minReputationToTask ?? 0;
   const cfgRepDispute = config?.minReputationToDispute ?? 0;
   const [repTask, setRepTask] = useState(0);
@@ -102,7 +102,7 @@ export function RealmGamesSettings() {
         </p>
       </div>
 
-      {/* Каталог игр из реестра — включение хранится в enabledGames */}
+      {/* Game catalog from the registry — the on/off state is stored in enabledGames */}
       <div className="flex flex-col gap-3">
         {GAMES.map((g) => {
           const building = g.status === "building";
@@ -140,8 +140,8 @@ export function RealmGamesSettings() {
         })}
       </div>
 
-      {/* Пороги репутации «задание-донат» — рычаги стримера §10: кто может присылать задания / поднимать
-          споры. Репутация набирается донатами → порог = денежный барьер против нулевых кошельков. */}
+      {/* "Task-crown" Reign thresholds — the streamer's §10 levers: who can send tasks / raise disputes.
+          Reign is earned by crowning → the threshold = a money barrier against zero-wallets. */}
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-fg">Reputation thresholds (limits)</h2>
@@ -158,7 +158,7 @@ export function RealmGamesSettings() {
             value={String(repTask)}
             onChange={(e) => setRepTask(Math.max(0, Number(e.target.value) || 0))}
           />
-          {/* Порог на спор в icp живёт в канистре (Dispute governance ниже) — здесь его не дублируем. */}
+          {/* In icp the dispute threshold lives in the canister (Dispute governance below) — not duplicated here. */}
           {!IS_ICP ? (
             <Input
               label="Min Reign to raise a dispute"
@@ -184,8 +184,8 @@ export function RealmGamesSettings() {
         </div>
       </div>
 
-      {/* Исход спора по Reign. Вне icp (mock/api/chain) правит машина TS (machine.ts) фикс-константами —
-          показываем read-only. В icp награды редактируемы через governance-параметры канистры (ниже). */}
+      {/* Dispute outcome by Reign. Outside icp (mock/api/chain) the TS machine (machine.ts) rules with fixed
+          constants — shown read-only. In icp the rewards are editable via the canister's governance params (below). */}
       {!IS_ICP ? (
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-col gap-1">
@@ -209,17 +209,17 @@ export function RealmGamesSettings() {
         </div>
       ) : null}
 
-      {/* Governance-параметры споров из канистры (icp): кворум/окна/вес присяжного/мин.репутация + НАГРАДЫ
-          (win/loss) — меняются только подписью владельца и с таймлоком. Сведены сюда к играм. */}
+      {/* Dispute governance params from the canister (icp): quorum/windows/juror weight/min Reign + REWARDS
+          (win/loss) — changed only by the owner's signature and with a timelock. Consolidated here with the games. */}
       {IS_ICP ? <DisputeParamsSection channelId={channelId} /> : null}
     </div>
   );
 }
 
 /**
- * Governance-параметры споров (миграция M1, ADR 0021) — живут в ICP-канистре, не на сервере. Меняются
- * только подписью кошелька владельца и вступают с таймлоком (идущие споры — по прежним правилам). Черновик
- * в человеческих единицах (Reign/минуты/USDC), micro — на границе.
+ * Dispute governance params (migration M1, ADR 0021) — live in the ICP canister, not on the server. Changed
+ * only by the owner's wallet signature and take effect on a timelock (disputes already running keep the old
+ * rules). The draft is in human units (Reign/minutes/USDC), micro is applied at the boundary.
  */
 interface ParamsDraft {
   minRep: string;
@@ -304,7 +304,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
       quorumMicro: toMicro(num(draft!.quorum)),
       disputeWindowSecs: Math.round(num(draft!.disputeMin) * 60),
       votingWindowSecs: Math.round(num(draft!.votingMin) * 60),
-      // Мёртвое поле формата подписи (арбитр его не читает; экономики от суммы нет — решение владельца M2).
+      // Dead field of the signature format (the arbiter doesn't read it; no economics tied to the amount — owner's M2 decision).
       dMaxMicro: info!.effective.dMaxMicro,
       disputeWinBonusMicro: toMicro(num(draft!.winBonus)),
       disputeLossPenaltyMicro: toMicro(num(draft!.lossPenalty)),

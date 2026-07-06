@@ -2,8 +2,8 @@ import { rankOf, type CrownRank } from "@/lib/crown";
 import { cn } from "@/lib/utils";
 
 /**
- * Крест-бейдж ранга CROWN: круглая печать с монограммой и геральдическим металлом ранга.
- * Металл идёт через CSS-переменную `--rk`, так что цвет обода/монограммы = металл ранга.
+ * CROWN rank cross-badge: a round seal with a monogram and the rank's heraldic metal.
+ * The metal comes through the CSS variable `--rk`, so the rim/monogram color = the rank's metal.
  */
 export function RankBadge({
   points,

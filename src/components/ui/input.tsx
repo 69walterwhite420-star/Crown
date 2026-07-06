@@ -7,9 +7,9 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   label?: string;
   helper?: string;
   error?: string;
-  /** Моноширинный режим для сумм/адресов (design-system.md §3). */
+  /** Monospace mode for amounts/addresses (design-system.md §3). */
   mono?: boolean;
-  /** Мини-иконка слева внутри поля (напр. лупа для поиска). */
+  /** Mini icon on the left inside the field (e.g. a magnifier for search). */
   icon?: React.ReactNode;
 }
 

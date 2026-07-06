@@ -7,13 +7,16 @@ import { ExpandingSearch } from "@/components/ui/expanding-search";
 import type { ChannelCard, ChannelLinkPlatform } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
+export type RealmSort = "all" | "7d";
+
 /**
- * Общая логика витрины realms (та же, что на главной): поиск + сортировка по объёму Crowned (all-time) +
- * фильтр по соцсетям (union). Возвращает состояние, отфильтрованный список и хелперы — рендер отдельно
- * (RealmFilterToolbar), чтобы использовать и в каталоге, и в админке.
+ * Shared realms showcase logic (the same as on the home page): search + sort by volume (all-time / 7d) +
+ * filter by socials (union). Returns state, the filtered list and helpers — rendering is separate
+ * (RealmFilterToolbar), so it can be used both in the catalog and in the admin panel.
  */
 export function useRealmFilter(realms: ChannelCard[]) {
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<RealmSort>("all");
   const [platforms, setPlatforms] = useState<Set<ChannelLinkPlatform>>(new Set());
 
   const availablePlatforms = useMemo(() => {
@@ -24,7 +27,7 @@ export function useRealmFilter(realms: ChannelCard[]) {
 
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => {
-    const metric = (c: ChannelCard) => c.totalDonated;
+    const metric = (c: ChannelCard) => (sort === "7d" ? (c.crowned7d ?? 0n) : c.totalDonated);
     return realms
       .filter((c) => !q || `${c.handle} ${c.displayName ?? ""}`.toLowerCase().includes(q))
       .filter((c) => platforms.size === 0 || (c.links ?? []).some((l) => platforms.has(l.platform)))
@@ -34,7 +37,7 @@ export function useRealmFilter(realms: ChannelCard[]) {
         const bv = metric(b);
         return bv > av ? 1 : bv < av ? -1 : 0;
       });
-  }, [realms, q, platforms]);
+  }, [realms, q, sort, platforms]);
 
   const togglePlatform = (p: ChannelLinkPlatform) =>
     setPlatforms((prev) => {
@@ -47,6 +50,8 @@ export function useRealmFilter(realms: ChannelCard[]) {
   return {
     query,
     setQuery,
+    sort,
+    setSort,
     platforms,
     availablePlatforms,
     togglePlatform,
@@ -57,10 +62,11 @@ export function useRealmFilter(realms: ChannelCard[]) {
 
 export type RealmFilter = ReturnType<typeof useRealmFilter>;
 
-/** Панель управления витриной: сортировка + фильтр соцсетей (дропдаун) + раскрывающийся поиск. */
+/** Showcase control panel: sort + socials filter (dropdown) + expanding search. */
 export function RealmFilterToolbar({ filter }: { filter: RealmFilter }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <SortToggle value={filter.sort} onChange={filter.setSort} />
       {filter.availablePlatforms.length > 0 ? (
         <PlatformFilterMenu
           platforms={filter.availablePlatforms}
@@ -75,6 +81,36 @@ export function RealmFilterToolbar({ filter }: { filter: RealmFilter }) {
         placeholder="Search realms…"
         label="Search realms"
       />
+    </div>
+  );
+}
+
+function SortToggle({ value, onChange }: { value: RealmSort; onChange: (v: RealmSort) => void }) {
+  const opts: { k: RealmSort; label: string }[] = [
+    { k: "all", label: "All-time" },
+    { k: "7d", label: "7 days" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Sort realms by crowned volume"
+      title="Sort by Crowned volume"
+      className="inline-flex items-center rounded-lg border border-border bg-surface p-0.5"
+    >
+      {opts.map((o) => (
+        <button
+          key={o.k}
+          type="button"
+          onClick={() => onChange(o.k)}
+          aria-pressed={value === o.k}
+          className={cn(
+            "rounded-md px-3 py-1 text-small transition-colors",
+            value === o.k ? "bg-money-bg text-money" : "text-fg-muted hover:text-fg",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

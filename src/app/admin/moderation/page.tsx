@@ -8,8 +8,8 @@ export default function AdminModerationPage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-h2 text-fg">Moderation</h1>
         <p className="text-small text-fg-faint">
-          Sandbox: впиши текст и проверь, что решит модерация (тот же конвейер, что и боевой путь).
-          Reports / quarantine / enforcement — дальше.
+          Sandbox: type in some text and check what moderation decides (the same pipeline as the production path).
+          Reports / quarantine / enforcement — coming next.
         </p>
       </div>
       <ModerationSandbox />

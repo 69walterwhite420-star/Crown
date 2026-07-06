@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-/** Состояние «свёрнут ли сайдбар», с сохранением в localStorage по ключу. Desktop-only фича. */
+/** State of "is the sidebar collapsed", persisted in localStorage under a key. Desktop-only feature. */
 export function useRailCollapsed(key: string) {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem(key) === "1") setCollapsed(true);
     } catch {
-      // localStorage может быть недоступен — не критично
+      // localStorage may be unavailable — not critical
     }
   }, [key]);
   const toggle = () =>
@@ -26,9 +26,9 @@ export function useRailCollapsed(key: string) {
 }
 
 /**
- * Круглая кнопка на правой границе сайдбара (как в FusionPay): золотое кольцо + шеврон.
- * Свёрнут → шеврон вправо (развернуть), развёрнут → влево (свернуть). `width` — ширина развёрнутого сайдбара
- * (rem), чтобы кнопка села ровно на границу. Только на десктопе (md+); position: fixed под верхней полосой.
+ * Round button on the right edge of the sidebar (as in FusionPay): a gold ring + chevron.
+ * Collapsed → chevron points right (expand), expanded → left (collapse). `width` is the width of the expanded
+ * sidebar (rem), so the button sits exactly on the edge. Desktop only (md+); position: fixed under the top bar.
  */
 export function RailToggle({
   collapsed,

@@ -8,14 +8,14 @@ import {
 import { splitAmount } from "./donation-tx";
 import { decodeActivationMemo, decodeMemo, type MemoAttribution } from "./memo";
 
-/** Истина о деньгах — цепочка, не клиент (yellow-paper §5.1). Реконструированный донат из ончейна. */
+/** The truth about money is the chain, not the client (yellow-paper §5.1). A crown reconstructed from on-chain. */
 export interface IndexedDonation {
   signature: string;
   donor: string;
   amountMicro: bigint;
   feeMicro: bigint;
   netMicro: bigint;
-  streamerAta: string; // ATA-получатель 97%-ноги — сверяется с payout канала вызывающим
+  streamerAta: string; // ATA recipient of the 97% leg — checked against the realm's payout by the caller
   memo: MemoAttribution;
   blockTime: number | null;
 }
@@ -40,7 +40,7 @@ export async function parseDonationTx(
   signature: string,
   opts: { mint: PublicKey; treasuryAta: PublicKey; commitment?: "confirmed" | "finalized" },
 ): Promise<IndexedDonation | null> {
-  // M2: в chain-режиме зачёт ждёт "finalized" (защита от реорга на mainnet); "confirmed" — для отзывчивости devnet.
+  // M2: in chain mode crediting waits for "finalized" (protection against a reorg on mainnet); "confirmed" — for devnet responsiveness.
   const tx = await connection.getParsedTransaction(signature, {
     commitment: opts.commitment ?? "confirmed",
     maxSupportedTransactionVersion: 0,
@@ -49,9 +49,9 @@ export async function parseDonationTx(
 }
 
 /**
- * Чистый разбор: находит ногу-комиссию (transferChecked в treasuryAta) и парную ногу-нетто (другой
- * transferChecked того же mint от того же donor → ATA стримера) + memo. Самоконтроль комиссии: без
- * корректного расщепления 97/3 возвращает null (сырой перевод ≠ донат). Выделено для детерминированных тестов.
+ * Pure parse: finds the fee leg (transferChecked into treasuryAta) and the paired net leg (another
+ * transferChecked of the same mint from the same donor → streamer's ATA) + memo. Self-check of the fee: without a
+ * correct 97/3 split it returns null (a raw transfer ≠ a crown). Extracted for deterministic tests.
  */
 export function extractDonation(
   tx: ParsedTransactionWithMeta | null,
@@ -82,8 +82,8 @@ export function extractDonation(
     }
   }
 
-  // Добросовестный разбор (R2/ADR 0012): донат-tx нашего сборщика несёт РОВНО две ноги этого mint (нетто +
-  // комиссия). Иное число → не наша tx (лишние ноги могли бы сместить netLeg на чужой ATA) — отбраковываем.
+  // Good-faith parse (R2/ADR 0012): a crown tx from our builder carries EXACTLY two legs of this mint (net +
+  // fee). A different count → not our tx (extra legs could shift the netLeg onto a foreign ATA) — reject it.
   if (transfers.length !== 2 || !memo) return null;
   const feeLeg = transfers.find((t) => t.dest === treasury);
   const netLeg = transfers.find((t) => t.dest !== treasury);
@@ -106,18 +106,18 @@ export function extractDonation(
   };
 }
 
-/** Реконструированный сбор активации из ончейна: один перевод payer→treasuryATA + memo `{act}`. */
+/** An activation fee reconstructed from on-chain: one transfer payer→treasuryATA + memo `{act}`. */
 export interface IndexedActivation {
   signature: string;
-  payer: string; // authority перевода — сверяется с владельцем канала вызывающим
+  payer: string; // the transfer authority — checked against the realm owner by the caller
   amountMicro: bigint;
   channelId: string;
   blockTime: number | null;
 }
 
 /**
- * Чистый разбор сбора активации: ищет transferChecked нужного mint в treasuryAta + memo `{act}`.
- * Сумму НЕ валидирует здесь (порог проверяет ingest против ACTIVATION_FEE_MICRO). Выделено для тестов.
+ * Pure parse of the activation fee: looks for a transferChecked of the right mint into treasuryAta + memo `{act}`.
+ * The amount is NOT validated here (ingest checks the threshold against ACTIVATION_FEE_MICRO). Extracted for tests.
  */
 export function extractActivation(
   tx: ParsedTransactionWithMeta | null,
@@ -148,7 +148,7 @@ export function extractActivation(
     }
   }
 
-  // Активация-tx нашего сборщика несёт РОВНО одну ногу этого mint — в трежери. Иное → не наша tx.
+  // An activation tx from our builder carries EXACTLY one leg of this mint — into the treasury. Otherwise → not our tx.
   if (transfers.length !== 1 || !act) return null;
   const leg = transfers[0];
   if (!leg || leg.dest !== treasury) return null;
@@ -161,7 +161,7 @@ export function extractActivation(
   };
 }
 
-/** Новые подписи входящих в treasury ATA после `afterSignature` (для индексер-сервиса). */
+/** New signatures incoming to the treasury ATA after `afterSignature` (for the indexer service). */
 export async function fetchNewTreasurySignatures(
   connection: Connection,
   treasuryAta: PublicKey,
@@ -177,7 +177,7 @@ export async function fetchNewTreasurySignatures(
     .reverse();
 }
 
-/** M3: новые УСПЕШНЫЕ подписи эскроу-программы после `afterSignature` (для event-индексера claim'ов). */
+/** M3: new SUCCESSFUL signatures of the escrow program after `afterSignature` (for the claim event indexer). */
 export async function fetchNewProgramSignatures(
   connection: Connection,
   programId: PublicKey,

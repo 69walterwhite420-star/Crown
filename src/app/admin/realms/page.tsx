@@ -12,7 +12,7 @@ function usd(micro: bigint): string {
   return "$" + Math.round(fromMicro(micro)).toLocaleString("en-US");
 }
 
-/** Admin → Realms. Полный список realms с теми же фильтрами/поиском, что на главной, в виде таблицы. */
+/** Admin → Realms. Full list of realms with the same filters/search as on the home page, as a table. */
 export default function AdminRealmsPage() {
   const { data, isLoading, error, refetch } = useDiscovery();
   const realms = useMemo(() => data?.items ?? [], [data]);
@@ -48,6 +48,7 @@ export default function AdminRealmsPage() {
                 <th className="px-4 py-2.5 text-left font-medium">Realm</th>
                 <th className="px-4 py-2.5 text-left font-medium">Socials</th>
                 <th className="px-4 py-2.5 text-right font-medium">Crowned</th>
+                <th className="px-4 py-2.5 text-right font-medium">7d</th>
                 <th className="px-4 py-2.5 text-right font-medium">Patrons</th>
                 <th className="px-4 py-2.5 text-left font-medium">Status</th>
               </tr>
@@ -85,9 +86,16 @@ export default function AdminRealmsPage() {
                     </div>
                   </td>
                   <td className="mono px-4 py-2.5 text-right text-money">{usd(r.totalDonated)}</td>
+                  <td className="mono px-4 py-2.5 text-right text-fg-muted">{usd(r.crowned7d ?? 0n)}</td>
                   <td className="px-4 py-2.5 text-right text-fg-muted">{r.donorsCount}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
+                      {r.isLive ? (
+                        <span className="inline-flex items-center gap-1 text-caption text-danger">
+                          <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+                          LIVE
+                        </span>
+                      ) : null}
                       <span className={r.activated ? "text-caption text-status" : "text-caption text-fg-faint"}>
                         {r.activated ? "Active" : "Basic"}
                       </span>

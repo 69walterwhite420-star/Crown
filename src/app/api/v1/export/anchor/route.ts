@@ -5,11 +5,11 @@ import { getStore } from "@/server/store";
 export const dynamic = "force-dynamic";
 
 /**
- * Публичный прообраз пруф-якоря: полный журнал репутации и все версии конфигов (публичные данные) +
- * ПЕР-ЗАПИСНЫЕ ХЭШИ операторского лога (инцидент-лог + действия оператора — их содержимое приватно, §4.6,
- * наружу не уходит) + текущие дайджесты и последний опубликованный якорь. Третья сторона пересчитывает
- * дайджесты из этого экспорта и сверяет с memo ончейн (scripts/verify-export.ts) — тихая переписка
- * прошлого ловится.
+ * Public preimage of the proof anchor: the full Reign ledger and all config versions (public data) +
+ * PER-RECORD HASHES of the operator log (incident log + operator actions — their contents are private, §4.6,
+ * and never leave the server) + the current digests and the last published anchor. A third party recomputes
+ * the digests from this export and compares them against the on-chain memo (scripts/verify-export.ts) — any
+ * silent rewrite of the past gets caught.
  */
 export async function GET(): Promise<Response> {
   const store = await getStore();
