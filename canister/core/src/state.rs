@@ -123,8 +123,10 @@ impl Storable for EscrowFund {
     const BOUND: Bound = Bound::Unbounded;
 }
 
-/// Виртуальная память по id — для стейта других модулей (governance и далее).
-/// Занято: 0 config, 1 cursor, 2/3 journal, 4 seen, 5 dispute-params, 6 escrow-cursor, 7 open-escrows.
+/// Виртуальная память по id — для стейта других модулей (governance и далее). КАЖДЫЙ id — отдельный
+/// регион; два стейта на одном id затирают друг друга (было: escrow-cursor и arbiter CASES оба на 6).
+/// Занято: 0 config, 1 cursor, 2/3 journal, 4 seen, 5 dispute-params(governance), 6 dispute-cases(arbiter),
+/// 7 open-escrows, 8 escrow-cursor, 9 dispute-onchain(pda→спорящий, реконструкция исхода из цепи).
 pub fn memory(id: u8) -> Mem {
     MM.with(|m| m.borrow().get(MemoryId::new(id)))
 }
@@ -156,8 +158,9 @@ thread_local! {
 
     /// Курсор эскроу-индексатора — подпись новейшей обработанной tx эскроу-программы (отдельный
     /// от трежери-курсора: другая наблюдаемая цель). Пусто = бэкфилл эскроу не начат.
+    /// id=8: раньше был 6 — КОЛЛИЗИЯ с arbiter CASES (тоже 6); разведено (аудит памяти 2026-07-06).
     static ESCROW_CURSOR: RefCell<StableCell<String, Mem>> = RefCell::new(StableCell::init(
-        MM.with(|m| m.borrow().get(MemoryId::new(6))),
+        MM.with(|m| m.borrow().get(MemoryId::new(8))),
         String::new(),
     ));
 
@@ -165,6 +168,12 @@ thread_local! {
     /// подписи идут старые→новые). Заклеймленные удаляются → карта мала (только «в полёте»).
     static OPEN_ESCROWS: RefCell<StableBTreeMap<String, EscrowFund, Mem>> =
         RefCell::new(StableBTreeMap::init(MM.with(|m| m.borrow().get(MemoryId::new(7)))));
+
+    /// Оспоренные эскроу по цепи: PDA(base58) → адрес спорящего. Кладёт эскроу-индексатор, увидев
+    /// ончейн `resolve_dispute` с memo арбитра (`d1:<спорящий>:<w|l|n>`). Реконструируется из цепи
+    /// при бэкфилле → дельты спора переживают reinstall канистры (в отличие от arbiter CASES).
+    static DISPUTE_ONCHAIN: RefCell<StableBTreeMap<String, String, Mem>> =
+        RefCell::new(StableBTreeMap::init(MM.with(|m| m.borrow().get(MemoryId::new(9)))));
 
     /// Диагностика последних опросов (НЕ stable — обнуляется апгрейдом, это ок).
     pub static STATUS: RefCell<RuntimeStatus> = RefCell::new(RuntimeStatus::default());
@@ -264,4 +273,20 @@ pub fn open_escrow_insert(pda: &str, fund: EscrowFund) {
 /// эскроу профинансирован до старта наблюдения).
 pub fn open_escrow_take(pda: &str) -> Option<EscrowFund> {
     OPEN_ESCROWS.with(|m| m.borrow_mut().remove(&pda.to_string()))
+}
+
+/// RESOLVE → подсмотреть снимок эскроу по PDA НЕ удаляя (claim заберёт позже: resolve раньше claim).
+pub fn open_escrow_get(pda: &str) -> Option<EscrowFund> {
+    OPEN_ESCROWS.with(|m| m.borrow().get(&pda.to_string()))
+}
+
+/// resolve_dispute ончейн → пометить эскроу оспоренным (значение = адрес спорящего из memo арбитра).
+pub fn dispute_onchain_set(pda: &str, disputer: &str) {
+    DISPUTE_ONCHAIN.with(|m| m.borrow_mut().insert(pda.to_string(), disputer.to_string()));
+}
+
+/// Оспорен ли эскроу по цепи (Some(спорящий)). Управляет выбором подписи денег claim'а: у
+/// оспоренных — `dispute:<pda>:DONATION` (паритет арбитра), у обычных — подпись claim-tx.
+pub fn dispute_onchain_get(pda: &str) -> Option<String> {
+    DISPUTE_ONCHAIN.with(|m| m.borrow().get(&pda.to_string()))
 }

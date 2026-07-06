@@ -383,7 +383,15 @@ fn bs58_32(s: &str) -> Result<[u8; 32], String> {
 }
 
 /// Транзакция резолвера (mark_disputed / resolve_dispute): fee payer = тресхолд-адрес канистры.
-async fn send_resolver_ix(escrow_account: &str, data: Vec<u8>) -> Result<String, String> {
+/// `memo` (если задан) добавляется второй spl-memo инструкцией — так на цепи остаётся якорь исхода
+/// спора (`d1:<спорящий>:<w|l|n>`), из которого эскроу-индексатор реконструирует ±репутацию после
+/// reinstall канистры. Спорящий по-прежнему без газа: он подписывает ed25519 в канистру, а на цепь
+/// шлёт тресхолд-резолвер. Memo — отдельная инструкция, эскроу-программа не меняется.
+async fn send_resolver_ix(
+    escrow_account: &str,
+    data: Vec<u8>,
+    memo: Option<String>,
+) -> Result<String, String> {
     let cfg = state::config();
     let program = bs58_32(&cfg.escrow_program.ok_or("escrow_program не задан")?)?;
     let escrow = bs58_32(escrow_account)?;
@@ -392,18 +400,22 @@ async fn send_resolver_ix(escrow_account: &str, data: Vec<u8>) -> Result<String,
     let blockhash_b58 = sol_rpc::get_latest_blockhash(&cfg.rpc_url).await?;
     let blockhash = bs58_32(&blockhash_b58)?;
 
-    let msg = sol_tx::build_message(
-        &resolver,
-        &blockhash,
-        &[sol_tx::Instruction {
-            program_id: program,
-            accounts: vec![
-                sol_tx::AccountMeta { pubkey: resolver, is_signer: true, is_writable: false },
-                sol_tx::AccountMeta { pubkey: escrow, is_signer: false, is_writable: true },
-            ],
-            data,
-        }],
-    );
+    let mut ixs = vec![sol_tx::Instruction {
+        program_id: program,
+        accounts: vec![
+            sol_tx::AccountMeta { pubkey: resolver, is_signer: true, is_writable: false },
+            sol_tx::AccountMeta { pubkey: escrow, is_signer: false, is_writable: true },
+        ],
+        data,
+    }];
+    if let Some(memo) = memo {
+        ixs.push(sol_tx::Instruction {
+            program_id: sol_tx::MEMO_PROGRAM_ID,
+            accounts: vec![],
+            data: memo.into_bytes(),
+        });
+    }
+    let msg = sol_tx::build_message(&resolver, &blockhash, &ixs);
     let sig = signer::sign(msg.clone()).await?;
     let tx = sol_tx::assemble_tx(&sig, &msg)?;
     sol_rpc::send_transaction(&cfg.rpc_url, &base64::engine::general_purpose::STANDARD.encode(tx))
@@ -411,7 +423,7 @@ async fn send_resolver_ix(escrow_account: &str, data: Vec<u8>) -> Result<String,
 }
 
 async fn try_send_mark_disputed(mut case: DisputeCase) -> DisputeCase {
-    match send_resolver_ix(&case.escrow_account, DISC_MARK_DISPUTED.to_vec()).await {
+    match send_resolver_ix(&case.escrow_account, DISC_MARK_DISPUTED.to_vec(), None).await {
         Ok(sig) => {
             case.mark_disputed_tx = Some(sig);
             case.last_send_error = None;
@@ -462,7 +474,20 @@ pub async fn send_pending_txs(now_ms: i64) {
                 let to_streamer = matches!(v.outcome, TaskOutcome::ToStreamer);
                 let mut data = DISC_RESOLVE_DISPUTE.to_vec();
                 data.push(to_streamer as u8);
-                match send_resolver_ix(&case.escrow_account, data).await {
+                // Якорь исхода в memo (реконструкция из цепи, §18.5-8a). Знак совпадает с `rep_effects`:
+                // голос «выполнено» → спорящий проиграл (l); «не выполнено» → выиграл (w); кворум не
+                // набран / ничья → репутация не двигается (n), хотя деньги и уходят стримеру.
+                let sign = match v.reason {
+                    ResolutionReason::VoteCompleted => "l",
+                    ResolutionReason::VoteNotCompleted => "w",
+                    _ => "n",
+                };
+                let memo = case
+                    .task
+                    .dispute
+                    .as_ref()
+                    .map(|d| format!("d1:{}:{}", d.by, sign));
+                match send_resolver_ix(&case.escrow_account, data, memo).await {
                     Ok(sig) => {
                         case.resolve_tx = Some(sig);
                         case.last_send_error = None;
