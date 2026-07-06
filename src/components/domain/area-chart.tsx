@@ -20,17 +20,17 @@ const RANGE_MS: Record<ChartRange, number> = {
   ALL: Number.POSITIVE_INFINITY,
 };
 
-/** Событие на оси времени: t — мс, v — прибавка к накопленному значению (деньги USDC, или 1 для счётчика). */
+/** Event on the time axis: t — ms, v — the increment to the cumulative value (USDC money, or 1 for a counter). */
 export interface ChartEvent {
   t: number;
   v: number;
 }
 
 function chartDate(t: number): string {
-  return new Date(t).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Сегмент-контрол выбора окна графика (День/Неделя/Месяц/Год/Всё) — общий для всех карточек графиков. */
+/** Segmented control for the chart window (Day/Week/Month/Year/All) — shared across all chart cards. */
 export function RangeTabs({
   range,
   onChange,
@@ -61,9 +61,9 @@ export function RangeTabs({
 }
 
 /**
- * Кумулятивная area-диаграмма «значение во времени» (события только прибавляют → монотонный рост). База оси
- * Y — 0 (площадь «наполняется»). Окно по диапазону, но не раньше первого события. Наведение → линия-курсор +
- * точка на линии + подсказка (значение через formatValue + дата). Универсальна: оборот (v=USDC) или счётчик (v=1).
+ * Cumulative area chart of "value over time" (events only add → monotonic growth). The Y-axis base is 0 (the area
+ * "fills up"). The window follows the range, but not earlier than the first event. Hover → cursor line + a point on
+ * the line + a tooltip (value via formatValue + date). Universal: turnover (v=USDC) or a counter (v=1).
  */
 export function CumulativeAreaChart({
   events,
@@ -102,14 +102,14 @@ export function CumulativeAreaChart({
   const total = series[series.length - 1]!.y;
   const windowStart = range === "ALL" ? 0 : now - RANGE_MS[range];
 
-  // Уровень, накопленный ДО окна (для 1М/1Г стартуем с него, а не с нуля).
+  // The level accumulated BEFORE the window (for 1M/1Y we start from it, not from zero).
   let base = 0;
   for (const p of series) {
     if (p.t < windowStart) base = p.y;
     else break;
   }
-  // События в окне рисуем РАВНОМЕРНО ПО ИНДЕКСУ: каждый донат — ступень одинаковой ширины (а НЕ по времени —
-  // иначе кластер донатов в пару дней сжимается в «плавную» полоску и резкость не видна).
+  // We draw events in the window EVENLY BY INDEX: each crown is a step of equal width (NOT by time —
+  // otherwise a cluster of crowns over a couple of days compresses into a "smooth" strip and the sharpness is lost).
   const win = range === "ALL" ? series : series.filter((p) => p.t >= windowStart);
 
   const W = 100;
@@ -117,9 +117,9 @@ export function CumulativeAreaChart({
   const maxY = Math.max(total, 1);
   const sy = (y: number) => H - (y / maxY) * H;
   const n = win.length;
-  const slot = n > 0 ? W / n : W; // ширина слота одного доната
+  const slot = n > 0 ? W / n : W; // width of a single crown's slot
 
-  // Ступеньки: каждый донат РЕЗКО прыгает в начале своего слота и держится по слоту. Одинаковой ширины.
+  // Steps: each crown jumps SHARPLY at the start of its slot and holds across the slot. Equal width.
   let line = `M 0 ${sy(base).toFixed(2)}`;
   for (let i = 0; i < n; i++) {
     const x0 = i * slot;
@@ -128,10 +128,10 @@ export function CumulativeAreaChart({
     line += ` L ${x0.toFixed(2)} ${sy(win[i]!.y).toFixed(2)}`;
     line += ` L ${((i + 1) * slot).toFixed(2)} ${sy(win[i]!.y).toFixed(2)}`;
   }
-  if (n === 0) line += ` L ${W} ${sy(base).toFixed(2)}`; // событий в окне нет — ровная линия
+  if (n === 0) line += ` L ${W} ${sy(base).toFixed(2)}`; // no events in the window — a flat line
   const area = `${line} L ${W} ${H} L 0 ${H} Z`;
 
-  // Наведение: снап к ближайшему донату — показываем его накопленное значение и дату.
+  // Hover: snap to the nearest crown — show its cumulative value and date.
   let hover: { fx: number; y: number; t: number } | null = null;
   if (hoverFx != null && n > 0) {
     const idx = Math.min(n - 1, Math.max(0, Math.floor(hoverFx * n)));
@@ -193,8 +193,8 @@ export function CumulativeAreaChart({
 }
 
 /**
- * Дневные бары: НЕ накопительно — сумма значений событий по календарным дням в окне диапазона (пустые дни = 0,
- * т.е. «0 до запуска»). Альтернатива area-графику для тех же данных. Наведение → значение дня + дата.
+ * Daily bars: NOT cumulative — the sum of event values by calendar day within the range window (empty days = 0,
+ * i.e. "0 before launch"). An alternative to the area chart for the same data. Hover → the day's value + date.
  */
 export function DailyBars({
   events,
@@ -212,7 +212,7 @@ export function DailyBars({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const bars = useMemo(() => {
-    const real = events.filter((e) => e.v > 0); // синтетическую нулевую точку не считаем
+    const real = events.filter((e) => e.v > 0); // don't count the synthetic zero point
     if (real.length === 0) return [] as { t: number; v: number }[];
     const dayStart = (t: number) => {
       const d = new Date(t);

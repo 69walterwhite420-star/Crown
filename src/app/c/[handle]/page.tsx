@@ -42,10 +42,10 @@ export default function ChannelPage() {
   const [tabState, setTabState] = useState<string | null>(null);
   const activeTab = tabState ?? (hasGames ? "games" : "feed");
 
-  // Владелец, смотрящий свой двор → в ленте доступна модерация/бан (модераторы — из студии/очереди).
+  // Owner viewing their own realm → moderation/ban is available in the feed (moderators — from the studio/queue).
   const canManage = !!address && channel?.ownerAddress === address;
 
-  // Статистика для героя (из загруженных донатов) + The Crown (топ-1 лидерборда).
+  // Stats for the hero (from loaded Crowns) + The Crown (leaderboard top-1).
   const allDonations = donationsQ.data?.items ?? [];
   const stats = donationsQ.data
     ? {
@@ -72,10 +72,10 @@ export default function ChannelPage() {
             description="This realm is suspended. If this is a mistake, contact support."
           />
         ) : (
-          // Вся страница — ОДИН блок: внешняя рамка, внутри плоские секции через тонкие разделители (без
-          // «островов»). Единственная выпуклая карточка внутри — донат-виджет (действие).
+          // The whole page is ONE block: an outer frame with flat sections inside, separated by thin dividers (no
+          // "islands"). The only raised card inside is the Crown widget (the action).
           <div className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-2xl border border-border bg-surface">
-            {/* Секция: hero */}
+            {/* Section: hero */}
             <div className="border-b border-border">
               <ChannelHero
                 channel={channel}
@@ -86,15 +86,15 @@ export default function ChannelPage() {
               />
             </div>
 
-            {/* Секция: твой Reign (полоса на всю ширину). */}
+            {/* Section: your Reign (full-width strip). */}
             <div className="border-b border-border">
               <ReignStrip standing={standingQ.data} loading={standingQ.isLoading} />
             </div>
 
-            {/* Тело: слева живая лента, справа сайдбар (Crown → лидерборд → справочник). Разделены
-                вертикальной волосяной линией; секции сайдбара — горизонтальными. Всё в общей рамке. */}
+            {/* Body: live feed on the left, sidebar on the right (Crown → leaderboard → reference). Separated
+                by a vertical hairline; the sidebar sections — by horizontal ones. All in a shared frame. */}
             <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_340px]">
-              {/* Центр: активность. Табы — только когда есть игры (Games ↔ Feed); иначе просто Feed. */}
+              {/* Center: activity. Tabs only when there are games (Games ↔ Feed); otherwise just Feed. */}
               <div className="min-w-0 p-4 sm:p-5">
                 <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-3">
                   {hasGames ? (
@@ -132,7 +132,7 @@ export default function ChannelPage() {
                 </Tabs>
               </div>
 
-              {/* Сайдбар: действие Crown → лидерборд → справочник двора, секции через разделители. */}
+              {/* Sidebar: Crown action → leaderboard → realm reference, sections separated by dividers. */}
               <aside
                 id="crown"
                 className="flex scroll-mt-20 flex-col border-t border-border lg:border-l lg:border-t-0"

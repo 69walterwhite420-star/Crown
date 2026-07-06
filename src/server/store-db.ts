@@ -13,22 +13,22 @@ import type {
   OperatorAction,
 } from "@/lib/data/types";
 
-// ReportRecord — внутренний тип стора (не экспортирован); берём его форму из снимка.
+// ReportRecord — an internal store type (not exported); we take its shape from the snapshot.
 type ReportRecord = StoreSnapshot["reports"][number];
 
 /**
- * Маппинг состояния стора ↔ реляционные таблицы Postgres (PGlite). Логика и инварианты остаются в
- * MockDataProvider (работает на in-memory копии); этот слой грузит состояние из таблиц при старте и
- * сохраняет обратно после мутаций — вместо JSON-снимка. Деньги (micro-USDC, bigint) ↔ numeric(20,0) как
- * строки; объекты ↔ jsonb; Iso-строки ↔ timestamptz (на чтении приводим Date → ISO).
+ * Mapping of store state ↔ relational Postgres tables (PGlite). The logic and invariants remain in
+ * MockDataProvider (which works on an in-memory copy); this layer loads state from the tables at startup and
+ * saves it back after mutations — instead of a JSON snapshot. Money (micro-USDC, bigint) ↔ numeric(20,0) as
+ * strings; objects ↔ jsonb; Iso strings ↔ timestamptz (on read we convert Date → ISO).
  *
- * Строится по сущностям (этап 2 — каналы/конфиги/профили); остальные таблицы добавляются в следующих этапах,
- * после чего store.ts переключается с JSON-снимка на эти функции.
+ * Built out entity by entity (stage 2 — realms/configs/profiles); the remaining tables are added in later stages,
+ * after which store.ts switches from the JSON snapshot to these functions.
  */
 
-// PG timestamptz → Iso-строка (PGlite отдаёт Date); прочее — как есть.
+// PG timestamptz → Iso string (PGlite returns a Date); everything else as-is.
 const toIso = (v: unknown): string => (v instanceof Date ? v.toISOString() : String(v));
-// jsonb приходит уже разобранным; на всякий случай поддержим и строку.
+// jsonb arrives already parsed; just in case, we also support a string.
 const asJson = <T>(v: unknown, fallback: T): T =>
   v == null ? fallback : typeof v === "string" ? (JSON.parse(v) as T) : (v as T);
 
@@ -172,7 +172,7 @@ export async function loadProfiles(db: PGlite): Promise<Map<string, LightProfile
   return m;
 }
 
-// ───────────────────────── ledger_events (источник истины) ─────────────────────────
+// ───────────────────────── ledger_events (source of truth) ─────────────────────────
 export async function saveLedger(db: PGlite, ledger: LedgerEvent[]): Promise<void> {
   for (const e of ledger) {
     await db.query(
@@ -210,7 +210,7 @@ export async function loadLedger(db: PGlite): Promise<LedgerEvent[]> {
   }));
 }
 
-// ───────────────────────── donations (без message — он в messages) ─────────────────────────
+// ───────────────────────── donations (without message — it's in messages) ─────────────────────────
 export async function saveDonations(db: PGlite, donations: Donation[]): Promise<void> {
   for (const d of donations) {
     await db.query(
@@ -389,7 +389,7 @@ export async function loadIncidents(db: PGlite): Promise<IncidentLog[]> {
   }));
 }
 
-// ───────────────────────── reports + seq (внутреннее состояние) ─────────────────────────
+// ───────────────────────── reports + seq (internal state) ─────────────────────────
 export async function saveReports(db: PGlite, reports: ReportRecord[]): Promise<void> {
   for (const rep of reports) {
     await db.query(
@@ -412,7 +412,7 @@ export async function loadReports(db: PGlite): Promise<ReportRecord[]> {
   }));
 }
 
-// ───────────────────────── game_state (мини-игры, ADR 0016) ─────────────────────────
+// ───────────────────────── game_state (mini-games, ADR 0016) ─────────────────────────
 export async function saveGameState(db: PGlite, gameState: [string, unknown][]): Promise<void> {
   for (const [gameId, state] of gameState) {
     await db.query(
@@ -440,7 +440,7 @@ export async function loadSeq(db: PGlite): Promise<number> {
   return r.rows[0] ? Number(r.rows[0].value) : 0;
 }
 
-// Произвольный ключ в meta (служебное состояние, напр. курсор индексера). Переживает рестарт.
+// An arbitrary key in meta (service state, e.g. the indexer cursor). Survives a restart.
 export async function getMeta(key: string): Promise<string | null> {
   const db = await getDb();
   const r = await db.query<{ value: string }>("SELECT value FROM meta WHERE key = $1", [key]);
@@ -455,11 +455,11 @@ export async function setMeta(key: string, value: string): Promise<void> {
   );
 }
 
-// ───────────────────────── сборка целого снимка ↔ Postgres ─────────────────────────
+// ───────────────────────── assembling the whole snapshot ↔ Postgres ─────────────────────────
 /**
- * Прочитать всё состояние из Postgres в форму StoreSnapshot. Возвращает null, если БД ещё не инициализирована
- * (нет метки 'initialized') — тогда вызывающий переносит данные из JSON-снимка. modCache не персистится
- * (кэш дедупа — перестроится). donation.message переподвязывается на тот же объект, что и в messages.
+ * Read all state from Postgres into StoreSnapshot form. Returns null if the DB isn't initialized yet
+ * (no 'initialized' marker) — in which case the caller migrates the data from the JSON snapshot. modCache isn't persisted
+ * (a dedup cache — it will be rebuilt). donation.message is re-linked to the same object as in messages.
  */
 export async function loadStore(): Promise<StoreSnapshot | null> {
   const db = await getDb();
@@ -505,14 +505,14 @@ export async function loadStore(): Promise<StoreSnapshot | null> {
 }
 
 /**
- * Записать весь снимок в Postgres (вызывается после мутаций). Append-only/обновляемые сущности — upsert;
- * channel_blocks заменяем целиком (поддержка разблокировки). Ставит метку 'initialized'.
+ * Write the whole snapshot to Postgres (called after mutations). Append-only/updatable entities use upsert;
+ * channel_blocks is replaced entirely (to support unblocking). Sets the 'initialized' marker.
  */
 export async function saveStore(snap: StoreSnapshot): Promise<void> {
   const db = await getDb();
-  // B2: весь снимок пишем В ОДНОЙ ТРАНЗАКЦИИ. Иначе краш между `DELETE channel_blocks` и повторной вставкой
-  // потерял бы все баны каналов (контроль безопасности), а частичная запись дала бы «рваный» снимок.
-  // PGlite — одно соединение, поэтому BEGIN/COMMIT на `db` оборачивает и все save*-хелперы (им передаём тот же `db`).
+  // B2: we write the whole snapshot IN A SINGLE TRANSACTION. Otherwise a crash between `DELETE channel_blocks` and the re-insert
+  // would lose all realm bans (a security control), and a partial write would produce a "torn" snapshot.
+  // PGlite is a single connection, so BEGIN/COMMIT on `db` wraps all the save* helpers too (we pass them the same `db`).
   await db.exec("BEGIN");
   try {
     await saveChannels(

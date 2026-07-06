@@ -4,21 +4,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 /**
- * Кроссфейд между страницами через нативный View Transitions API. Перехватываем клик по ВНУТРЕННЕЙ ссылке
- * в capture-фазе и оборачиваем навигацию в `document.startViewTransition` → браузер сам делает кросс-фейд
- * снимков (старая страница гаснет, новая проявляется). Промис VT резолвим, когда навигация фактически
- * применилась (сменился pathname).
+ * Cross-fade between pages via the native View Transitions API. We intercept a click on an INTERNAL link
+ * in the capture phase and wrap the navigation in `document.startViewTransition` → the browser cross-fades
+ * the snapshots itself (the old page fades out, the new one fades in). We resolve the VT promise once the
+ * navigation has actually applied (the pathname changed).
  *
- * Безопасность: если API не поддержан — НИЧЕГО не перехватываем (обычная навигация Next). Перехватываем
- * только «чистые» левые клики по внутренним ссылкам (без модификаторов, target, download, чужого origin,
- * без hash-only). На всё остальное не влияем. Компонент монтируется один раз в layout; легко снять.
+ * Safety: if the API isn't supported — we intercept NOTHING (regular Next navigation). We only intercept
+ * "clean" left-clicks on internal links (no modifiers, target, download, foreign origin, and no hash-only).
+ * We don't affect anything else. The component mounts once in the layout; easy to remove.
  */
 export function PageTransitions() {
   const router = useRouter();
   const pathname = usePathname();
   const finish = useRef<(() => void) | null>(null);
 
-  // Навигация применилась → закрываем отложенный VT (браузер снимет новый кадр и доиграет кроссфейд).
+  // Navigation applied → close the pending VT (the browser will grab a new frame and finish the cross-fade).
   useEffect(() => {
     if (finish.current) {
       finish.current();
@@ -30,7 +30,7 @@ export function PageTransitions() {
     const doc = document as Document & {
       startViewTransition?: (cb: () => void | Promise<void>) => unknown;
     };
-    if (typeof doc.startViewTransition !== "function") return; // нет поддержки → обычная навигация
+    if (typeof doc.startViewTransition !== "function") return; // not supported → regular navigation
 
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
@@ -48,12 +48,12 @@ export function PageTransitions() {
       } catch {
         return;
       }
-      if (url.origin !== location.origin) return; // внешняя ссылка — не трогаем
-      // Та же страница (только хэш/якорь) — не перехватываем, пусть работает штатно.
+      if (url.origin !== location.origin) return; // external link — leave it alone
+      // Same page (hash/anchor only) — don't intercept, let it work normally.
       if (url.pathname === location.pathname && url.search === location.search) return;
 
       e.preventDefault();
-      e.stopPropagation(); // не даём Link'у навигировать повторно (перехватили здесь)
+      e.stopPropagation(); // prevent Link from navigating again (we've intercepted it here)
       const href = url.pathname + url.search + url.hash;
       try {
         const vt = doc.startViewTransition!(
@@ -61,7 +61,7 @@ export function PageTransitions() {
             new Promise<void>((resolve) => {
               finish.current = resolve;
               router.push(href);
-              // Страховка: если pathname не сменится (уже там / отмена) — снять VT через таймаут.
+              // Safety net: if the pathname doesn't change (already there / cancelled) — drop the VT on a timeout.
               window.setTimeout(() => {
                 if (finish.current === resolve) {
                   finish.current = null;
@@ -70,13 +70,14 @@ export function PageTransitions() {
               }, 800);
             }),
         ) as { ready?: Promise<unknown>; finished?: Promise<unknown> } | undefined;
-        // VT-промисы (.ready/.finished) РЕДЖЕКТЯТСЯ при прерывании перехода (быстрая навигация →
-        // браузер пропускает текущий переход с AbortError). Не перехватишь → браузер бросает
-        // unhandledRejection (виден в Next dev-overlay). Гасим — это штатное прерывание, не ошибка.
+        // The VT promises (.ready/.finished) REJECT when the transition is interrupted (fast navigation →
+        // the browser skips the current transition with an AbortError). If you don't catch it → the browser
+        // throws an unhandledRejection (visible in the Next dev overlay). We swallow it — this is a normal
+        // interruption, not an error.
         void vt?.ready?.catch(() => {});
         void vt?.finished?.catch(() => {});
       } catch {
-        router.push(href); // на всякий случай: навигация не должна ломаться из-за анимации
+        router.push(href); // just in case: navigation must not break because of the animation
       }
     };
 

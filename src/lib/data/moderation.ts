@@ -1,11 +1,11 @@
 /**
- * Модерационный конвейер (docs/yellow-paper.md §8). Структура:
- *   [ВВОД] → [ЯЗЫК] детект → [АВТО] классификатор → вердикт (+ дедуп по хэшу).
+ * Moderation pipeline (docs/yellow-paper.md §8). Structure:
+ *   [INPUT] → [LANGUAGE] detect → [AUTO] classifier → verdict (+ dedup by hash).
  *
- * Авто-слой подключаемый и АСИНХРОННЫЙ (AutoModerator). По умолчанию — локальный wordlist (только явные
- * хард-маркеры). Если задан серверный OPENAI_API_KEY — используется OpenAI omni-moderation (бесплатный,
- * мультиязычный, текст+картинки). Выбор делает resolveAutoModerator() по env (ключ серверный, в браузер не
- * попадает → клиент всегда на словаре).
+ * The auto layer is pluggable and ASYNCHRONOUS (AutoModerator). By default — a local wordlist (only explicit
+ * hard markers). If a server-side OPENAI_API_KEY is set — OpenAI omni-moderation is used (free,
+ * multilingual, text+images). resolveAutoModerator() makes the choice by env (the key is server-side, it doesn't
+ * reach the browser → the client always uses the wordlist).
  */
 import type { ModerationVerdict } from "./types";
 
@@ -13,27 +13,28 @@ export interface AutoModerator {
   classify(text: string, lang: string): Promise<ModerationVerdict>;
 }
 
-// ПОЛИТИКА (решение продукта): отдельные слова и мат НЕ цензурим и НЕ флагаем — это вкус стримера, он
-// скрывает вручную. Авто-слой ловит только запрещёнку → HARD_BLOCK (карантин + эскалация в T&S). FLAG-
-// словаря по умолчанию НЕТ. Семантический детект — OpenAI (ниже); локальный список — заглушка под явные маркеры.
+// POLICY (product decision): individual words and profanity are NOT censored and NOT flagged — that's the
+// streamer's taste, they hide manually. The auto layer catches only illegal content → HARD_BLOCK (quarantine +
+// escalation to T&S). There is NO default FLAG wordlist. Semantic detection — OpenAI (below); the local list is a
+// stub for explicit markers.
 const DEFAULT_HARD_LIST = ["csam", "childporn", "child porn", "zoophilia", "hardblock"];
 
-// Явные маркеры CSAM (RU/EN) — backstop НЕЗАВИСИМО от OpenAI: он недооценивает обходные формулировки
-// (напр. «порнография младше 18» даёт sexual/minors≈0.02, хотя «детское порно» ловит на 0.9).
+// Explicit CSAM markers — a backstop INDEPENDENT of OpenAI: it underestimates evasive phrasings
+// (e.g. "porn under 18" gives sexual/minors≈0.02, whereas "child porn" catches at 0.9).
 const CSAM_EXPLICIT =
-  /детск\S*\s*порн|порн\S*\s*детск|малолет\S*\s*порн|порн\S*\s*малолет|child\s*-?\s*porn|childporn|\bcsam\b|pedophil|педофил/i;
-// Признак несовершеннолетия — НЕ сам по себе, а в КОМБО с сексуальным контентом (sexual ≥ порога) → CSAM.
-// Не ловит 18+/«25 лет»/«18 лет»: «18 лет» — взрослый, «младше 18» — несовершеннолетний.
+  /child\S*\s*porn|porn\S*\s*child|underage\S*\s*porn|porn\S*\s*underage|child\s*-?\s*porn|childporn|\bcsam\b|pedophil/i;
+// A sign of a minor — NOT on its own, but in COMBINATION with sexual content (sexual ≥ threshold) → CSAM.
+// Doesn't catch 18+/"25 years"/"18 years": "18 years" — an adult, "under 18" — a minor.
 const MINOR_HINT =
-  /младше\s*1[0-8]|меньше\s*1[0-8]|до\s*1[0-7]\b|\b1[0-7]\s*(лет|год|года)|несовершеннолет|малолет|школьниц|\b(child|minor|underage|preteen|teen)\b/i;
-const SEXUAL_COMBO_THRESHOLD = 0.3; // выше этого «секса» + признак несовершеннолетия = карантин
+  /under\s*1[0-7]\b|younger\s*than\s*1[0-8]|\b1[0-7]\s*(years?|yo)\b|underage|minor|schoolgirl|\b(child|preteen|teen)\b/i;
+const SEXUAL_COMBO_THRESHOLD = 0.3; // above this "sexual" level + a sign of a minor = quarantine
 
-/** Прямой явный CSAM-маркер (RU/EN) — общий для локального и OpenAI-модератора. */
+/** Direct explicit CSAM marker — shared by the local and OpenAI moderators. */
 function isExplicitCsam(text: string): boolean {
   return CSAM_EXPLICIT.test(text);
 }
 
-/** Локальный авто-модератор: ловит хард-маркеры запрещёнки/CSAM; мат/любые слова пропускает (CLEAR). */
+/** Local auto-moderator: catches hard markers of illegal content/CSAM; lets profanity/any words through (CLEAR). */
 const localAutoModerator: AutoModerator = {
   async classify(text) {
     const lower = text.toLowerCase();
@@ -43,25 +44,25 @@ const localAutoModerator: AutoModerator = {
   },
 };
 
-// Маппинг категорий OpenAI omni-moderation → авто-карантин (HARD_BLOCK).
-//  • HARD_ALWAYS — нулевая толерантность: карантин при ЛЮБОЙ уверенности (нелегальщина, юридический must).
-//  • HARD_IF_SEVERE — жёсткие угрозы/насилие: карантин ТОЛЬКО при ВЫСОКОЙ уверенности (по category_scores),
-//    чтобы шутки/банты/«я тебя урою в катке» с низким скором проходили. Порог поднимай/опускай SEVERE_THRESHOLD.
-//  Всё прочее (мат, оскорбления, обычный hate/sexual) НЕ баним — стример скрывает сам.
+// Mapping of OpenAI omni-moderation categories → auto-quarantine (HARD_BLOCK).
+//  • HARD_ALWAYS — zero tolerance: quarantine at ANY confidence (illegal content, a legal must).
+//  • HARD_IF_SEVERE — hard threats/violence: quarantine ONLY at HIGH confidence (by category_scores),
+//    so that jokes/banter/"I'll wreck you on the rink" with a low score pass. Raise/lower the SEVERE_THRESHOLD.
+//  Everything else (profanity, insults, ordinary hate/sexual) we do NOT ban — the streamer hides it themselves.
 const HARD_ALWAYS = ["sexual/minors"] as const;
-// Жёсткие угрозы/насилие — карантин при ВЫСОКОМ скоре, порог СВОЙ на категорию (шутки/гейминг-банты дают
-// низкий скор и проходят). Калибровано на примерах: реальная угроза violence≈0.95, harassment/threatening
-// ≈0.55-0.74; шуточное «урою в катке лол» violence≈0.42, h/threatening≈0.26. Поднимай пороги — мягче.
+// Hard threats/violence — quarantine at a HIGH score, with its OWN threshold per category (jokes/gaming banter give
+// a low score and pass). Calibrated on examples: a real threat violence≈0.95, harassment/threatening
+// ≈0.55-0.74; a joking "I'll wreck you on the rink lol" violence≈0.42, h/threatening≈0.26. Raise thresholds — softer.
 const SEVERE_THRESHOLDS: Record<string, number> = {
-  violence: 0.8, // «прям жёсткое насилие»; гейминг-банты (~0.4) проходят
-  "violence/graphic": 0.6, // гор/расчленёнка
-  "harassment/threatening": 0.5, // адресная угроза человеку
-  "hate/threatening": 0.5, // угроза на почве ненависти
+  violence: 0.8, // "really hard violence"; gaming banter (~0.4) passes
+  "violence/graphic": 0.6, // gore/dismemberment
+  "harassment/threatening": 0.5, // a targeted threat against a person
+  "hate/threatening": 0.5, // a threat on the basis of hatred
 };
 
-// — Политика для ТЕКСТА ЗАДАНИЯ (строже, чем донат-сообщение): задание — это инструкция ДЕЙСТВОВАТЬ, и
-//   платформа фасилитировала бы преступление. Поэтому насилие/нелегальщину/угрозы блокируем по ФЛАГУ
-//   категории OpenAI (а не только при высоком скоре). «Сделай 50 отжиманий» — clear; «убей того» — block. —
+// — Policy for TASK TEXT (stricter than a crown message): a task is an instruction to ACT, and
+//   the platform would be facilitating a crime. So violence/illegal content/threats are blocked by the OpenAI
+//   category FLAG (not only at a high score). "Do 50 push-ups" — clear; "kill that guy" — block. —
 const TASK_HARD_CATEGORIES = [
   "sexual/minors",
   "illicit",
@@ -73,32 +74,32 @@ const TASK_HARD_CATEGORIES = [
   "self-harm/instructions",
 ] as const;
 
-// НЕТ словаря-бэкстопа по ключевым словам: он даёт ложные блоки (напр. «сопри/укради флаг», «ограбь базу»
-// — легальные внутриигровые задания), а сленг всё равно бесконечен. Легальность задания определяет ТОЛЬКО
-// семантический ИИ ниже (понимает контекст). Единственное жёсткое исключение — CSAM-маркер (isExplicitCsam).
+// There is NO keyword-backstop wordlist: it produces false blocks (e.g. "swipe/steal the flag", "raid the base"
+// — legal in-game tasks), and slang is endless anyway. Task legality is determined ONLY by the
+// semantic AI below (understands context). The single hard exception is the CSAM marker (isExplicitCsam).
 
-// Запрос к LLM: «требует ли задание совершить НЕЗАКОННОЕ действие?». Ловит сленг/эвфемизмы, которые
-// moderation-эндпоинт (заточен на «вредный контент», а не на «это преступление») и словарь пропускают.
+// Query to the LLM: "does the task require committing an ILLEGAL act?". Catches slang/euphemisms that the
+// moderation endpoint (tuned for "harmful content", not "this is a crime") and a wordlist miss.
 const TASK_LEGALITY_PROMPT =
-  "Ты модератор заданий для стримеров; задание оплачивается донатом. Запрещены задания, требующие " +
-  "совершить НЕЗАКОННОЕ или опасное действие в реальном мире: кража/шоплифтинг, насилие, угрозы, " +
-  "мошенничество, вандализм, наркотики, незаконное проникновение, вред людям или животным. Разрешены " +
-  "безобидные: спеть, станцевать, сыграть, отжаться, реакция, челлендж. Правило при сомнении: лучше " +
-  "перестраховаться — если формулировка двусмысленная или непонятно, реальное это действие или игровое, " +
-  "отвечай ILLEGAL. Ответь ОДНИМ словом: ILLEGAL или OK.";
+  "You are a moderator of tasks for streamers; a task is paid for with a crown. Tasks that require " +
+  "committing an ILLEGAL or dangerous act in the real world are forbidden: theft/shoplifting, violence, threats, " +
+  "fraud, vandalism, drugs, unlawful trespassing, harm to people or animals. Allowed are " +
+  "harmless ones: sing, dance, play, do push-ups, a reaction, a challenge. Rule when in doubt: better to " +
+  "err on the side of caution — if the wording is ambiguous or it's unclear whether it's a real or an in-game act, " +
+  "answer ILLEGAL. Answer with ONE word: ILLEGAL or OK.";
 
 /**
- * Внешний авто-модератор поверх OpenAI omni-moderation (бесплатный endpoint /v1/moderations). Мультиязычный.
- * Нелегальщина (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие (HARD_IF_SEVERE) → карантин лишь
- * при score ≥ SEVERE_THRESHOLD (шутки не режем). На сбое/таймауте — FLAG (не блокируем деньги, не авто-
- * публикуем — текст в HELD на ручное решение). Только сервер (ключ серверный).
+ * External auto-moderator on top of OpenAI omni-moderation (free endpoint /v1/moderations). Multilingual.
+ * Illegal content (HARD_ALWAYS) → quarantine by flag; hard threats/violence (HARD_IF_SEVERE) → quarantine only
+ * when score ≥ SEVERE_THRESHOLD (we don't cut jokes). On failure/timeout — FLAG (we don't block money, don't auto-
+ * publish — text goes to HELD for a manual decision). Server only (the key is server-side).
  */
 interface OpenAiModeration {
   cats: Record<string, boolean>;
   scores: Record<string, number>;
 }
 
-/** Один запрос к OpenAI omni-moderation. null — не смогли проверить (сбой/таймаут/не-OK). Только сервер. */
+/** A single request to OpenAI omni-moderation. null — couldn't check (failure/timeout/non-OK). Server only. */
 async function fetchOpenAiModeration(
   apiKey: string,
   text: string,
@@ -110,7 +111,7 @@ async function fetchOpenAiModeration(
       body: JSON.stringify({ model: "omni-moderation-latest", input: text }),
     });
     if (!res.ok) {
-      console.error("[moderation] OpenAI вернул", res.status);
+      console.error("[moderation] OpenAI returned", res.status);
       return null;
     }
     const r = (
@@ -123,42 +124,42 @@ async function fetchOpenAiModeration(
     ).results?.[0];
     return { cats: r?.categories ?? {}, scores: r?.category_scores ?? {} };
   } catch (e) {
-    console.error("[moderation] OpenAI ошибка:", e);
+    console.error("[moderation] OpenAI error:", e);
     return null;
   }
 }
 
 /**
- * Внешний авто-модератор поверх OpenAI omni-moderation. Политика ДОНАТ-СООБЩЕНИЯ: нелегальщина
- * (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие — лишь при score ≥ SEVERE_THRESHOLD (шутки
- * проходят). На сбое — FLAG (текст в HELD на ручное решение, деньги не трогаем).
+ * External auto-moderator on top of OpenAI omni-moderation. CROWN-MESSAGE policy: illegal content
+ * (HARD_ALWAYS) → quarantine by flag; hard threats/violence — only when score ≥ SEVERE_THRESHOLD (jokes
+ * pass). On failure — FLAG (text goes to HELD for a manual decision, we don't touch money).
  */
 function createOpenAiModerator(apiKey: string): AutoModerator {
   return {
     async classify(text) {
-      if (isExplicitCsam(text)) return "HARD_BLOCK"; // явный CSAM — до запроса
+      if (isExplicitCsam(text)) return "HARD_BLOCK"; // explicit CSAM — before the request
       const r = await fetchOpenAiModeration(apiKey, text);
       if (!r) return "FLAG";
-      if (HARD_ALWAYS.some((c) => r.cats[c])) return "HARD_BLOCK"; // нелегальщина — при любой уверенности
-      // Комбо CSAM: OpenAI недооценивает sexual/minors на обходных формулировках, но даёт высокий sexual.
+      if (HARD_ALWAYS.some((c) => r.cats[c])) return "HARD_BLOCK"; // illegal content — at any confidence
+      // CSAM combo: OpenAI underestimates sexual/minors on evasive phrasings, but gives a high sexual.
       if ((r.scores["sexual"] ?? 0) >= SEXUAL_COMBO_THRESHOLD && MINOR_HINT.test(text)) {
         return "HARD_BLOCK";
       }
       if (Object.entries(SEVERE_THRESHOLDS).some(([c, t]) => (r.scores[c] ?? 0) >= t)) {
-        return "HARD_BLOCK"; // жёсткая угроза/насилие при высоком скоре
+        return "HARD_BLOCK"; // hard threat/violence at a high score
       }
-      return "CLEAR"; // мат/шутки/обычный негатив — пропускаем, стример скрывает вручную
+      return "CLEAR"; // profanity/jokes/ordinary negativity — let through, the streamer hides it manually
     },
   };
 }
 
-// Доступ к моделям может быть закрыт (ограниченный ключ без scope model.request → 401, или нет биллинга).
-// Тогда временно отключаем LLM-проверку (КУЛДАУН, не навсегда — B6): транзиентный 401/403 не должен глушить
-// слой легальности до перезапуска. По истечении кулдауна сами пробуем снова → самовосстановление.
-const LLM_LEGALITY_COOLDOWN_MS = 10 * 60_000; // 10 мин
+// Access to models may be closed off (a restricted key without the model.request scope → 401, or no billing).
+// Then we temporarily disable the LLM check (COOLDOWN, not forever — B6): a transient 401/403 must not silence the
+// legality layer until a restart. When the cooldown expires we try again ourselves → self-recovery.
+const LLM_LEGALITY_COOLDOWN_MS = 10 * 60_000; // 10 min
 let llmLegalityCooldownUntil = 0;
 
-/** LLM-классификатор легальности задания (gpt-4o-mini, дёшево). null — не смогли проверить. Только сервер. */
+/** LLM classifier of task legality (gpt-4o-mini, cheap). null — couldn't check. Server only. */
 async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" | "ok" | null> {
   if (Date.now() < llmLegalityCooldownUntil) return null;
   try {
@@ -178,12 +179,12 @@ async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" 
     if (res.status === 401 || res.status === 403) {
       llmLegalityCooldownUntil = Date.now() + LLM_LEGALITY_COOLDOWN_MS;
       console.error(
-        "[moderation] LLM-проверка легальности недоступна (ключ без доступа к моделям) — пауза на 10 мин",
+        "[moderation] LLM legality check unavailable (key without model access) — pausing for 10 min",
       );
       return null;
     }
     if (!res.ok) {
-      console.error("[moderation] legality LLM вернул", res.status);
+      console.error("[moderation] legality LLM returned", res.status);
       return null;
     }
     const out =
@@ -191,36 +192,36 @@ async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" 
         ?.message?.content ?? "";
     return /illegal/i.test(out) ? "illegal" : "ok";
   } catch (e) {
-    console.error("[moderation] legality LLM ошибка:", e);
+    console.error("[moderation] legality LLM error:", e);
     return null;
   }
 }
 
 /**
- * Модерация ТЕКСТА ЗАДАНИЯ (escrow-task): строже донат-сообщения, т.к. задание ОПЛАЧИВАЕТСЯ и платформа
- * фасилитировала бы действие. Судит семантический ИИ, без словаря ключевых слов (он ложно блочил легальные
- * внутриигровые «укради/сопри/ограбь …»). Слои: (1) жёсткий CSAM-маркер — единственный безусловный блок;
- * (2) OpenAI omni-moderation — блок по флагу опасной категории; (3) LLM-проверка «это призыв к незаконному
- * действию?» — ловит сленг/эвфемизмы вроде «сопри молоко в магазе», понимая контекст. Любой слой сказал
- * «нельзя» → HARD_BLOCK (задание не создаётся). Оба внешних слоя не смогли проверить → FLAG (создание не
- * рубим жёстко: финальный фильтр — гейт стримера «Принять/Отклонить»). Только сервер (ключ серверный).
+ * Moderation of TASK TEXT (escrow-task): stricter than a crown message, since a task is PAID FOR and the platform
+ * would be facilitating the act. Judged by the semantic AI, without a keyword wordlist (it falsely blocked legal
+ * in-game "steal/swipe/rob …"). Layers: (1) the hard CSAM marker — the only unconditional block;
+ * (2) OpenAI omni-moderation — block by a dangerous-category flag; (3) the LLM check "is this a call to an illegal
+ * act?" — catches slang/euphemisms like "swipe some milk from the store", understanding context. Any layer says
+ * "no" → HARD_BLOCK (the task isn't created). Both external layers couldn't check → FLAG (we don't cut creation
+ * hard: the final filter is the streamer's "Accept/Reject" gate). Server only (the key is server-side).
  *
- * Без ключа (mock-клиент / прод без OPENAI_API_KEY) умного судьи нет → CLEAR кроме CSAM: автоблокировки
- * нелегальщины тогда нет (осознанный размен — словарь убран ради отсутствия ложных блоков в игре).
+ * Without a key (mock client / prod without OPENAI_API_KEY) there is no smart judge → CLEAR except CSAM: there's
+ * then no auto-block of illegal content (a conscious trade-off — the wordlist was removed to avoid false blocks in the game).
  */
-// Мемо вердикта по хэшу текста: префлайт (ДО фандинга эскроу) и серверный create (ПОСЛЕ) должны получить ОДНО
-// решение. Без кэша недетерминизм ИИ мог бы пропустить задание на префлайте и заблокировать на create — деньги
-// уже в эскроу, задание отклонено (осиротевший эскроу). Кэшируем только окончательные вердикты, не FLAG (сбой
-// внешних слоёв — временный, перепроверяем). TTL с запасом на цикл «префлайт → подпись → create» (секунды).
+// Verdict memo by text hash: the preflight (BEFORE funding the escrow) and the server create (AFTER) must get ONE
+// decision. Without the cache, AI non-determinism could let a task pass at preflight and block it at create — the money
+// is already in escrow, the task rejected (an orphaned escrow). We cache only final verdicts, not FLAG (an external-
+// layer failure is temporary, we recheck). TTL with headroom for the "preflight → sign → create" cycle (seconds).
 const taskVerdictCache = new Map<string, { verdict: ModerationVerdict; at: number }>();
 const TASK_VERDICT_TTL_MS = 10 * 60_000;
-// R6-паттерн: TTL проверяется на чтении и память НЕ освобождает — без капа Map рос бы бесконечно.
+// R6 pattern: the TTL is checked on read and does NOT free memory — without a cap the Map would grow unbounded.
 const TASK_VERDICT_CACHE_CAP = 5000;
 
 export async function classifyTaskText(text: string): Promise<ModerationVerdict> {
-  if (isExplicitCsam(text)) return "HARD_BLOCK"; // CSAM — безусловно, контекст игры не оправдывает
+  if (isExplicitCsam(text)) return "HARD_BLOCK"; // CSAM — unconditionally, the game context is no excuse
   const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
-  if (!key) return "CLEAR"; // без ключа умного судьи нет (mock-клиент / прод без ключа)
+  if (!key) return "CLEAR"; // without a key there is no smart judge (mock client / prod without a key)
 
   const h = await hashContent(text);
   const cached = taskVerdictCache.get(h);
@@ -236,7 +237,7 @@ export async function classifyTaskText(text: string): Promise<ModerationVerdict>
       legality === "illegal"
         ? "HARD_BLOCK"
         : mod === null && legality === null
-          ? "FLAG" // оба внешних слоя недоступны
+          ? "FLAG" // both external layers are unavailable
           : "CLEAR";
   }
   if (verdict !== "FLAG") {
@@ -244,14 +245,14 @@ export async function classifyTaskText(text: string): Promise<ModerationVerdict>
     while (taskVerdictCache.size > TASK_VERDICT_CACHE_CAP) {
       const oldest = taskVerdictCache.keys().next().value;
       if (oldest === undefined) break;
-      taskVerdictCache.delete(oldest); // старейшие по порядку вставки (как MOD_CACHE_CAP)
+      taskVerdictCache.delete(oldest); // oldest by insertion order (like MOD_CACHE_CAP)
     }
   }
   return verdict;
 }
 
-// Выбор авто-модератора по серверному env (мемоизируется). OPENAI_API_KEY — серверная переменная (НЕ
-// NEXT_PUBLIC), в браузерный bundle не попадает → в mock/api клиенте всегда локальный словарь.
+// Auto-moderator selection by server env (memoized). OPENAI_API_KEY is a server-side variable (NOT
+// NEXT_PUBLIC), it doesn't reach the browser bundle → in the mock/api client it's always the local wordlist.
 let cachedModerator: AutoModerator | null = null;
 export function resolveAutoModerator(): AutoModerator {
   if (cachedModerator) return cachedModerator;
@@ -262,17 +263,17 @@ export function resolveAutoModerator(): AutoModerator {
 
 function detectLang(text: string): string {
   if (/[¡¿]|gracias|directo/i.test(text)) return "es";
-  if (/[а-яё]/i.test(text)) return "ru";
+  if (/\p{Script=Cyrillic}/iu.test(text)) return "ru";
   return "en";
 }
 
 /**
- * Криптостойкий хэш нормализованного контента (SHA-256, полный) — ончейн-якорь текста (memo.m) и ключ
- * дедупа/кэша модерации. Крипто ОБЯЗАТЕЛЬНО: memo.m — коммитмент «донор подписал именно этот текст», и по
- * нему сервер привязывает присланный текст к чужому донату (ingest). Прежний FNV-1a (32 бита) давал
- * мгновенный второй прообраз → к любому вредоносному тексту подбирался хвост под чужой memo.m (подмена
- * текста под адресом жертвы) и коллизия с закэшированным CLEAR (обход авто-модерации). Async: Web Crypto
- * (globalThis.crypto.subtle) — единый и в браузере (chain-provider), и на сервере (ingest/модерация).
+ * Cryptographically strong hash of normalized content (SHA-256, full) — the onchain anchor of the text (memo.m) and
+ * the dedup/moderation-cache key. Crypto is MANDATORY: memo.m is the commitment "the donor signed exactly this text",
+ * and by it the server binds submitted text to someone else's donation (ingest). The former FNV-1a (32 bits) gave an
+ * instant second preimage → for any malicious text a tail could be found to fit someone else's memo.m (substituting
+ * text under a victim's address) and to collide with a cached CLEAR (bypassing auto-moderation). Async: Web Crypto
+ * (globalThis.crypto.subtle) — one and the same in the browser (chain-provider) and on the server (ingest/moderation).
  */
 export async function hashContent(text: string): Promise<string> {
   const norm = text.trim().toLowerCase().replace(/\s+/g, " ");
@@ -281,13 +282,13 @@ export async function hashContent(text: string): Promise<string> {
 }
 
 /**
- * Ончейн-коммитмент ТЕКСТА ЗАДАНИЯ (CR-4): `SHA-256(nonceHex ‖ text)` — 32 байта, hex. `nonceHex` фикс-длины
- * (16 байт = 32 hex-символа), поэтому конкатенация без разделителя однозначна. Это значение
- * КЛИЕНТ кладёт как `task_id` (seed эскроу-PDA) при фандинге, поэтому сам ончейн-адрес эскроу становится
- * коммитментом к тексту — без изменения программы/редеплоя. Отличия от `hashContent`: (1) НЕ нормализуем —
- * коммитим точный текст, который читает жюри; (2) соль `nonce` (хранится офчейн с текстом) гасит брутфорс
- * низкоэнтропийных заданий по публичному хэшу. Проверка: любой с парой (text, nonce) пересчитывает и
- * сверяет с ончейн-`task_id` → оператор не может ни подменить, ни подсунуть чужой текст незаметно.
+ * Onchain commitment of TASK TEXT (CR-4): `SHA-256(nonceHex ‖ text)` — 32 bytes, hex. `nonceHex` is fixed-length
+ * (16 bytes = 32 hex chars), so concatenation without a separator is unambiguous. The CLIENT puts this value
+ * as `task_id` (the escrow-PDA seed) when funding, so the onchain escrow address itself becomes a
+ * commitment to the text — without changing the program/redeploying. Differences from `hashContent`: (1) we do NOT
+ * normalize — we commit the exact text the jury reads; (2) the `nonce` salt (stored offchain with the text) defeats
+ * brute-forcing low-entropy tasks via the public hash. Verification: anyone with the pair (text, nonce) recomputes and
+ * checks against the onchain `task_id` → the operator can neither substitute nor slip in someone else's text unnoticed.
  */
 export async function taskTextCommitment(text: string, nonceHex: string): Promise<string> {
   const payload = new TextEncoder().encode(`${nonceHex}${text}`);
@@ -299,13 +300,13 @@ export interface ModerationOutcome {
   verdict: ModerationVerdict;
   lang: string;
   contentHash: string;
-  deduped: boolean; // true → решение взято из кэша (повтор контента), без повторного ревью/репорта
+  deduped: boolean; // true → decision taken from the cache (repeated content), without re-review/re-report
 }
 
 /**
- * Прогон текста через конвейер с дедупом. Дедуп — В ПРЕДЕЛАХ канала (`scope`): повтор того же контента
- * на ОДНОМ канале берётся из кэша (флуд схлопывается в O(1), без повторного ревью/репорта), но первое
- * появление на каждом канале ревьюится и репортится отдельно — у каждого стримера своя очередь T&S.
+ * Run text through the pipeline with dedup. Dedup is WITHIN a realm (`scope`): a repeat of the same content
+ * on ONE realm is taken from the cache (flooding collapses to O(1), without re-review/re-report), but the first
+ * appearance on each realm is reviewed and reported separately — each streamer has their own T&S queue.
  */
 export async function runPipeline(
   text: string,

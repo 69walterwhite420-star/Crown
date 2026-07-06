@@ -2,14 +2,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { Address } from "@/lib/data/types";
 
 /**
- * Per-request личность через AsyncLocalStorage (аудит H3). Раньше личность жила на МУТИРУЕМОМ поле
- * singleton-стора (`__setAddress`) — конкурентные RPC перетирали её друг у друга, и это безопасно лишь
- * пока методы стора синхронны (костыль `latencyScale=0`). При миграции на Postgres первый же реальный
- * `await` между установкой адреса и проверкой прав = межзапросная эскалация. AsyncLocalStorage несёт
- * личность по async-контексту запроса, переживая `await`/таймеры. Только серверный модуль —
- * `node:async_hooks` не попадает в браузерный bundle стора (mock-режим).
+ * Per-request identity via AsyncLocalStorage (audit H3). Previously identity lived on a MUTABLE field
+ * of the singleton store (`__setAddress`) — concurrent RPCs overwrote each other's, which is only safe
+ * while the store methods are synchronous (the `latencyScale=0` hack). On migration to Postgres, the very first real
+ * `await` between setting the address and checking permissions = cross-request escalation. AsyncLocalStorage carries
+ * identity along the request's async context, surviving `await`/timers. Server-only module —
+ * `node:async_hooks` never ends up in the store's browser bundle (mock mode).
  *
- * Инстанс на `globalThis` (как стор и nonce/session-сторы) — чтобы переживать HMR одним экземпляром.
+ * Instance on `globalThis` (like the store and the nonce/session stores) — to survive HMR as a single instance.
  */
 interface RequestIdentity {
   address: Address | null;
@@ -18,12 +18,12 @@ interface RequestIdentity {
 const g = globalThis as unknown as { __standingReqCtx?: AsyncLocalStorage<RequestIdentity> };
 const requestContext = (g.__standingReqCtx ??= new AsyncLocalStorage<RequestIdentity>());
 
-/** Выполнить `fn` в контексте с заданной личностью запроса. Возврат `fn` пробрасывается как есть. */
+/** Run `fn` in a context with the given request identity. The return of `fn` is passed through as-is. */
 export function runWithIdentity<T>(address: Address | null, fn: () => T): T {
   return requestContext.run({ address }, fn);
 }
 
-/** Личность текущего запроса; `undefined` вне контекста (браузерный mock / фоновые серверные пути). */
+/** Identity of the current request; `undefined` outside a context (browser mock / background server paths). */
 export function currentIdentity(): Address | null | undefined {
   return requestContext.getStore()?.address;
 }

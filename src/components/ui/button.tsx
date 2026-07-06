@@ -10,18 +10,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // основной CTA — золото CROWN (status): бренд гольд, но не яркий money (тот резервируем под финальное)
+        // primary CTA — CROWN gold (status): brand gold, but not the bright money color (reserved for the final action)
         primary: "bg-status text-[#1a1206] hover:brightness-110",
         secondary:
           "border border-border bg-[var(--bg)] text-fg hover:border-border-strong hover:bg-surface-raised",
         ghost: "text-fg-muted hover:bg-surface-raised hover:text-fg",
         danger: "bg-danger text-[#1a0b0e] hover:brightness-110",
-        // только для ПОДТВЕРЖДЁННОГО денежного действия (design-system.md §2)
+        // only for a CONFIRMED monetary action (design-system.md §2)
         money: "bg-money text-[#06140d] hover:brightness-110",
       },
       size: {
-        // ВНИМАНИЕ: в tailwind.config шкала spacing переопределена на --space-* (1–8), и это влияет на h-*.
-        // --space-8=64px → h-8 дал бы 64px (кнопка выше хедера!). Берём высоту ВНЕ диапазона 1–8: h-9=36px.
+        // NOTE: in tailwind.config the spacing scale is overridden to --space-* (1–8), and this affects h-*.
+        // --space-8=64px → h-8 would give 64px (a button taller than the header!). We take a height OUTSIDE the 1–8 range: h-9=36px.
         sm: "h-9 px-3 text-small",
         md: "h-10 px-4 text-small",
         lg: "h-12 px-6 text-body",
@@ -49,8 +49,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         {...props}
       >
-        {/* Slot требует РОВНО один дочерний элемент → при asChild отдаём children как есть
-            (loading-спиннер только в режиме настоящей кнопки). */}
+        {/* Slot requires EXACTLY one child → with asChild we pass children as-is
+            (the loading spinner only in real-button mode). */}
         {asChild ? (
           children
         ) : (

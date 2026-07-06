@@ -5,9 +5,9 @@ import { SearchIcon, XIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * Компактная лупа, растущая в полноценное поле поиска по клику/фокусу (анимация ширины); фильтрует список
- * живо. Сворачивается обратно в иконку при блюре, если пусто. Уважает reduced-motion (глобальное правило в
- * globals.css нейтрализует transition). Общий контрол: каталог коуртов на главной и лента канала.
+ * A compact magnifier that grows into a full search field on click/focus (width animation); filters the list
+ * live. Collapses back into an icon on blur if empty. Respects reduced-motion (a global rule in
+ * globals.css neutralizes the transition). A shared control: the realm catalog on the home page and the realm feed.
  */
 export function ExpandingSearch({
   value,

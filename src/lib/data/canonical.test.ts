@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex, stableStringify } from "./canonical";
 
-describe("stableStringify (детерминизм дайджестов якоря)", () => {
-  it("не зависит от порядка ключей (in-memory vs восстановленный из БД)", () => {
+describe("stableStringify (determinism of anchor digests)", () => {
+  it("does not depend on key order (in-memory vs. restored from the DB)", () => {
     expect(stableStringify({ b: 1, a: { d: 2, c: 3 } })).toBe(stableStringify({ a: { c: 3, d: 2 }, b: 1 }));
   });
 
-  it("bigint сериализуется стабильно (деньги в micro-USDC)", () => {
+  it("bigint serializes stably (money in micro-USDC)", () => {
     expect(stableStringify({ amount: 5_000_000n })).toBe('{"amount":"__bigint:5000000"}');
   });
 
-  it("отсутствующее поле и поле undefined дают один дайджест", () => {
+  it("a missing field and a field = undefined produce the same digest", () => {
     expect(stableStringify({ a: 1, b: undefined })).toBe(stableStringify({ a: 1 }));
   });
 
-  it("массивы сохраняют порядок (журнал — append-only, порядок значим)", () => {
+  it("arrays preserve order (the journal is append-only, order matters)", () => {
     expect(stableStringify([1, 2])).not.toBe(stableStringify([2, 1]));
   });
 });
 
 describe("sha256Hex", () => {
-  it("известный вектор SHA-256, БЕЗ нормализации регистра (base58-адреса регистрозависимы)", async () => {
+  it("known SHA-256 vector, WITHOUT case normalization (base58 addresses are case-sensitive)", async () => {
     expect(await sha256Hex("abc")).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     );

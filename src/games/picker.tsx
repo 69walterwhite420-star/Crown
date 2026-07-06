@@ -9,13 +9,13 @@ import { getGame } from "./registry";
 import type { GameId } from "./types";
 
 /**
- * Реестр «что зритель может запустить» для правого рейла (GameActionRail). Пикер и монтирование формы
- * рендерятся ИЗ этого массива: добавить игру = добавить запись в реестр игр (registry.ts + panels.tsx), UI
- * не переписывается. «Донат» — псевдо-игра (первая запись), переиспользует существующий DonateWidget; игры —
- * оборачивают существующий Rail. Формы НЕ переписываем, только монтируем с нужными пропсами через RailContext.
+ * Registry of "what the viewer can launch" for the right rail (GameActionRail). The picker and the form mounting are
+ * rendered FROM this array: adding a game = adding an entry to the game registry (registry.ts + panels.tsx), the UI is
+ * not rewritten. "Crown" is a pseudo-game (the first entry), reusing the existing DonateWidget; games wrap the existing
+ * Rail. We do NOT rewrite the forms, only mount them with the needed props via RailContext.
  */
 
-/** Всё, что может понадобиться форме в рейле — прокидывается со страницы канала. */
+/** Everything a rail form might need — passed down from the realm page. */
 export interface RailContext {
   channel: Channel;
   config: ChannelConfig;
@@ -25,35 +25,35 @@ export interface RailContext {
   handle: string;
 }
 
-/** Запись пикера: как показать в списке (иконка/название/тизер/правила) + что смонтировать в рейле (форма). */
+/** A picker entry: how to show it in the list (icon/name/tagline/rules) + what to mount in the rail (the form). */
 export interface PickerEntry {
   id: string;
   name: string;
   tagline: string;
   Icon: ComponentType<{ className?: string }>;
-  // channelId — играм с параметрами канала (правила спора живут в канистре, M1/M2); донату не нужен.
+  // channelId — for games with channel params (dispute rules live in the canister, M1/M2); the crown doesn't need it.
   Rules: ComponentType<{ channelId?: string }>;
   Form: ComponentType<{ ctx: RailContext }>;
 }
 
-/** Правила обычного доната — в модалке «i». */
+/** Rules for a regular crown — in the "i" modal. */
 function DonateRules() {
   return (
     <div className="flex flex-col gap-3 text-small text-fg-muted">
       <p>
-        Разовый донат стримеру: деньги уходят ему сразу и необратимо (минус 3% комиссии платформы), а
-        ты копишь <span className="text-fg">репутацию</span> на этом канале.
+        A one-time crown to the streamer: the money goes to them immediately and irreversibly (minus the platform's
+        3% fee), and you build up <span className="text-fg">Reign</span> in this realm.
       </p>
-      <p>Сообщение к донату (по желанию) приватно, пока стример не покажет его в ленте.</p>
+      <p>The message attached to the crown (optional) stays private until the streamer shows it in the feed.</p>
     </div>
   );
 }
 
-/** «Донат» — всегда первая запись (90% кейсов). Переиспользует существующий DonateWidget. */
+/** "Crown" — always the first entry (90% of cases). Reuses the existing DonateWidget. */
 const DONATE_ENTRY: PickerEntry = {
   id: "donate",
-  name: "Донат",
-  tagline: "Сразу стримеру, копит репутацию.",
+  name: "Crown",
+  tagline: "Straight to the streamer, builds Reign.",
   Icon: GiftIcon,
   Rules: DonateRules,
   Form: ({ ctx }) => (
@@ -68,9 +68,9 @@ const DONATE_ENTRY: PickerEntry = {
 };
 
 /**
- * Записи пикера: «Донат» + включённые на канале игры (из реестра). Форма игры оборачивает СУЩЕСТВУЮЩИЙ Rail
- * (не переписываем). Результат стабилизируй через useMemo(enabledGames) на стороне рейла — иначе форма игры
- * будет ремонтироваться и терять ввод.
+ * Picker entries: "Crown" + the games enabled in this realm (from the registry). A game's form wraps the EXISTING Rail
+ * (we don't rewrite it). Stabilize the result via useMemo(enabledGames) on the rail side — otherwise the game's form
+ * will remount and lose its input.
  */
 export function pickerEntries(enabledGames: string[]): PickerEntry[] {
   const games = enabledGames

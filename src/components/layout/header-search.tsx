@@ -5,14 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { SearchIcon } from "@/components/ui/icons";
 
 /**
- * Поиск каналов в шапке (как search Polymarket): Enter → Discovery с этим запросом (?q=).
- * Десктоп (md+): поле всегда видно. Мобила (<md): чтобы не съедать узкую шапку, показываем иконку-лупу;
- * по тапу она разворачивается в поле поверх всей шапки (фокус сразу, закрытие по Esc / «Отмена»).
+ * Realm search in the header (like Polymarket's search): Enter → Discovery with this query (?q=).
+ * Desktop (md+): the field is always visible. Mobile (<md): to avoid eating up the narrow header, we show a magnifier icon;
+ * on tap it expands into a field over the whole header (focus immediately, close via Esc / "Cancel").
  */
 export function HeaderSearch() {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false); // мобильный режим: развёрнутое поле поверх шапки
+  const [open, setOpen] = useState(false); // mobile mode: expanded field over the header
   const inputRef = useRef<HTMLInputElement>(null);
 
   function submit(e: React.FormEvent) {
@@ -21,7 +21,7 @@ export function HeaderSearch() {
     setOpen(false);
   }
 
-  // При раскрытии на мобиле — фокус в поле и закрытие по Escape.
+  // On expand on mobile — focus the field and close on Escape.
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
@@ -37,7 +37,7 @@ export function HeaderSearch() {
 
   return (
     <>
-      {/* Десктоп: поле всегда видно. */}
+      {/* Desktop: the field is always visible. */}
       <form className="relative hidden md:block" onSubmit={submit}>
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-faint" />
         <input
@@ -50,7 +50,7 @@ export function HeaderSearch() {
         />
       </form>
 
-      {/* Мобила: иконка-лупа; по тапу — развёрнутое поле поверх шапки. */}
+      {/* Mobile: magnifier icon; on tap — an expanded field over the header. */}
       <button
         type="button"
         aria-label="Search realms"

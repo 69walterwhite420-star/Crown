@@ -19,9 +19,9 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 /**
- * Рейл-карточка «Realm info»: справочник двора в ОДНОМ месте (вынесен из вкладок Ranks/About, чтобы центр
- * остался чистой лентой). Две секции — лестница тиров (что за ранги есть, компактно) и реквизиты (payout,
- * минимумы короны, политика сообщений, дата открытия). Всё статичное — уместно в липком рейле, не в табах.
+ * Rail card "Realm info": the realm's reference info in ONE place (pulled out of the Ranks/About tabs so the
+ * center stays a clean feed). Two sections — the tier ladder (what ranks exist, compactly) and details (payout,
+ * crown minimums, message policy, opening date). All static — fits a sticky rail, not tabs.
  */
 export function RealmInfo({
   channel,
@@ -35,7 +35,7 @@ export function RealmInfo({
   const tiers = config ? [...config.tiers].sort((a, b) => a.threshold - b.threshold) : [];
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Лестница тиров — компактно: бейдж + порог, текущий подсвечен. Перки/описания живут в «Ranks» спеке. */}
+      {/* Tier ladder — compactly: badge + threshold, current one highlighted. Perks/descriptions live in the "Ranks" spec. */}
       <section className="flex flex-col gap-2">
         <h3 className="text-caption uppercase tracking-wide text-fg-faint">Tiers</h3>
         {config ? (
@@ -58,7 +58,7 @@ export function RealmInfo({
         )}
       </section>
 
-      {/* Реквизиты двора — то, чего нет в hero. */}
+      {/* Realm details — what isn't in the hero. */}
       <section className="flex flex-col border-t border-border pt-2">
         <h3 className="pb-1 text-caption uppercase tracking-wide text-fg-faint">Details</h3>
         <InfoRow label="Payout">

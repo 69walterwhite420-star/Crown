@@ -10,7 +10,7 @@ import { useLeaderboard } from "@/lib/data/hooks";
 import type { Address, LeaderboardEntry, LeaderboardPeriod, Tier } from "@/lib/data/types";
 import { cn, formatPoints, shortAddress } from "@/lib/utils";
 
-// «Топ месяца» (top_donor_month) убран как дубль верха «Месяца». Период остаётся в типе (его юзает оверлей).
+// "Top of the month" (top_donor_month) was removed as a duplicate of the "Month" top. The period stays in the type (the overlay uses it).
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
   { value: "all_time", label: "All time" },
   { value: "month", label: "Month" },
@@ -21,13 +21,13 @@ type SortKey = "points" | "total";
 function sortEntries(entries: LeaderboardEntry[], sort: SortKey): LeaderboardEntry[] {
   const arr = [...entries];
   if (sort === "total") arr.sort((a, b) => Number(b.totalDonated - a.totalDonated));
-  // "points" — сервер уже отдаёт по очкам (это и есть ранг), не пересортировываем.
+  // "points" — the server already returns by points (that is the rank), so we don't re-sort.
   return arr;
 }
 
 /**
- * Донатёры канала: период (всё время / месяц) + сортировка (standing / сумма) + ФИЛЬТР по тиру (показать
- * только донатёров конкретного локального тира). Каждая строка — ссылка на профиль (/u/[address]).
+ * Realm supporters: period (all time / month) + sorting (standing / amount) + FILTER by tier (show
+ * only supporters of a specific local tier). Each row is a link to a profile (/u/[address]).
  */
 export function Leaderboard({
   channelId,
@@ -38,10 +38,10 @@ export function Leaderboard({
 }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>("all_time");
   const [sort, setSort] = useState<SortKey>("points");
-  const [tierFilter, setTierFilter] = useState<string>("all"); // имя тира или "all"
+  const [tierFilter, setTierFilter] = useState<string>("all"); // tier name or "all"
   const { data, isLoading, error, refetch } = useLeaderboard(channelId, period);
 
-  // Тиры, реально присутствующие среди донатёров (для фильтра), по возрастанию порога.
+  // Tiers actually present among supporters (for the filter), in ascending threshold order.
   const tiers = useMemo(() => {
     const byName = new Map<string, Tier>();
     for (const e of data ?? []) if (e.tier) byName.set(e.tier.name, e.tier);

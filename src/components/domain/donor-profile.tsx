@@ -50,7 +50,7 @@ const DONATIONS = ["crown", "crowns", "crowns"] as const;
 const CHANNELS = ["realm", "realms", "realms"] as const;
 const POINTS = ["Reign", "Reign", "Reign"] as const;
 
-/** Аватар профиля: монограмма со стабильным цветом по имени/адресу (картинок нет — §профиль). */
+/** Profile avatar: monogram with a stable color derived from name/address (no images — §profile). */
 export function ProfileAvatar({ name, address }: { name?: string; address: string }) {
   const seed = name?.trim() || address;
   const initial = seed.replace(/^@/, "").slice(0, 1).toUpperCase();
@@ -65,16 +65,16 @@ export function ProfileAvatar({ name, address }: { name?: string; address: strin
   );
 }
 
-// — Аналог polymarket-профиля в нашем контексте: деньги (донаты) агрегируемы, репутация — ПОканальная
-//   (инвариант §4.3, глобального рейтинга нет). Headline + график = «всего задонатил» во времени;
-//   «позиции» = standing по каналам; «активность» = история донатов.
+// — Our take on a polymarket-style profile: money (crowns) aggregates, Reign is PER-realm
+//   (invariant §4.3, there is no global rating). Headline + chart = "total crowned" over time;
+//   "positions" = standing across realms; "activity" = crown history.
 
 function monthYear(iso?: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-/** Кнопка-иконка «скопировать» (адрес / ссылка) с галочкой-подтверждением. */
+/** Icon "copy" button (address / link) with a checkmark confirmation. */
 function CopyIconButton({ value, title }: { value: string; title: string }) {
   const [copied, markCopied] = useCopied();
   return (
@@ -99,8 +99,9 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
 }
 
 /**
- * Био профиля: одна строка — текст обрезается многоточием, «…ещё» стоит инлайн справа на той же строке
- * (не растит карточку и соседнюю по сетке). Клик по «…ещё» открывает окно с полным описанием.
+ * Profile bio: a single line — the text is truncated with an ellipsis, "…more" sits inline on the same
+ * line to the right (it doesn't grow the card or its grid neighbor). Clicking "…more" opens a dialog with
+ * the full description.
  */
 function ProfileBio({ bio }: { bio: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -143,7 +144,7 @@ function ProfileBio({ bio }: { bio: string }) {
   );
 }
 
-/** Карандашик → диалог редактирования своего профиля (ник, о себе, ссылки). Та же форма, что и /me/profile. */
+/** Pencil → dialog for editing your own profile (name, about, links). Same form as /me/profile. */
 function ProfileEditDialog({ address }: { address: string }) {
   const profileQ = useProfile(address || null);
   const update = useUpdateProfile();
@@ -152,7 +153,7 @@ function ProfileEditDialog({ address }: { address: string }) {
   const [bio, setBio] = useState("");
   const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
 
-  // Префилл из профиля; перечитываем при открытии (на случай правок в другой вкладке).
+  // Prefill from the profile; re-read on open (in case it was edited in another tab).
   useEffect(() => {
     const p = profileQ.data;
     if (p && open) {
@@ -234,7 +235,7 @@ function ProfileEditDialog({ address }: { address: string }) {
 }
 
 
-// Подпись под графиком для выбранного окна.
+// Caption under the chart for the selected range.
 const RANGE_CAPTION: Record<ChartRange, string> = {
   "1D": "past day",
   "1W": "past week",
@@ -244,8 +245,8 @@ const RANGE_CAPTION: Record<ChartRange, string> = {
 };
 
 /**
- * Кумулятивный график «всего задонатил» — общий компонент (area-chart): равномерные ступени по донатам,
- * резкий скачок на каждый донат. Здесь только конвертируем донаты → события (t, прибавка в USDC).
+ * Cumulative "total crowned" chart — shared component (area-chart): even steps per crown,
+ * a sharp jump on each crown. Here we only convert crowns → events (t, increment in USDC).
  */
 function DonationsAreaChart({ donations, range }: { donations: Donation[]; range: ChartRange }) {
   const events = useMemo(
@@ -262,7 +263,7 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   );
 }
 
-/** Строка-позиция: канал + тир + локальные очки + задонатил. Кликабельна → страница канала. */
+/** Position row: realm + tier + local Reign + crowned. Clickable → realm page. */
 function PositionRow({ s }: { s: DonorChannelStanding }) {
   const name = s.channelName?.trim() || `@${s.handle}`;
   const hue = channelHue(name);
@@ -296,8 +297,8 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
   );
 }
 
-/** Строка активности: канал (ссылка) + сумма + время + текст (если показан). */
-/** Строка журнала очков: канал + «за что» (донат $X / списание оператором) + дельта очков (+/−). */
+/** Activity row: realm (link) + amount + time + text (if shown). */
+/** Reign log row: realm + "why" (crown $X / operator deduction) + Reign delta (+/−). */
 function ActivityRow({
   e,
   handle,
@@ -307,17 +308,8 @@ function ActivityRow({
   handle?: string;
   channelName?: string;
 }) {
-  // В ядре оператор Reign не списывает (§4.5/CR-1): единственная отрицательная дельта — DISPUTE_LOST.
-  const isPenalty = e.type === "DISPUTE_LOST";
-  const reason =
-    e.type === "DISPUTE_LOST"
-      ? "Lost false dispute"
-      : e.type === "DISPUTE_WON"
-        ? "Won dispute"
-        : e.type === "GAME_DONATION"
-          ? "Task crown"
-          : "Crown";
-  const showsAmount = e.type === "DONATION" || e.type === "GAME_DONATION";
+  // Seam: in its backend the operator's ADMIN_VOID was removed (CLAUDE.md §4.5) — that event no longer exists.
+  const isVoid = false;
   const shown = e.message?.state === "SHOWN";
   const delta = e.pointsDelta;
   return (
@@ -331,7 +323,7 @@ function ActivityRow({
         ) : (
           <span className="mono min-w-0 truncate text-small text-fg-faint">{e.channelId}</span>
         )}
-        {/* дельта очков: + начислено / − списано */}
+        {/* Reign delta: + credited / − deducted */}
         <span
           className="mono shrink-0 text-small font-medium"
           style={{ color: delta < 0 ? "var(--danger)" : "var(--money)" }}
@@ -341,16 +333,16 @@ function ActivityRow({
         </span>
       </div>
 
-      {/* за что */}
-      {isPenalty ? (
-        <p className="text-small text-danger">Lost false dispute — Reign penalty.</p>
+      {/* why */}
+      {isVoid ? (
+        <p className="text-small text-danger">Voided by operator — illegal content.</p>
       ) : (
         <div className="flex items-center gap-1.5 text-small text-fg-muted">
-          <span>{reason}</span>
-          {showsAmount ? <Amount micro={e.amount} variant="money" /> : null}
+          <span>Crown</span>
+          <Amount micro={e.amount} variant="money" />
         </div>
       )}
-      {!isPenalty && shown && e.message ? (
+      {!isVoid && shown && e.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(e.message.text)}</p>
       ) : null}
 
@@ -390,19 +382,19 @@ function DonorDashboard({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<PosSort>("donated");
   const [actLimit, setActLimit] = useState(12);
-  const [actChannel, setActChannel] = useState("all"); // фильтр ленты активности по каналу
+  const [actChannel, setActChannel] = useState("all"); // filter the activity feed by realm
   const profileQ = useProfile(overview.address || null);
-  // Защита от старого ответа без журнала очков (напр. устаревший серверный стор) — не падаем.
+  // Guard against an old response with no Reign log (e.g. a stale server store) — don't crash.
   const pointEvents = useMemo(() => overview.pointEvents ?? [], [overview.pointEvents]);
 
-  // Канал по id → handle/имя (для подписей в активности).
+  // Realm by id → handle/name (for labels in the activity feed).
   const handleById = useMemo(() => {
     const m = new Map<string, { handle: string; channelName?: string }>();
     for (const s of overview.standings) m.set(s.channelId, { handle: s.handle, channelName: s.channelName });
     return m;
   }, [overview.standings]);
 
-  // Каналы, по которым есть активность (для фильтра) + отфильтрованная лента.
+  // Realms that have activity (for the filter) + the filtered feed.
   const actChannels = useMemo(() => {
     const ids = [...new Set(pointEvents.map((e) => e.channelId))];
     return ids.map((id) => {
@@ -437,11 +429,11 @@ function DonorDashboard({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* ADR 0018: на СВОём профиле сверху — открытые циклы («требует тебя»); профиль = личная база. */}
+      {/* ADR 0018: on YOUR own profile, open cycles go up top ("needs you"); the profile = personal base. */}
       {editable ? <OpenCycles /> : null}
-      {/* Личность + график — две карточки в ряд, одинаковой высоты (stretch), в тёмном тоне (bg --bg). */}
+      {/* Identity + chart — two cards in a row, equal height (stretch), in a dark tone (bg --bg). */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Карточка личности — по образцу шапки канала (лейбл + крупное имя + мета со счётчиками). */}
+        {/* Identity card — modeled on the realm header (label + large name + meta with counters). */}
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start gap-4">
             <ProfileAvatar name={name} address={overview.address} />
@@ -483,7 +475,7 @@ function DonorDashboard({
           ) : null}
         </div>
 
-        {/* Карточка «всего задонатил» + график */}
+        {/* "Total crowned" card + chart */}
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start justify-between gap-2">
             <span className="text-small text-fg-muted">Total crowned</span>
@@ -497,7 +489,7 @@ function DonorDashboard({
         </div>
       </div>
 
-      {/* Вкладки — нейтральное подчёркивание, счётчик = заголовок секции. */}
+      {/* Tabs — neutral underline, the counter = section heading. */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4 border-b border-border">
           {(
@@ -627,8 +619,8 @@ function DonorDashboard({
   );
 }
 
-/** Профиль донатёра в духе дашборда: личность + деньги во времени + standing/активность.
- *  editable=true (своя страница /me) добавляет карандашик-редактор профиля. */
+/** Supporter profile in a dashboard style: identity + money over time + standing/activity.
+ *  editable=true (your own /me page) adds the pencil profile editor. */
 export function DonorProfile({ address, editable }: { address: string; editable?: boolean }) {
   const overviewQ = useDonorOverview(address || null);
   const profileQ = useProfile(address || null);

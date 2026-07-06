@@ -1,18 +1,18 @@
 /**
- * Каноническая сериализация + SHA-256 для дайджестов пруф-якоря и независимой проверки экспорта.
+ * Canonical serialization + SHA-256 for proof-anchor digests and independent export verification.
  *
- * Требование — ДЕТЕРМИНИЗМ между процессами и рестартами: один и тот же набор данных обязан давать
- * байт-в-байт одну строку у сервера (публикующего якорь) и у третьей стороны (пересчитывающей его из
- * экспорта). Обычный JSON.stringify зависит от порядка вставки ключей (in-memory объект vs объект,
- * восстановленный из Postgres, могут отличаться) — поэтому ключи сортируются рекурсивно.
+ * The requirement is DETERMINISM across processes and restarts: the same set of data must produce a
+ * byte-for-byte identical string on the server (which publishes the anchor) and at a third party (which
+ * recomputes it from the export). Plain JSON.stringify depends on key insertion order (an in-memory object
+ * vs. an object restored from Postgres may differ) — so keys are sorted recursively.
  *
- * НЕ использовать hashContent из moderation.ts: он нормализует текст (lowercase/трим) — для дайджестов
- * это коллапсировало бы разные base58-адреса, различающиеся регистром.
+ * Do NOT use hashContent from moderation.ts: it normalizes text (lowercase/trim) — for digests that would
+ * collapse different base58 addresses that differ only in case.
  */
 
-/** JSON с рекурсивно отсортированными ключами; bigint → строка с тегом (симметрия кодека не нужна —
- *  строка используется только как вход хэша, обратно не разбирается). undefined в объектах опускается
- *  (как в JSON.stringify), чтобы «нет поля» и «поле undefined» давали один дайджест. */
+/** JSON with recursively sorted keys; bigint → a tagged string (codec symmetry isn't needed — the
+ *  string is used only as hash input and is never parsed back). undefined in objects is omitted
+ *  (as in JSON.stringify) so that "no field" and "field = undefined" produce the same digest. */
 export function stableStringify(value: unknown): string {
   if (value === null || value === undefined) return "null";
   const t = typeof value;
@@ -27,10 +27,10 @@ export function stableStringify(value: unknown): string {
       .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
     return `{${entries.join(",")}}`;
   }
-  throw new Error(`stableStringify: несериализуемый тип ${t}`);
+  throw new Error(`stableStringify: non-serializable type ${t}`);
 }
 
-/** SHA-256 hex БЕЗ нормализации входа. Web Crypto — единый в браузере, node и vitest. */
+/** SHA-256 hex WITHOUT input normalization. Web Crypto — the same in the browser, node, and vitest. */
 export async function sha256Hex(s: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");

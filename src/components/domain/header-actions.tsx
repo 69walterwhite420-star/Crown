@@ -7,7 +7,7 @@ import { useCopied } from "@/components/ui/use-copied";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { channelHue, cn } from "@/lib/utils";
 
-// Размеры монограммы (аватар-заглушка от буквы + детерминированный оттенок по имени/адресу).
+// Monogram sizes (letter-based fallback avatar + deterministic hue from name/address).
 const MONO_SIZES = {
   sm: "h-7 w-7 text-small",
   md: "h-9 w-9 text-body",
@@ -16,8 +16,8 @@ const MONO_SIZES = {
 } as const;
 
 /**
- * Аватар: если задан `avatarUrl` — картинка (object-cover, с фолбэком на монограмму при ошибке загрузки);
- * иначе первая буква имени на фоне детерминированного оттенка (channelHue).
+ * Avatar: if `avatarUrl` is set — an image (object-cover, falling back to the monogram on load error);
+ * otherwise the first letter of the name on a deterministic hue background (channelHue).
  */
 export function Monogram({
   name,
@@ -45,7 +45,7 @@ export function Monogram({
       aria-hidden
     >
       {showImg ? (
-        // Аватары — произвольные внешние URL, next/image требует allowlist хостов → обычный <img>.
+        // Avatars are arbitrary external URLs; next/image requires a host allowlist → plain <img>.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={avatarUrl}
@@ -60,7 +60,7 @@ export function Monogram({
   );
 }
 
-// — Иконки-действия (stroke, currentColor) — те же в hero и в компактной липкой плашке. —
+// — Action icons (stroke, currentColor) — the same in the hero and in the compact sticky bar. —
 const iconProps = {
   viewBox: "0 0 24 24",
   fill: "none",
@@ -100,7 +100,7 @@ function ExplorerIcon() {
 const actionBtn =
   "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
 
-/** Ряд иконок-действий канала: поделиться (ссылка) · скопировать payout-адрес · открыть в Solana Explorer. */
+/** Row of realm action icons: share (link) · copy payout address · open in Solana Explorer. */
 export function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
   const [copied, markCopied] = useCopied();
   const [copiedAddr, markCopiedAddr] = useCopied();

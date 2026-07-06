@@ -13,12 +13,12 @@ import { useDisputeVotes } from "./hooks";
 import type { VoteChoice } from "./types";
 
 /**
- * Полноценная страница спора (масштаб на тысячи голосующих): все стороны + постраничный список голосов с
- * поиском по адресу, фильтром по стороне и сортировкой. Голоса грузятся ПОСТРАНИЧНО с сервера (game-bus
- * `disputeVotes`), а не все разом. Каждый участник кликабелен в свой профиль.
+ * A full dispute page (scaled to thousands of voters): all parties + a paginated list of votes with
+ * search by address, filter by side, and sorting. Votes load PAGE BY PAGE from the server (game-bus
+ * `disputeVotes`), not all at once. Each participant is clickable to their profile.
  */
 const PAGE_SIZE = 50;
-const choiceLabel = (c: VoteChoice) => (c === "completed" ? "выполнил" : "не выполнил");
+const choiceLabel = (c: VoteChoice) => (c === "completed" ? "completed" : "not completed");
 const choiceColor = (c: VoteChoice) => (c === "completed" ? "var(--money)" : "var(--danger)");
 
 function PartyLink({ address }: { address: string }) {
@@ -45,45 +45,45 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
       <AppHeader />
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
         <Link href={`/c/${handle}`} className="text-small text-fg-muted hover:text-fg">
-          ← Канал @{handle}
+          ← Realm @{handle}
         </Link>
-        <h1 className="text-display-l text-fg">Спор по заданию</h1>
+        <h1 className="text-display-l text-fg">Task dispute</h1>
 
         {channelQ.isLoading || votesQ.isLoading ? (
           <Skeleton className="h-64 w-full rounded-lg" />
         ) : votesQ.error ? (
-          <ErrorState description="Не удалось загрузить спор." onRetry={() => votesQ.refetch()} />
+          <ErrorState description="Couldn't load the dispute." onRetry={() => votesQ.refetch()} />
         ) : !channel || !data?.found || !data.task || !data.dispute ? (
-          <EmptyState title="Спор не найден" description="Возможно, по этому заданию спора нет." />
+          <EmptyState title="Dispute not found" description="There may be no dispute for this task." />
         ) : (
           <>
-            {/* Задание + стороны */}
+            {/* Task + parties */}
             <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
               <div className="flex items-center justify-between gap-2">
                 <Amount micro={BigInt(data.task.amount)} variant="money" />
                 <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
                   {data.task.resolution
-                    ? `Итог: ${data.task.resolution.outcome === "to_streamer" ? "стримеру" : "возврат донору"}`
-                    : "Идёт голосование"}
+                    ? `Outcome: ${data.task.resolution.outcome === "to_streamer" ? "to streamer" : "refund to donor"}`
+                    : "Voting in progress"}
                 </span>
               </div>
               <p className="text-body break-words text-fg">{data.task.text}</p>
               <div className="flex flex-col gap-1 border-t border-border pt-3">
-                <Party label="Стример (выполнял)" address={channel.ownerAddress} />
-                <Party label="Донор (платил)" address={data.task.donor} />
-                <Party label="Оспаривает" address={data.dispute.by} />
+                <Party label="Streamer (performed)" address={channel.ownerAddress} />
+                <Party label="Donor (paid)" address={data.task.donor} />
+                <Party label="Disputing" address={data.dispute.by} />
               </div>
             </div>
 
-            {/* Агрегат голосов */}
+            {/* Vote aggregate */}
             <Tally tally={data.dispute.tally} quorum={data.dispute.quorum} />
 
-            {/* Управление списком */}
+            {/* List controls */}
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="min-w-48 flex-1">
                   <Input
-                    placeholder="Поиск по адресу…"
+                    placeholder="Search by address…"
                     value={q}
                     onChange={(e) => {
                       setQ(e.target.value);
@@ -98,9 +98,9 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                     setPage(0);
                   }}
                   options={[
-                    ["all", "Все"],
-                    ["completed", "Выполнил"],
-                    ["not_completed", "Не выполнил"],
+                    ["all", "All"],
+                    ["completed", "Completed"],
+                    ["not_completed", "Not completed"],
                   ]}
                 />
                 <Segmented
@@ -110,14 +110,14 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                     setPage(0);
                   }}
                   options={[
-                    ["weight", "По весу"],
-                    ["recent", "Недавние"],
+                    ["weight", "By weight"],
+                    ["recent", "Recent"],
                   ]}
                 />
               </div>
 
               {data.votes.length === 0 ? (
-                <EmptyState title="Ничего не найдено" description="Под фильтр голосов нет." />
+                <EmptyState title="Nothing found" description="No votes match the filter." />
               ) : (
                 <div className="flex flex-col [&>:last-child]:border-b-0">
                   {data.votes.map((v) => (
@@ -130,16 +130,16 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                         <span className="text-small" style={{ color: choiceColor(v.choice) }}>
                           {choiceLabel(v.choice)}
                         </span>
-                        <span className="mono text-small text-fg">{v.weight} оч.</span>
+                        <span className="mono text-small text-fg">{v.weight} pts</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Пагинация */}
+              {/* Pagination */}
               <div className="text-small flex items-center justify-between gap-2 text-fg-faint">
-                <span>всего {data.total} · вес = очки репутации на момент спора</span>
+                <span>{data.total} total · weight = Reign points at dispute time</span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -147,7 +147,7 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                     disabled={page <= 0}
                     onClick={() => setPage((p) => p - 1)}
                   >
-                    Назад
+                    Back
                   </Button>
                   <span className="mono">
                     {page + 1} / {Math.max(1, Math.ceil(data.total / PAGE_SIZE))}
@@ -158,7 +158,7 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                     disabled={(page + 1) * PAGE_SIZE >= data.total}
                     onClick={() => setPage((p) => p + 1)}
                   >
-                    Вперёд
+                    Next
                   </Button>
                 </div>
               </div>
@@ -198,17 +198,17 @@ function Tally({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col items-start">
           <span className="text-small" style={{ color: "var(--money)" }}>
-            Выполнил
+            Completed
           </span>
-          <span className="mono text-small text-fg">{tally.completed} очков</span>
-          <span className="text-caption text-fg-faint">{tally.completedVotes} голос(ов)</span>
+          <span className="mono text-small text-fg">{tally.completed} points</span>
+          <span className="text-caption text-fg-faint">{tally.completedVotes} vote(s)</span>
         </div>
         <div className="flex flex-col items-end">
           <span className="text-small" style={{ color: "var(--danger)" }}>
-            Не выполнил
+            Not completed
           </span>
-          <span className="mono text-small text-fg">{tally.not} очков</span>
-          <span className="text-caption text-fg-faint">{tally.notVotes} голос(ов)</span>
+          <span className="mono text-small text-fg">{tally.not} points</span>
+          <span className="text-caption text-fg-faint">{tally.notVotes} vote(s)</span>
         </div>
       </div>
       <div className="flex h-2 overflow-hidden rounded-pill bg-surface-raised">
@@ -216,8 +216,8 @@ function Tally({
         <div style={{ width: `${100 - cPct}%`, backgroundColor: "var(--danger)" }} />
       </div>
       <span className="mono text-caption text-fg-faint">
-        вес {tally.total} / кворум {quorum}
-        {tally.total >= quorum ? "" : " · кворум не собран"}
+        weight {tally.total} / quorum {quorum}
+        {tally.total >= quorum ? "" : " · quorum not reached"}
       </span>
     </div>
   );

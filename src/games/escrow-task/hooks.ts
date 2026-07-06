@@ -4,13 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "@/lib/data/context";
 import type { DisputeVotesQuery, DisputeVotesResult, EscrowTask } from "./types";
 
-// Типы вида голосов переехали в types.ts (их использует и machine.disputeVotesView, и
-// icp-провайдер) — реэкспорт сохраняет прежние импорты экранов.
+// The vote-view types moved to types.ts (used by both machine.disputeVotesView and the
+// icp provider) — the re-export keeps the screens' existing imports working.
 export type { DisputeVotesQuery, DisputeVotesResult } from "./types";
 
 /**
- * Типизированные хуки модуля «задание-донат» поверх обобщённого game-bus (ADR 0016). Только тут восстановлена
- * типобезопасность операций игры — экраны зовут эти хуки, а не сырые `gameAction`/`gameQuery`.
+ * Typed hooks of the "task-for-a-crown" module on top of the generic game-bus (ADR 0016). This is the only place where
+ * type safety for the game's operations is restored — screens call these hooks, not the raw `gameAction`/`gameQuery`.
  */
 const KEY = (channelId: string) => ["game", "escrow-task", channelId] as const;
 
@@ -34,14 +34,14 @@ export function useEscrowAction(channelId: string) {
       data.gameAction({ gameId: "escrow-task", channelId, op: args.op, payload: args.payload }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY(channelId) });
-      // claim/исход меняют репутацию на канале → освежим standing и лидерборд.
+      // claim/outcome change reputation in the channel → refresh the standing and the leaderboard.
       qc.invalidateQueries({ queryKey: ["standing", channelId] });
       qc.invalidateQueries({ queryKey: ["leaderboard", channelId] });
     },
   });
 }
 
-/** Постраничные голоса спора (для страницы спора): фильтр по стороне, поиск по адресу, сортировка. */
+/** Paginated dispute votes (for the dispute page): filter by side, search by address, sorting. */
 export function useDisputeVotes(
   channelId: string | undefined,
   taskId: string | undefined,
@@ -62,9 +62,9 @@ export function useDisputeVotes(
 }
 
 /**
- * Спор по chain-задаче ИЗ КАНИСТРЫ (M2, ADR 0021): открытое табло, голоса, вердикт,
- * ончейн-подписи резолвера. Метод есть только у IcpDataProvider — вне icp-режима хук выключен.
- * Поллинг: финализация и ончейн-отправки приходят таймером канистры (~20 с).
+ * A dispute over a chain task FROM THE CANISTER (M2, ADR 0021): an open tally, votes, verdict,
+ * on-chain resolver signatures. The method exists only on IcpDataProvider — outside icp mode the hook is off.
+ * Polling: finalization and on-chain submissions arrive on the canister's timer (~20s).
  */
 export function useCanisterDispute(
   channelId: string | undefined,

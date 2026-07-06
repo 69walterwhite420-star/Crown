@@ -10,7 +10,7 @@ type TableData = Record<string, { count: number; rows: Record<string, unknown>[]
 const disp = (v: unknown): string =>
   v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
 
-// Токен сессии хранится клиентом под этим ключом (см. chain-provider SIWS_STORAGE_KEY).
+// The session token is stored by the client under this key (see chain-provider SIWS_STORAGE_KEY).
 function siwsToken(): string | null {
   try {
     return (JSON.parse(localStorage.getItem("standing.siws.v1") ?? "null") as { token?: string } | null)
@@ -20,7 +20,7 @@ function siwsToken(): string | null {
   }
 }
 
-/** Смотрелка БД: выбор таблицы + сортировка. Доступна ТОЛЬКО оператору (в данных есть приватный текст). */
+/** DB viewer: table picker + sorting. Operator-ONLY (the data contains private text). */
 export default function DbViewerPage() {
   const session = useSession();
   const isOperator = session.data?.isOperator ?? false;
@@ -31,7 +31,7 @@ export default function DbViewerPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
-    if (!isOperator) return; // не оператор — не запрашиваем (и сервер всё равно откажет)
+    if (!isOperator) return; // not an operator — don't request (and the server would refuse anyway)
     fetch("/api/dev/db/data", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -78,7 +78,7 @@ export default function DbViewerPage() {
     }
   };
 
-  // Гейт: только оператор (после всех хуков — иначе ломаются правила хуков).
+  // Gate: operator only (after all hooks — otherwise the rules of hooks break).
   if (!session.isLoading && !isOperator) {
     return (
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-16 text-center">
@@ -108,7 +108,7 @@ export default function DbViewerPage() {
         <p className="text-small text-fg-faint">Loading…</p>
       ) : (
         <>
-          {/* Выбор таблицы */}
+          {/* Table picker */}
           <div className="flex flex-wrap gap-2">
             {Object.entries(data).map(([name, t]) => (
               <button
@@ -131,7 +131,7 @@ export default function DbViewerPage() {
             ))}
           </div>
 
-          {/* Таблица */}
+          {/* Table */}
           {!current || current.rows.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
               Table is empty.

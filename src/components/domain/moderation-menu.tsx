@@ -21,9 +21,9 @@ const closeMenu = (el: HTMLElement) => el.closest("details")?.removeAttribute("o
 const errToast = (e: unknown) => toast({ variant: "error", title: "Error", description: String(e) });
 
 /**
- * Меню действий модерации для владельца/модератора — иконка-щит вместо россыпи кнопок на донате. По клику
- * выпадает выбор: скрыть/показать это сообщение, скрыть ВСЕ сообщения донора, блок/разбан донатов-с-сообщениями.
- * Рендерить только в управляющих местах (лента своего канала, дашборд, очередь) — сервер всё равно авторизует.
+ * Moderation actions menu for the owner/moderator — a shield icon instead of a scatter of buttons on the crown. On click
+ * a menu drops down: hide/show this message, hide ALL of the donor's messages, block/unban crowns-with-messages.
+ * Render only in management contexts (your own realm's feed, dashboard, queue) — the server authorizes anyway.
  */
 export function ModerationMenu({
   channelId,
@@ -37,9 +37,9 @@ export function ModerationMenu({
   channelId: string;
   donor?: string;
   message?: MessageRef;
-  allowToggleState?: boolean; // false → не показывать «Показать/Скрыть это сообщение» (есть отдельные кнопки)
-  // Кастомная жалоба (напр. на текст задания игры — это не сообщение доната). Задан → пункт «Пожаловаться»
-  // шлёт СЮДА (вместо reportMessage(messageId)), чтобы одно и то же «…» работало и на донатах, и на заданиях.
+  allowToggleState?: boolean; // false → don't show "Show/Hide this message" (there are separate buttons)
+  // Custom report (e.g. on a game task's text — that isn't a crown message). When set → the "Report" item
+  // sends HERE (instead of reportMessage(messageId)), so the same "…" works both on crowns and on tasks.
   reportSubmit?: (fullReason: string) => Promise<{ reports?: number; hidden?: boolean }>;
   reportTitle?: string;
   reportDescription?: string;
@@ -51,12 +51,12 @@ export function ModerationMenu({
   const blocklist = useChannelBlocklist(channelId);
   const blocked = donor ? (blocklist.data ?? []).some((b) => b.blockedAddress === donor) : false;
   const [reportOpen, setReportOpen] = useState(false);
-  // Жаловаться можно на показанный текст / сообщение в очереди (HELD) — как на сервере; либо через кастомный
-  // reportSubmit (жалоба на задание игры).
+  // You can report shown text / a message in the queue (HELD) — as on the server; or via a custom
+  // reportSubmit (a report on a game task).
   const canReport =
     !!reportSubmit || (!!message && (message.state === "SHOWN" || message.state === "HELD"));
 
-  // Нативный <details> сам не закрывается по клику ВНЕ — закрываем вручную (и по Escape).
+  // A native <details> doesn't close on an OUTSIDE click by itself — we close it manually (and on Escape).
   const detailsRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -85,8 +85,8 @@ export function ModerationMenu({
         <MoreIcon className="h-4 w-4" />
       </summary>
       <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
-        {/* Только «Скрыть» показанного (быстрая модерация из ленты). Показать/опубликовать скрытое — не тут,
-            а в очереди модерации (студия): в ленте скрытое не светим и не разворачиваем инлайн. */}
+        {/* Only "Hide" for shown text (quick moderation from the feed). Showing/publishing hidden text isn't here
+            but in the moderation queue (studio): in the feed we don't reveal hidden text or expand it inline. */}
         {message && allowToggleState && message.state === "SHOWN" ? (
           <button
             type="button"

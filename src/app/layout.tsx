@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-// Шрифты через next/font (display: swap). CROWN: ОДИН шрифт на весь UI — Inter (заголовки и текст).
-// Моно (JetBrains) — только для чисел/сумм/адресов (tabular-nums). Без декоративных серифов.
+// Fonts via next/font (display: swap). CROWN: ONE font for the whole UI — Inter (headings and text).
+// Mono (JetBrains) — only for numbers/amounts/addresses (tabular-nums). No decorative serifs.
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PageTransitions } from "@/components/layout/page-transitions";
@@ -31,12 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body>
-        {/* Кроссфейд между страницами (нативный View Transitions API). */}
+        {/* Crossfade between pages (the native View Transitions API). */}
         <PageTransitions />
         <div className="flex min-h-screen flex-col">
-          {/* animate-enter — мягкое проявление при ПЕРВОМ заходе на сайт (layout не перемонтируется →
-              один раз; переходы между страницами делает View Transitions). Только opacity — безопасно
-              для sticky-шапки/fixed-элементов. */}
+          {/* animate-enter — a soft fade-in on the FIRST arrival at the site (the layout does not remount →
+              just once; page-to-page transitions are handled by View Transitions). opacity only — safe
+              for the sticky header / fixed elements. */}
           <div className="flex-1 animate-enter">
             <Providers>{children}</Providers>
           </div>

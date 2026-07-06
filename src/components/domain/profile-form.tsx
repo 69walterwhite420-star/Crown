@@ -15,8 +15,8 @@ import { toast } from "@/components/ui/toast";
 import { useProfile, useSession, useUpdateProfile } from "@/lib/data/hooks";
 
 /**
- * Редактор профиля (публичная личность): имя, аватар (URL), «о себе», соц-ссылки. Самодостаточен —
- * тянет свою сессию/профиль. Используется в /me/profile и в личном пространстве (Settings).
+ * Profile editor (public identity): name, avatar (URL), "about", social links. Self-contained —
+ * pulls its own session/profile. Used in /me/profile and in the personal space (Settings).
  */
 export function ProfileForm() {
   const address = useSession().data?.address ?? null;
@@ -28,8 +28,8 @@ export function ProfileForm() {
   const [bio, setBio] = useState("");
   const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
 
-  // Заполняем форму ОДИН раз на адрес: фоновый рефетч (напр. инвалидация после save) не должен затирать
-  // несохранённые правки. Смена адреса (другой кошелёк) → пере-гидрация.
+  // Fill the form ONCE per address: a background refetch (e.g. invalidation after save) must not overwrite
+  // unsaved edits. Changing the address (a different wallet) → re-hydration.
   const hydratedFor = useRef<string | null>(null);
   useEffect(() => {
     const p = profileQ.data;
@@ -42,7 +42,7 @@ export function ProfileForm() {
     }
   }, [profileQ.data, address]);
 
-  if (!address) return null; // вход гейтит вызывающая страница
+  if (!address) return null; // sign-in is gated by the calling page
   if (profileQ.isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
 
   function save() {

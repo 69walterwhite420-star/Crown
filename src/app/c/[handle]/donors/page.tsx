@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { useChannel, useSession } from "@/lib/data/hooks";
 
-/** Страница донатёров канала: лидерборд с сортировкой (standing / сумма / тир), клик по строке → профиль. */
+/** Realm supporters page: leaderboard with sorting (standing / amount / tier), click a row → profile. */
 export default function DonorsPage() {
   const params = useParams<{ handle: string }>();
   const handle = params.handle;

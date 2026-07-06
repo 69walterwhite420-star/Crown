@@ -2,15 +2,15 @@ import Link from "next/link";
 import { CrownLogo } from "@/components/crown-logo";
 
 /**
- * Глобальный футер CROWN. Мягкое золото — только логотип; ссылки нейтральные (text-fg-faint → hover text-fg).
- * Ненастроенные разделы честно помечены «Soon» (инвариант §7: без кнопок-обманок — явный disabled-state).
+ * Global CROWN footer. Soft gold — only the logo; links are neutral (text-fg-faint → hover text-fg).
+ * Unconfigured sections are honestly marked "Soon" (invariant §7: no decoy buttons — an explicit disabled state).
  */
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-[var(--bg)]">
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12 lg:px-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
-          {/* Бренд */}
+          {/* Brand */}
           <div className="col-span-2 flex flex-col gap-3 sm:col-span-3 lg:col-span-2">
             <Link href="/" className="flex items-center gap-2.5" aria-label="CROWN — home">
               <CrownLogo size={26} className="text-[#c9a24a]" />
@@ -73,7 +73,7 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
   );
 }
 
-/** Ненастроенный пункт — честный disabled-state с меткой «Soon» вместо кнопки-обманки. */
+/** An unconfigured item — an honest disabled state with a "Soon" label instead of a decoy button. */
 function Soon({ children }: { children: React.ReactNode }) {
   return (
     <li>

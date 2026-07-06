@@ -30,25 +30,25 @@ import type {
 } from "@/lib/data/types";
 
 const PRESETS = [5, 10, 25, 100];
-const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
+const SOFT_WORDS = ["worst", "loser", "scam", "idiot"];
 
-const USDC_DECIMALS = 6; // точность USDC: больше знаков после точки не существует в micro-USDC
-// Потолок одного доната. Защищает сразу от трёх «выходов за рамки»: бессмысленно огромные суммы,
-// переполнение вёрстки (число вылезает за карточку) и потеря точности в toMicro (usdc*1e6 за Number.MAX).
+const USDC_DECIMALS = 6; // USDC precision: there are no more decimal places than this in micro-USDC
+// Cap on a single crown. Guards against three "out of bounds" cases at once: pointlessly huge amounts,
+// layout overflow (the number spills out of the card) and precision loss in toMicro (usdc*1e6 past Number.MAX).
 const MAX_DONATION_USDC = 1_000_000;
-const MAX_INT_DIGITS = String(MAX_DONATION_USDC).length; // длина целой части ограничена → нельзя вписать «бесконечность»
+const MAX_INT_DIGITS = String(MAX_DONATION_USDC).length; // integer part length is capped → can't type "infinity"
 
 /**
- * Санитайзер поля суммы: только цифры и ОДНА точка (запятую → точку для RU-раскладки), целая часть не длиннее
- * MAX_INT_DIGITS, дробная — не длиннее 6 знаков. Иначе лишние знаки округлялись бы в toMicro и давали
- * «странности» (напр. 0.0000001 → 0), а длинное целое вылезало бы за карточку и теряло точность.
+ * Amount-field sanitizer: digits and ONE dot only (comma → dot for RU keyboard layout), integer part no longer
+ * than MAX_INT_DIGITS, fractional part no longer than 6 digits. Otherwise extra digits would round in toMicro and
+ * cause "oddities" (e.g. 0.0000001 → 0), and a long integer would spill out of the card and lose precision.
  */
 function sanitizeAmount(raw: string): string {
   const s = raw.replace(",", ".").replace(/[^\d.]/g, "");
   const dot = s.indexOf(".");
   if (dot === -1) return s.slice(0, MAX_INT_DIGITS);
   const int = s.slice(0, dot).slice(0, MAX_INT_DIGITS);
-  const frac = s.slice(dot + 1).replace(/\./g, ""); // выкинуть повторные точки
+  const frac = s.slice(dot + 1).replace(/\./g, ""); // drop repeated dots
   return `${int}.${frac.slice(0, USDC_DECIMALS)}`;
 }
 
@@ -72,14 +72,14 @@ export function DonateWidget({
   const [result, setResult] = useState<DonationResult | null>(null);
   const [blockDismissed, setBlockDismissed] = useState(false);
   const donate = useDonate(channel.id);
-  // Заблокирован ли донор на этом канале (для плашки): свой блок + причина.
+  // Whether the donor is blocked on this realm (for the banner): my block + reason.
   const myBlock = useMyBlock(channel.id, session.address).data;
-  // Баланс USDC кошелька кладёт в кэш HeaderBalance (chain-режим). Здесь только ПОДПИСЫВАЕМСЯ на тот же ключ
-  // (enabled:false — свой запрос не шлём). В mock/api ключа нет → balance остаётся undefined и проверка не
-  // применяется. Не тянем wallet-adapter в общий бандл.
+  // The wallet's USDC balance is put in the cache by HeaderBalance (chain mode). Here we only SUBSCRIBE to the
+  // same key (enabled:false — we don't send our own request). In mock/api there's no key → balance stays
+  // undefined and the check doesn't apply. We don't pull wallet-adapter into the shared bundle.
   const balanceQ = useQuery<number>({
     queryKey: ["usdcBalance", session.address ?? ""],
-    queryFn: () => new Promise<number>(() => {}), // не вызывается (enabled:false)
+    queryFn: () => new Promise<number>(() => {}), // never called (enabled:false)
     enabled: false,
   });
 
@@ -93,7 +93,7 @@ export function DonateWidget({
   const micro = amountValid ? toMicro(amountNum) : 0n;
   const meetsMin = amountValid && micro >= min;
   const textOk = !withText || text.trim().length > 0;
-  // Хватает ли USDC на кошельке (только chain — где balance известен). amountNum и balance оба в USDC.
+  // Whether there's enough USDC in the wallet (chain only — where balance is known). amountNum and balance are both in USDC.
   const balance = session.address ? balanceQ.data : undefined;
   const insufficient = balance != null && amountValid && amountNum > balance;
   const canDonate =
@@ -107,7 +107,7 @@ export function DonateWidget({
         ? "Not enough USDC in wallet"
         : undefined;
 
-  // Прогноз начисления за введённую сумму (та же формула, что и при реальном начислении) — для предпросмотра.
+  // Projected gain for the entered amount (same formula as the real crediting) — for the preview.
   const gain = amountValid ? pointsForAmount(micro) : 0;
 
   function openFlow() {
@@ -121,7 +121,7 @@ export function DonateWidget({
       {
         onSuccess: (r) => {
           setResult(r);
-          // Донат отправлен → сразу чистим форму (особенно текст сообщения), чтобы он не оставался в поле.
+          // Crown sent → clear the form right away (especially the message text) so it doesn't linger in the field.
           setAmount("");
           setText("");
           setWithText(false);
@@ -148,7 +148,7 @@ export function DonateWidget({
         </>
       ) : (
         <>
-      {/* Плашка для заблокированного донора: за что и что заблокирован; крестик скрывает её. */}
+      {/* Banner for a blocked donor: why and what they're blocked from; the cross hides it. */}
       {myBlock && !blockDismissed ? (
         <div className="flex items-start gap-2 rounded-lg border border-danger bg-danger-bg p-3">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -171,7 +171,7 @@ export function DonateWidget({
         </div>
       ) : null}
 
-      {/* Моё Reign + живой предпросмотр: ввёл сумму → число катится к прогнозу, полоска тянется. */}
+      {/* My Reign + live preview: enter an amount → the number rolls toward the projection, the bar stretches. */}
       <StandingHeadline standing={standing} tiers={config.tiers} gain={gain} loading={standingLoading} />
 
       <div className="border-t border-border" />
@@ -253,7 +253,7 @@ export function DonateWidget({
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          // после успешного доната очищаем форму при закрытии
+          // after a successful crown, clear the form on close
           if (!o && result) {
             setAmount("");
             setText("");
@@ -298,7 +298,7 @@ export function DonateWidget({
   );
 }
 
-/** Финальность доната — сигнатурный момент: суммы 97/3 расходятся, «печать», переключение в --money. */
+/** Crown finality — the signature moment: the 97/3 amounts split apart, the "stamp", the switch to --money. */
 export function FinalityMoment({ result }: { result: DonationResult }) {
   return (
     <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-5 text-center">

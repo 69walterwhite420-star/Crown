@@ -2,12 +2,12 @@ import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 
 /**
- * Локальный Postgres через PGlite (Postgres, собранный в WASM) — работает прямо в Node-процессе, хранит
- * данные в `.data/pg/`, без отдельного сервера/Docker/sudo (Tier-1 «production-readiness»). Для прода строку
- * подключения меняем на облачный Postgres (Neon/Supabase) тем же SQL — провайдер не трогаем.
+ * Local Postgres via PGlite (Postgres compiled to WASM) — runs right inside the Node process and stores
+ * data in `.data/pg/`, with no separate server/Docker/sudo (Tier-1 "production readiness"). For production we
+ * swap the connection string for a cloud Postgres (Neon/Supabase) using the same SQL — the provider is untouched.
  *
- * Только серверный модуль (WASM + node:fs) — в клиентский bundle не попадает. Singleton кэшируется на
- * globalThis, чтобы переживать HMR в dev и шариться между запросами; схема применяется один раз при инициализации.
+ * Server-only module (WASM + node:fs) — it never lands in the client bundle. The singleton is cached on
+ * globalThis so it survives HMR in dev and is shared across requests; the schema is applied once at init.
  */
 const DIR = path.join(process.cwd(), ".data", "pg");
 
@@ -25,9 +25,9 @@ export function getDb(): Promise<PGlite> {
 }
 
 /**
- * Схема под АКТУАЛЬНЫЕ типы (yellow-paper §13, обновлено ADR 0007: без reputation/overlay/profanity_policy).
- * Деньги — numeric(20,0) (micro-USDC), очки — numeric (дробные, 1 USDC = 1 очко с копейками).
- * Идемпотентно (IF NOT EXISTS) — безопасно вызывать при каждом старте.
+ * Schema for the CURRENT types (yellow-paper §13, updated by ADR 0007: no reputation/overlay/profanity_policy).
+ * Money is numeric(20,0) (micro-USDC), points are numeric (fractional, 1 USDC = 1 point with cents).
+ * Idempotent (IF NOT EXISTS) — safe to call on every start.
  */
 async function ensureSchema(db: PGlite): Promise<void> {
   await db.exec(`
@@ -50,10 +50,10 @@ async function ensureSchema(db: PGlite): Promise<void> {
       config_version integer NOT NULL DEFAULT 1,
       created_at     timestamptz NOT NULL DEFAULT now()
     );
-    -- Один канал на кошелёк (ADR 0002): уникален среди не-забаненных.
+    -- One realm per wallet (ADR 0002): unique among the non-banned.
     CREATE UNIQUE INDEX IF NOT EXISTS channels_owner_active_uq
       ON channels (owner_address) WHERE status <> 'BANNED';
-    -- H1: ed25519-подпись владельца над payout (lib/chain/attestation.ts); NULL = канал до аттестаций.
+    -- H1: the owner's ed25519 signature over the payout (lib/chain/attestation.ts); NULL = a realm predating attestations.
     ALTER TABLE channels ADD COLUMN IF NOT EXISTS payout_attestation text;
 
     CREATE TABLE IF NOT EXISTS channel_configs (
@@ -74,18 +74,18 @@ async function ensureSchema(db: PGlite): Promise<void> {
       updated_at             timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (channel_id, version)
     );
-    -- Чистка мёртвой схемы (2026-07-02, yellow-paper §18.4): identities никогда не читалась/писалась,
-    -- messages.reported не маппился (жалобы живут в reports).
+    -- Cleaning up dead schema (2026-07-02, yellow-paper §18.4): identities was never read/written,
+    -- messages.reported was never mapped (reports live in reports).
     DROP TABLE IF EXISTS identities;
     ALTER TABLE IF EXISTS messages DROP COLUMN IF EXISTS reported;
 
-    -- Миграции для уже созданных БД (CREATE TABLE IF NOT EXISTS не добавит колонку):
+    -- Migrations for already-created DBs (CREATE TABLE IF NOT EXISTS won't add a column):
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS enabled_games jsonb NOT NULL DEFAULT '[]';
-    -- §10: пороги репутации на присыл задания / на право поднять спор (рычаги стримера).
+    -- §10: Reign thresholds to submit a task / to earn the right to raise a dispute (streamer levers).
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_task double precision NOT NULL DEFAULT 0;
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_dispute double precision NOT NULL DEFAULT 0;
 
-    -- Журнал репутации — append-only источник истины.
+    -- The Reign ledger — the append-only source of truth.
     CREATE TABLE IF NOT EXISTS ledger_events (
       id             text PRIMARY KEY,
       donor          text NOT NULL,
@@ -160,7 +160,7 @@ async function ensureSchema(db: PGlite): Promise<void> {
       ts          timestamptz NOT NULL DEFAULT now()
     );
 
-    -- Жалобы зрителей (анти-накрутка: одна на пару message_id+reporter). Внутреннее состояние стора.
+    -- Viewer reports (anti-gaming: one per message_id+reporter pair). Internal store state.
     CREATE TABLE IF NOT EXISTS reports (
       message_id text NOT NULL,
       channel_id text NOT NULL,
@@ -170,22 +170,22 @@ async function ensureSchema(db: PGlite): Promise<void> {
       PRIMARY KEY (message_id, reporter)
     );
 
-    -- KV для служебного состояния (счётчик id и т.п.).
+    -- KV for internal state (id counter, etc.).
     CREATE TABLE IF NOT EXISTS meta (
       key   text PRIMARY KEY,
       value text NOT NULL
     );
 
-    -- Состояние мини-игр: gameId → непрозрачный слайс (форму владеет сама игра; ADR 0016).
+    -- Mini-game state: gameId → opaque slice (the game owns its shape; ADR 0016).
     CREATE TABLE IF NOT EXISTS game_state (
       game_id text PRIMARY KEY,
       state   jsonb NOT NULL
     );
   `);
 
-  // Миграция дробных очков: очки стали 1:1 к USDC с копейками (2.5 USDC → 2.5 очка). Старые БД имеют
-  // points_delta bigint (целое) → расширяем до numeric (bigint→numeric — без потерь). CREATE TABLE выше уже
-  // задаёт numeric для новых БД; тут чиним существующие. Условно, чтобы не переписывать таблицу каждый старт.
+  // Fractional-points migration: points became 1:1 to USDC with cents (2.5 USDC → 2.5 points). Old DBs have
+  // points_delta bigint (integer) → we widen it to numeric (bigint→numeric — lossless). The CREATE TABLE above
+  // already sets numeric for new DBs; here we fix existing ones. Conditionally, so we don't rewrite the table every start.
   const col = await db.query<{ data_type: string }>(
     `SELECT data_type FROM information_schema.columns
      WHERE table_name = 'ledger_events' AND column_name = 'points_delta'`,

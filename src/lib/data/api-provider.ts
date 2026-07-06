@@ -33,13 +33,13 @@ interface RpcResponse<T> {
 }
 
 /**
- * Фаза 2: реализация DataProvider поверх HTTP (RPC-мост /api/v1/rpc). Экраны не знают, что под ними
- * теперь сервер. Личность и MOCK_FAIL мирроятся локально и шлются с каждым запросом → dev-тулбар
- * работает и под `api`. Оверлей-подписка — заглушка (SSE — дальнейший шаг).
+ * Phase 2: a DataProvider implementation over HTTP (the RPC bridge /api/v1/rpc). Screens don't know
+ * there's now a server under them. Identity and MOCK_FAIL are mirrored locally and sent with every request → the dev toolbar
+ * works under `api` too. The overlay subscription is a stub (SSE is a later step).
  */
 export class ApiDataProvider implements DataProvider {
-  private address: Address | null = null; // DEV-личность (mock/api без кошелька); в проде сервер игнорит
-  private token: string | null = null; // session-токен после проверки SIWS-подписи — реальная личность
+  private address: Address | null = null; // DEV identity (mock/api without a wallet); in prod the server ignores it
+  private token: string | null = null; // session token after verifying the SIWS signature — the real identity
   private failMode = false;
 
   private async rpc<T>(method: string, args: unknown[]): Promise<T> {
@@ -57,53 +57,53 @@ export class ApiDataProvider implements DataProvider {
         }),
       });
     } catch {
-      throw new DataError("NETWORK", "Сеть недоступна или сервер не отвечает.");
+      throw new DataError("NETWORK", "Network is unavailable or the server isn't responding.");
     }
     const text = await res.text();
     let payload: RpcResponse<T>;
     try {
       payload = decode<RpcResponse<T>>(text);
     } catch {
-      // не-JSON (framework-500 → HTML, прокси-ошибка и т.п.)
-      throw new DataError("BAD_RESPONSE", `Сервер вернул неожиданный ответ (HTTP ${res.status}).`);
+      // non-JSON (framework-500 → HTML, proxy error, etc.)
+      throw new DataError("BAD_RESPONSE", `The server returned an unexpected response (HTTP ${res.status}).`);
     }
     if (!payload.ok) {
       throw new DataError(
         payload.error?.code ?? "RPC_ERROR",
-        payload.error?.message ?? "Ошибка API",
+        payload.error?.message ?? "API error",
       );
     }
     return payload.result as T;
   }
 
-  // — Сессия / идентичность —
+  // — Session / identity —
   getSession(): Result<Session> {
     return this.rpc("getSession", []);
   }
   connect(): Result<Session> {
-    // Адрес задаётся снаружи (кошелёк/dev) через __setAddress; connect возвращает сессию по нему.
+    // The address is set from outside (wallet/dev) via __setAddress; connect returns the session for it.
     return this.rpc("connect", []);
   }
   disconnect(): Result<void> {
-    const p = this.rpc<void>("disconnect", []); // пока токен ещё в теле — сервер его погасит
+    const p = this.rpc<void>("disconnect", []); // while the token is still in the body — the server will revoke it
     this.address = null;
     this.token = null;
     return p;
   }
-  /** Приём ончейн-доната по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
+  /** Ingest an on-chain crown by signature (the server validates it from the chain). Outside DataProvider — for chain. */
   ingestSignature(
     signature: string,
     text?: string,
   ): Promise<{ ok: boolean; pending?: boolean; reason?: string; points?: number }> {
     return this.rpc("ingestSignature", [signature, text]);
   }
-  /** Приём ончейн-сбора активации по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
+  /** Ingest the on-chain activation charge by signature (the server validates it from the chain). Outside DataProvider — for chain. */
   ingestActivation(
     signature: string,
   ): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
     return this.rpc("ingestActivation", [signature]);
   }
-  /** Префлайт текста доната ДО отправки: blocked при HARD_BLOCK (контент) или блок-листе канала. Вне DataProvider. */
+  /** Preflight the crown text BEFORE sending: blocked on HARD_BLOCK (content) or the realm blocklist. Outside DataProvider. */
   precheckText(
     text: string,
     channelId?: string,
@@ -111,11 +111,11 @@ export class ApiDataProvider implements DataProvider {
   ): Promise<{ blocked: boolean; reason?: "content" | "blocklist" }> {
     return this.rpc("precheckText", [text, channelId, kind]);
   }
-  /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
+  /** SIWS step 1: get a nonce + the canonical message to sign. Outside DataProvider — for chain. */
   authNonce(address: Address): Promise<{ nonce: string; message: string }> {
     return this.rpc("__authNonce", [address]);
   }
-  /** SIWS шаг 3: отдать подпись, получить session-токен. Вне DataProvider — для chain. */
+  /** SIWS step 3: submit the signature, get a session token. Outside DataProvider — for chain. */
   authVerify(address: Address, signatureB64: string): Promise<{ token: string; exp: number }> {
     return this.rpc("__authVerify", [address, signatureB64]);
   }
@@ -126,7 +126,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("updateProfile", [patch]);
   }
 
-  // — Дискавери / каналы —
+  // — Discovery / realms —
   listChannels(opts?: ListOpts): Result<Page<ChannelCard>> {
     return this.rpc("listChannels", [opts]);
   }
@@ -158,7 +158,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("attestPayout", [channelId, signatureB64]);
   }
 
-  // — Репутация / статус —
+  // — Reign / status —
   getStanding(channelId: string, donor: Address): Result<ViewerStanding | null> {
     return this.rpc("getStanding", [channelId, donor]);
   }
@@ -172,7 +172,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("homeFeed", []);
   }
 
-  // — Донаты —
+  // — Crowns —
   createDonation(input: DonationInput): Result<DonationResult> {
     return this.rpc("createDonation", [input]);
   }
@@ -180,7 +180,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("listDonations", [channelId, opts]);
   }
 
-  // — Модерация —
+  // — Moderation —
   getModerationQueue(channelId: string): Result<MessageRef[]> {
     return this.rpc("getModerationQueue", [channelId]);
   }
@@ -194,7 +194,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("reportMessage", [messageId, reason]);
   }
 
-  // — Канальный блок-лист —
+  // — Realm blocklist —
   getChannelBlocklist(channelId: string): Result<ChannelBlock[]> {
     return this.rpc("getChannelBlocklist", [channelId]);
   }
@@ -208,7 +208,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("getMyChannelBlock", [channelId]);
   }
 
-  // — Оператор / T&S —
+  // — Operator / T&S —
   getOperatorQueue(): Result<IncidentLog[]> {
     return this.rpc("getOperatorQueue", []);
   }
@@ -218,7 +218,7 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("applyOperatorAction", [action]);
   }
 
-  // — Мини-игры (game-bus, ADR 0016) —
+  // — Mini-games (game-bus, ADR 0016) —
   gameAction(req: GameRequest): Result<unknown> {
     return this.rpc("gameAction", [req]);
   }
@@ -226,14 +226,14 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("gameQuery", [req]);
   }
 
-  // — Адрес сессии (кошелёк/dev) + dev-контролы; шлются с каждым запросом —
+  // — Session address (wallet/dev) + dev controls; sent with every request —
   __setAddress(address: Address | null) {
     this.address = address;
   }
   __getAddress(): Address | null {
     return this.address;
   }
-  /** Проверенный session-токен (выставляет chain-слой после SIWS). */
+  /** The verified session token (set by the chain layer after SIWS). */
   __setToken(token: string | null) {
     this.token = token;
   }
@@ -247,7 +247,7 @@ export class ApiDataProvider implements DataProvider {
     return this.failMode;
   }
   __setLatencyScale(_scale: number) {
-    // латентность задаётся сервером; на клиенте no-op
+    // latency is set by the server; a no-op on the client
   }
   __reset() {
     this.address = null;

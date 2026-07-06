@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-/** Переключатель (role=switch) поверх кнопки — без доп. зависимостей. */
+/** A toggle (role=switch) built on top of a button — no extra dependencies. */
 export function Switch({
   checked,
   onCheckedChange,

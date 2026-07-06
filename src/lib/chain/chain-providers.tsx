@@ -11,9 +11,9 @@ import { IS_ICP } from "./addresses";
 import { ChainWalletBridge, SolanaWalletProvider } from "./wallet-provider";
 
 /**
- * Провайдеры для режимов `chain`/`icp` (Фаза 3 / миграция M1). Грузится динамическим чанком,
- * чтобы тяжёлый Solana-стек не попадал в bundle mock/api. `icp` = тот же chain-провайдер,
- * но канон чтения репутации — core-канистра ICP (IcpDataProvider, ADR 0021).
+ * Providers for the `chain`/`icp` modes (Phase 3 / migration M1). Loaded as a dynamic chunk,
+ * so the heavy Solana stack doesn't end up in the mock/api bundle. `icp` = the same chain provider,
+ * but the canonical source for reading Reign is the ICP core canister (IcpDataProvider, ADR 0021).
  */
 export function ChainProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,12 +21,12 @@ export function ChainProviders({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000, // данные «свежие» 30с → возврат на страницу мгновенный из кэша, без рефетча
-            gcTime: 10 * 60_000, // держим кэш 10 мин → навигация туда-сюда без перезагрузки
+            staleTime: 30_000, // data stays "fresh" for 30s → returning to a page is instant from cache, no refetch
+            gcTime: 10 * 60_000, // keep the cache for 10 min → navigating back and forth without a reload
             retry: 1,
             refetchOnWindowFocus: false,
-            // при смене ключа (навигация/смена параметра) показываем прошлые данные, пока грузятся новые —
-            // без мигания скелетонов. Новые данные подменяют старые, когда придут.
+            // on a key change (navigation/param change) we show the previous data while the new data loads —
+            // without skeleton flicker. The new data replaces the old when it arrives.
             placeholderData: keepPreviousData,
           },
         },

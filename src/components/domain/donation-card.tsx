@@ -9,9 +9,9 @@ import { explorerTxUrl } from "@/lib/chain/addresses";
 import { collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Donation, Tier } from "@/lib/data/types";
 
-/** Карточка доната: донор, бейдж тира, сумма, текст (если SHOWN), время. Лента канала и история /me.
- *  variant="card" (по умолчанию) — в рамке; variant="row" — без рамки, с нижним разделителем (лента канала).
- *  avatar (только row) — вести монограмму донора слева (лента двора). */
+/** Crown card: donor, tier badge, amount, text (if SHOWN), time. Realm feed and the /me history.
+ *  variant="card" (default) — bordered; variant="row" — no border, with a bottom divider (realm feed).
+ *  avatar (row only) — show the donor's monogram on the left (realm feed). */
 export function DonationCard({
   donation,
   tier,
@@ -26,8 +26,8 @@ export function DonationCard({
   tier?: Tier;
   displayName?: string;
   showChannel?: boolean;
-  reportable?: boolean; // показать «Пожаловаться» (публичная лента показанных сообщений)
-  manageChannelId?: string; // задан (зритель управляет каналом) → показать «Забанить» донора
+  reportable?: boolean; // show "Report" (public feed of shown messages)
+  manageChannelId?: string; // set (viewer manages the realm) → show "Ban" for the donor
   variant?: "card" | "row";
   avatar?: boolean;
 }) {
@@ -51,7 +51,7 @@ export function DonationCard({
       {shown && donation.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(donation.message.text)}</p>
       ) : donation.message ? (
-        // Сообщение есть, но не показано (HELD/HIDDEN) — помечаем явно, а не пустой строкой.
+        // A message exists but isn't shown (HELD/HIDDEN) — mark it explicitly, not with an empty line.
         <p className="text-small italic text-fg-faint">[hidden]</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 text-caption text-fg-faint">
@@ -85,7 +85,7 @@ export function DonationCard({
     </>
   );
 
-  // Лента двора: аватар слева + колонка контента, ряд с нижним разделителем.
+  // Realm feed: avatar on the left + content column, a row with a bottom divider.
   if (variant === "row" && avatar) {
     return (
       <div className="flex gap-3 border-b border-border py-3.5">

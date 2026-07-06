@@ -13,7 +13,7 @@ import type {
   OperatorAction,
 } from "./types";
 
-/** Стабильные ключи кэша (yellow-paper §11). */
+/** Stable cache keys (yellow-paper §11). */
 export const qk = {
   session: () => ["session"] as const,
   discovery: () => ["discovery"] as const,
@@ -32,7 +32,7 @@ export const qk = {
   profile: (address: Address) => ["profile", address] as const,
 };
 
-// — Запросы —
+// — Queries —
 export function useSession() {
   const data = useData();
   return useQuery({ queryKey: qk.session(), queryFn: () => data.getSession() });
@@ -97,7 +97,7 @@ export function useDonorOverview(address: Address | null | undefined) {
     enabled: Boolean(address),
   });
 }
-/** Лента главной (ADR 0018). Личность сервер берёт из сессии; адрес — только для ключа кэша (рефетч при смене). */
+/** Home feed (ADR 0018). The server takes identity from the session; the address is only for the cache key (refetch on change). */
 export function useHomeFeed() {
   const data = useData();
   const address = useSession().data?.address ?? null;
@@ -122,7 +122,7 @@ export function useChannelBlocklist(channelId: string | undefined) {
     enabled: Boolean(channelId),
   });
 }
-/** Донор: мой блок на этом канале (+причина) — для плашки в карточке доната. Ключ скоупим адресом. */
+/** Supporter: my block on this realm (+reason) — for the banner in the crown card. We scope the key by address. */
 export function useMyBlock(channelId: string | undefined, address: Address | null | undefined) {
   const data = useData();
   return useQuery({
@@ -137,8 +137,8 @@ export function useOperatorQueue() {
 }
 
 /**
- * «Требует внимания»: сколько сообщений ждёт решения (HELD) во ВСЕХ каналах, которыми управляешь (владелец/
- * модератор). Делит тот же кэш, что и useModerationQueue. Для синей точки-уведомления в навигации.
+ * "Needs attention": how many messages are awaiting a decision (HELD) across ALL realms you manage (owner/
+ * moderator). Shares the same cache as useModerationQueue. For the blue notification dot in the nav.
  */
 export function useModerationAttention() {
   const data = useData();
@@ -162,7 +162,7 @@ export function useProfile(address: Address | null | undefined) {
   });
 }
 
-// — Мутации —
+// — Mutations —
 export function useDonate(channelId: string) {
   const data = useData();
   const qc = useQueryClient();
@@ -177,9 +177,9 @@ export function useDonate(channelId: string) {
         qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
       };
       invalidate();
-      // В chain-режиме зачёт репутации приходит на finalized (~15-30с) В ФОНЕ (см. ChainDataProvider) —
-      // поэтому довыпрашиваем данные ещё несколько раз после доната, чтобы очки/лента появились без ручного
-      // refresh. Для mock/api зачёт мгновенный → лишние рефетчи безвредны (та же выдача).
+      // In chain mode the Reign credit arrives on finalized (~15-30s) IN THE BACKGROUND (see ChainDataProvider) —
+      // so we re-fetch the data a few more times after the crown, so points/feed appear without a manual
+      // refresh. For mock/api the credit is instant → the extra refetches are harmless (same result).
       [8000, 18000, 30000].forEach((ms) => setTimeout(invalidate, ms));
     },
   });
@@ -214,7 +214,7 @@ export function useReportMessage(channelId: string) {
     mutationFn: ({ messageId, reason }: { messageId: string; reason?: string }) =>
       data.reportMessage(messageId, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.donations(channelId) }); // авто-скрытие могло изменить ленту
+      qc.invalidateQueries({ queryKey: qk.donations(channelId) }); // auto-hiding may have changed the feed
       qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
       qc.invalidateQueries({ queryKey: qk.operatorQueue() });
     },
@@ -244,14 +244,14 @@ export function useActivateChannel() {
     },
   });
 }
-/** H1: закрепить payout-адрес канала подписью кошелька владельца (chain-провайдер подписывает сам). */
+/** H1: pin the realm's payout address with the owner's wallet signature (the chain provider signs itself). */
 export function useAttestPayout() {
   const data = useData();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (channelId: string) => data.attestPayout(channelId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["channel"] }); // страница канала видит аттестацию → донат открывается
+      qc.invalidateQueries({ queryKey: ["channel"] }); // the realm page sees the attestation → crowning opens up
       qc.invalidateQueries({ queryKey: qk.myChannel() });
     },
   });
@@ -296,7 +296,7 @@ export function useApplyOperatorAction() {
       qc.invalidateQueries({ queryKey: qk.operatorQueue() });
       qc.invalidateQueries({ queryKey: ["channel"] });
       qc.invalidateQueries({ queryKey: ["standing"] });
-      qc.invalidateQueries({ queryKey: qk.discovery() }); // статус канала мог измениться (suspend/restore)
+      qc.invalidateQueries({ queryKey: qk.discovery() }); // the realm status may have changed (suspend/restore)
       qc.invalidateQueries({ queryKey: ["operatorChannels"] });
       qc.invalidateQueries({ queryKey: qk.myChannel() });
     },
@@ -314,7 +314,7 @@ export function useUpdateProfile() {
   });
 }
 
-// — Dev/сессия-контролы: установка адреса личности (кошелёк под chain; dev-ввод под api/mock) —
+// — Dev/session controls: setting the identity address (wallet under chain; dev input under api/mock) —
 interface SessionControls {
   __setAddress(address: Address | null): void;
   __getAddress(): Address | null;
@@ -341,8 +341,8 @@ export function useDevControls() {
     failMode: dev?.__getFailMode() ?? false,
     setAddress: (address: Address | null) => {
       dev?.__setAddress(address);
-      // Смена личности (вход/выход) в dev — выкидываем кэш сразу, чтобы данные прошлой личности не висели
-      // до рефетча (тот же принцип, что в ChainWalletBridge для реального кошелька).
+      // Switching identity (sign in/out) in dev — drop the cache immediately, so the previous identity's data doesn't linger
+      // until the refetch (the same principle as in ChainWalletBridge for a real wallet).
       qc.clear();
     },
     setFailMode: (on: boolean) => {
@@ -357,9 +357,9 @@ export function useDevControls() {
   };
 }
 
-// ─────────── governance-параметры споров (миграция M1, ADR 0021; только режим icp) ───────────
+// ─────────── dispute governance params (migration M1, ADR 0021; icp mode only) ───────────
 
-/** Параметры споров канала из канистры. У прочих провайдеров метода нет → хук выключен. */
+/** A realm's dispute params from the canister. Other providers don't have the method → the hook is disabled. */
 export function useDisputeParams(channelId: string | undefined) {
   const data = useData();
   return useQuery({
@@ -369,7 +369,7 @@ export function useDisputeParams(channelId: string | undefined) {
   });
 }
 
-/** Записать параметры споров: подпись кошельком владельца → канистра (таймлок §8.9). */
+/** Write dispute params: the owner's wallet signature → the canister (timelock §8.9). */
 export function useSetDisputeParams() {
   const data = useData();
   const qc = useQueryClient();

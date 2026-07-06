@@ -2,28 +2,28 @@ import bs58 from "bs58";
 import nacl from "tweetnacl";
 
 /**
- * Аттестация payout-адреса канала (закрывает H1: «payout диктуется сервером»).
+ * Attestation of a realm's payout address (closes H1: "payout dictated by the server").
  *
- * Владелец канала ОДИН РАЗ подписывает кошельком каноническое сообщение «донаты моему каналу идут на
- * адрес X». С этого момента сервер перестаёт быть источником истины по адресу выплат: клиент донора
- * проверяет подпись ПЕРЕД сборкой транзакции (chain-provider), сервер — при зачёте (ingest). Подмена
- * payout в БД/на сервере без ключа владельца даёт невалидную подпись → донат не собирается и не
- * зачитывается (fail-closed).
+ * The realm owner signs, ONCE with their wallet, a canonical message "crowns to my realm go to
+ * address X". From then on the server stops being the source of truth for the payout address: the donor's
+ * client verifies the signature BEFORE building the transaction (chain-provider), the server — on credit (ingest).
+ * Swapping the payout in the DB/on the server without the owner's key yields an invalid signature → the crown is
+ * neither built nor credited (fail-closed).
  *
- * Остаточное доверие (задокументировано в trust-layers.md): привязка handle → ownerAddress остаётся
- * платформенной. Аттестация гарантирует, что деньги идут туда, куда сказал КЛЮЧ владельца, а не сервер.
+ * Residual trust (documented in trust-layers.md): the handle → ownerAddress binding stays platform-controlled.
+ * The attestation guarantees the money goes where the owner's KEY said, not the server.
  *
- * Изоморфный модуль (bs58 + tweetnacl, без web3.js/node): и браузер (chain-provider, донор), и сервер
- * (mock-provider на createChannel/attestPayout, ingest), и скрипт независимой проверки (verify-export).
+ * Isomorphic module (bs58 + tweetnacl, no web3.js/node): browser (chain-provider, donor), server
+ * (mock-provider on createChannel/attestPayout, ingest), and the independent verification script (verify-export).
  */
 
-/** Каноническое сообщение под подпись. Любое изменение строки ломает существующие подписи — меняй через v. */
+/** Canonical message to sign. Any change to the string breaks existing signatures — change it via v. */
 export function buildPayoutAttestationMessage(owner: string, payout: string): string {
   return [
-    "Standing: подтверждение адреса выплат канала.",
+    "Standing: confirmation of the realm's payout address.",
     "",
-    "Подписывая, вы заявляете: донаты вашему каналу должны идти на этот адрес.",
-    "Это не транзакция: деньги не двигаются и газ не списывается.",
+    "By signing, you declare: crowns to your realm must go to this address.",
+    "This is not a transaction: no money moves and no gas is spent.",
     "",
     `owner: ${owner}`,
     `payout: ${payout}`,
@@ -31,7 +31,7 @@ export function buildPayoutAttestationMessage(owner: string, payout: string): st
   ].join("\n");
 }
 
-/** base64 → байты без Buffer-зависимости (браузер); на сервере Buffer быстрее и есть всегда. */
+/** base64 → bytes without a Buffer dependency (browser); on the server Buffer is faster and always present. */
 function fromBase64(s: string): Uint8Array {
   if (typeof Buffer !== "undefined") return new Uint8Array(Buffer.from(s, "base64"));
   const bin = atob(s);
@@ -40,7 +40,7 @@ function fromBase64(s: string): Uint8Array {
   return out;
 }
 
-/** ed25519-проверка подписи владельца над каноническим сообщением. Любой сбой разбора → false (fail-closed). */
+/** ed25519 verification of the owner's signature over the canonical message. Any parse failure → false (fail-closed). */
 export function verifyPayoutAttestation(
   owner: string,
   payout: string,

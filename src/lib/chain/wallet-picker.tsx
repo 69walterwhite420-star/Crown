@@ -10,16 +10,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Один кошелёк из wallet-adapter (адаптер + его readyState). Выводим тип из useWallet, чтобы не гадать,
-// из какого пакета реэкспортируется Wallet.
+// A single wallet from wallet-adapter (the adapter + its readyState). We derive the type from useWallet, so we don't
+// have to guess which package re-exports Wallet.
 type WalletEntry = ReturnType<typeof useWallet>["wallets"][number];
 
 /**
- * Своя модалка выбора кошелька (дефолтная из wallet-adapter-react-ui по клику всегда делает select+закрыть,
- * без различия installed/нет — перехватить нельзя). Поведение по требованию:
- *  - установленный кошелёк → select() (autoConnect подключит) + закрыть окно;
- *  - кошелёк, которого НЕТ → НЕ подключаемся и НЕ закрываем окно, а сразу открываем сайт кошелька в новой
- *    вкладке (там его можно установить). Так пользователь не залипает в «подключается» и видит список дальше.
+ * Our own wallet-picker modal (the default one from wallet-adapter-react-ui always does select+close on click,
+ * with no installed/not distinction — it can't be intercepted). Required behavior:
+ *  - an installed wallet → select() (autoConnect will connect) + close the window;
+ *  - a wallet that is NOT present → we do NOT connect and do NOT close the window, but immediately open the wallet's site in a new
+ *    tab (where it can be installed). This way the user doesn't get stuck on "connecting" and keeps seeing the list.
  */
 export function WalletPickerDialog({
   open,
@@ -34,11 +34,11 @@ export function WalletPickerDialog({
 
   function pick(w: WalletEntry) {
     if (w.readyState === WalletReadyState.Installed) {
-      select(w.adapter.name); // autoConnect (гейт installed) подключит
+      select(w.adapter.name); // autoConnect (installed gate) will connect
       onOpenChange(false);
       return;
     }
-    // Кошелька нет — не трогаем выбор/подключение, окно оставляем открытым, ведём ставить его.
+    // The wallet isn't present — we don't touch the selection/connection, we keep the window open and lead the user to install it.
     window.open(w.adapter.url, "_blank", "noopener,noreferrer");
   }
 
@@ -46,10 +46,10 @@ export function WalletPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Подключить кошелёк</DialogTitle>
+          <DialogTitle>Connect a wallet</DialogTitle>
           <DialogDescription>
-            Установленные подключатся сразу. У остальных откроется сайт, где их можно поставить, — окно
-            останется здесь.
+            Installed ones connect right away. For the rest, their site opens where you can install them — this window
+            stays here.
           </DialogDescription>
         </DialogHeader>
 
@@ -58,7 +58,7 @@ export function WalletPickerDialog({
             <WalletRow key={w.adapter.name} wallet={w} onClick={() => pick(w)} />
           ))}
           {installed.length > 0 && others.length > 0 ? (
-            <div className="mt-2 text-small text-fg-faint">Нет установленного? Поставьте один из:</div>
+            <div className="mt-2 text-small text-fg-faint">None installed? Install one of:</div>
           ) : null}
           {others.map((w) => (
             <WalletRow key={w.adapter.name} wallet={w} onClick={() => pick(w)} />
@@ -78,7 +78,7 @@ function WalletRow({ wallet, onClick }: { wallet: WalletEntry; onClick: () => vo
       className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:border-fg-faint hover:bg-surface-raised"
     >
       {wallet.adapter.icon ? (
-        // Иконка кошелька — data-URI из адаптера; next/image тут лишний.
+        // The wallet icon — a data-URI from the adapter; next/image is unnecessary here.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={wallet.adapter.icon} alt="" className="h-6 w-6 shrink-0" />
       ) : (
@@ -86,7 +86,7 @@ function WalletRow({ wallet, onClick }: { wallet: WalletEntry; onClick: () => vo
       )}
       <span className="min-w-0 flex-1 truncate font-display text-fg">{wallet.adapter.name}</span>
       <span className="shrink-0 text-small text-fg-faint">
-        {installed ? "Обнаружен" : "Установить ↗"}
+        {installed ? "Detected" : "Install ↗"}
       </span>
     </button>
   );

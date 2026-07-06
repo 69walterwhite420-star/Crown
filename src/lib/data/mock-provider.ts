@@ -4,6 +4,7 @@ import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
+import { DEMO_CHANNELS, DEMO_NAMES, demoAddress } from "./demo-seed";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
 import { classifyTaskText, resolveAutoModerator, runPipeline, taskTextCommitment } from "./moderation";
 import {
@@ -59,21 +60,21 @@ const FAILABLE = new Set([
   "getOperatorQueue",
 ]);
 
-// R6 (ADR 0012): верхняя граница кэша дедупа модерации (in-memory стенд-ин под Postgres). При переполнении
-// вытесняем старейшие записи (Map хранит порядок вставки) — повтор вытесненного контента просто
-// будет переоценён заново, корректности не ломает.
+// R6 (ADR 0012): upper bound of the moderation dedup cache (in-memory stand-in for Postgres). On overflow
+// we evict the oldest entries (Map keeps insertion order) — a repeat of evicted content simply
+// gets re-evaluated, which does not break correctness.
 const MOD_CACHE_CAP = 5000;
 
 /**
- * In-memory backend-store. Личность — РЕАЛЬНЫЙ адрес кошелька (Фаза 3): нет фикстур и dev-личностей,
- * каналы создают пользователи, ончейн-донаты принимаются через recordDonationFromChain (после валидации
- * сервером из цепочки). Репутация считается общим движком lib/reputation.ts. Persistence — in-memory
- * (стенд-ин под Postgres; сбрасывается при перезапуске процесса).
+ * In-memory backend-store. Identity is a REAL wallet address (Phase 3): no fixtures and no dev identities,
+ * realms are created by users, on-chain crowns are accepted via recordDonationFromChain (after the server
+ * validates them from the chain). Reign is computed by the shared engine lib/reputation.ts. Persistence is in-memory
+ * (a stand-in for Postgres; reset on process restart).
  *
- * `createDonation` (оффчейн-симуляция) оставлен для api/mock без кошелька; в режиме chain деньги идут
- * ончейн, а зачёт делает ingest по подписи.
+ * `createDonation` (off-chain simulation) is kept for api/mock without a wallet; in chain mode the money goes
+ * on-chain and ingest credits it by signature.
  */
-/** Жалоба зрителя на показанный текст (анти-накрутка: одна на пару messageId+reporter). */
+/** A viewer's report against shown text (anti-gaming: one per messageId+reporter pair). */
 interface ReportRecord {
   messageId: string;
   channelId: string;
@@ -82,17 +83,17 @@ interface ReportRecord {
   ts: string;
 }
 
-/** Сколько уникальных жалоб авто-скрывает показанный текст (до решения стримера/оператора). */
+/** How many unique reports auto-hide shown text (until the streamer/operator decides). */
 const REPORT_HIDE_THRESHOLD = 3;
 
-// Лимиты длины пользовательского ввода (анти-DoS + аккуратные поверхности). Имя/био — ещё и публичны.
+// Length limits for user input (anti-DoS + tidy surfaces). Name/bio are also public.
 const PROFILE_LIMITS = { name: 40, bio: 280 };
-const REASON_MAX = 500; // причина жалобы/операторского действия/блока (свободный текст)
+const REASON_MAX = 500; // reason for a report/operator action/block (free text)
 
 /**
- * Сериализуемый снимок состояния стора для файловой персистентности (server/persist.ts, ADR 0013).
- * Map → entries; bigint переживает через codec. Не входят: sessionAddress/failMode/latencyScale (runtime),
- * резолвер личности.
+ * Serializable snapshot of the store state for file persistence (server/persist.ts, ADR 0013).
+ * Map → entries; bigint survives via codec. Not included: sessionAddress/failMode/latencyScale (runtime),
+ * the identity resolver.
  */
 export interface StoreSnapshot {
   channelsById: [string, Channel][];
@@ -107,7 +108,7 @@ export interface StoreSnapshot {
   operatorActions: OperatorAction[];
   modCache: [string, ModerationVerdict][];
   reports: ReportRecord[];
-  gameState: [string, unknown][]; // состояние мини-игр (gameId → непрозрачный слайс; ADR 0016)
+  gameState: [string, unknown][]; // mini-game state (gameId → opaque slice; ADR 0016)
   seq: number;
 }
 
@@ -123,30 +124,30 @@ export class MockDataProvider implements DataProvider {
   private incidents: IncidentLog[] = [];
   private operatorActions: OperatorAction[] = [];
   private reports: ReportRecord[] = [];
-  // Операторские override-наборы (модерация платформы). Не персистятся напрямую — ВЫЧИСЛЯЮТСЯ из
-  // operatorActions (журнал = источник истины, он в снапшоте) через rebuildOperatorOverrides() в __restore.
-  // Тейкдаун контента (задание/сообщение) и полный бан кошелька перебивают офчейн-логику; деньги ончейн это
-  // не трогает (§4.1/§4.2 некастодиальность) — только видимость и офчейн-действия платформы.
+  // Operator override sets (platform moderation). Not persisted directly — they are COMPUTED from
+  // operatorActions (the log is the source of truth, it is in the snapshot) via rebuildOperatorOverrides() in __restore.
+  // A content takedown (task/message) and a full wallet ban override off-chain logic; on-chain money is
+  // not touched by this (§4.1/§4.2 non-custodial) — only visibility and the platform's off-chain actions.
   private operatorBlockedContent = new Set<string>();
   private bannedWallets = new Set<Address>();
 
-  // H1: в chain-режиме канал без валидной подписи payout не создаётся (fail-closed). Флаг выставляет
-  // server/store.ts по CHAIN_MODE (серверный env) — сам класс изоморфен и серверных флагов не знает.
+  // H1: in chain mode a realm without a valid payout signature is not created (fail-closed). The flag is set by
+  // server/store.ts based on CHAIN_MODE (server env) — the class itself is isomorphic and knows no server flags.
   requirePayoutAttestation = false;
 
   private sessionAddress: Address | null = null;
-  // H3: на сервере личность инжектится резолвером (per-request AsyncLocalStorage, см. server/store.ts);
-  // в браузерном mock резолвера нет → читается sessionAddress (его выставляет __setAddress: кошелёк/dev).
+  // H3: on the server the identity is injected by a resolver (per-request AsyncLocalStorage, see server/store.ts);
+  // in the browser mock there is no resolver → sessionAddress is read (set by __setAddress: wallet/dev).
   private identityResolver: (() => Address | null) | null = null;
   private failMode = process.env.NEXT_PUBLIC_MOCK_FAIL === "on";
   private latencyScale = 1;
   private seq = 0;
   private modCache = new Map<string, ModerationVerdict>();
-  // Состояние мини-игр: непрозрачный для ядра слайс на каждую игру (форму владеет сама игра; ADR 0016).
-  // Входит в снимок и БД (таблица game_state) — переживает рестарт, как и остальной стор.
+  // Mini-game state: a slice opaque to the core, one per game (the game owns its shape; ADR 0016).
+  // Included in the snapshot and the DB (game_state table) — survives restart like the rest of the store.
   private gameState = new Map<string, unknown>();
 
-  // — Инфраструктура —
+  // — Infrastructure —
   private now(): string {
     return new Date().toISOString();
   }
@@ -154,28 +155,120 @@ export class MockDataProvider implements DataProvider {
     this.seq += 1;
     return `${prefix}-${this.now()}-${this.seq}`;
   }
+
+  /**
+   * DEV-ONLY: fill an EMPTY browser mock with demo content (realms/profiles/crowns/messages) so the
+   * screens look like a working product. Idempotent (a repeat call is a no-op). Called ONLY from
+   * createDataProvider("mock") in the BROWSER (provider.ts) — the server (api/chain/persist) never comes here.
+   * Crowns go through the same accounting (ledger → Reign engine) as real ones. Data — demo-seed.ts.
+   */
+  seedDemo(): void {
+    if (this.channelsById.size > 0) return; // already seeded / store not empty
+    const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    for (const dc of DEMO_CHANNELS) {
+      const ownerAddress = demoAddress(dc.owner);
+      this.profiles.set(ownerAddress, {
+        address: ownerAddress,
+        displayName: dc.name,
+        avatarUrl: dc.avatar,
+        bio: dc.bio,
+        links: sanitizeChannelLinks(dc.links),
+      });
+      const createdAt = iso(150);
+      const id = this.nextId("ch");
+      this.channelsById.set(id, {
+        id,
+        ownerAddress,
+        payoutAddress: demoAddress(`${dc.owner}-payout`),
+        handle: dc.handle,
+        status: "ACTIVE",
+        activatedAt: createdAt,
+        configVersion: 1,
+        createdAt,
+      });
+      this.handleToId.set(dc.handle, id);
+      this.configsByChannel.set(id, [
+        {
+          ...defaultChannelConfig(id),
+          description: dc.description,
+          nameMode: "allow_display_names", // supporter names are visible in the leaderboard/feed
+          updatedAt: createdAt,
+        },
+      ]);
+      for (const dn of dc.donations) {
+        const donor = demoAddress(dn.donor);
+        const name = DEMO_NAMES[dn.donor];
+        if (name && !this.profiles.has(donor)) {
+          this.profiles.set(donor, { address: donor, displayName: name });
+        }
+        const ts = iso(dn.daysAgo);
+        const amount = toMicro(dn.usdc);
+        const { fee, net } = splitAmount(amount);
+        const donationId = this.nextId("d");
+        const donation: Donation = {
+          id: donationId,
+          channelId: id,
+          donor,
+          amount,
+          feeAmount: fee,
+          netToStreamer: net,
+          final: true,
+          ts,
+        };
+        this.ledger.push({
+          id: this.nextId("l"),
+          donor,
+          creator: id,
+          type: "DONATION",
+          amount,
+          pointsDelta: pointsForAmount(amount),
+          configVersion: 1,
+          ts,
+        });
+        if (dn.text) {
+          const state = dn.state ?? "SHOWN";
+          const messageId = this.nextId("m");
+          const message: MessageRef = {
+            id: messageId,
+            donationId,
+            channelId: id,
+            text: dn.text,
+            lang: "en",
+            state,
+            autoVerdict: "CLEAR",
+            contentHash: `demo-${messageId}`,
+            shownAt: state === "SHOWN" ? ts : undefined,
+            createdAt: ts,
+          };
+          this.messages.set(messageId, message);
+          donation.message = message;
+        }
+        this.donations.push(donation);
+      }
+    }
+  }
   private async gate(method: string): Promise<void> {
-    // На сервере latencyScale=0 и failMode выкл → ни задержки, ни инъекции сбоев: пропускаем всю работу
-    // (R8/ADR 0012). Личность несётся per-request через AsyncLocalStorage (ADR 0010), не перетирая чужую.
+    // On the server latencyScale=0 and failMode is off → no delay, no fault injection: we skip all the work
+    // (R8/ADR 0012). The identity is carried per-request via AsyncLocalStorage (ADR 0010), without overwriting anyone else's.
     if (this.latencyScale === 0 && !this.failMode) return;
     let h = 0;
     for (const ch of method) h = (h * 31 + ch.charCodeAt(0)) % 997;
     const ms = (120 + (h / 997) * 380) * this.latencyScale;
     if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (this.failMode && FAILABLE.has(method)) {
-      throw new DataError("MOCK_FAIL", `Сбой (${method}) — для проверки error-стейтов.`);
+      throw new DataError("MOCK_FAIL", `Failure (${method}) — for testing error states.`);
     }
   }
   private latestConfig(channelId: string): ChannelConfig {
     const list = this.configsByChannel.get(channelId);
     const last = list?.[list.length - 1];
-    if (!last) throw new DataError("NO_CONFIG", `Нет конфига канала ${channelId}`);
+    if (!last) throw new DataError("NO_CONFIG", `No config for realm ${channelId}`);
     return last;
   }
   private eventsFor(donor: Address, channelId: string) {
     return this.ledger.filter((e) => e.donor === donor && e.creator === channelId);
   }
-  /** Личность запроса: резолвер (сервер, per-request) или поле sessionAddress (браузерный mock). */
+  /** The request identity: resolver (server, per-request) or the sessionAddress field (browser mock). */
   private currentAddress(): Address | null {
     return this.identityResolver ? this.identityResolver() : this.sessionAddress;
   }
@@ -184,51 +277,51 @@ export class MockDataProvider implements DataProvider {
     if (!address)
       return { address: null, isCreator: false, isOperator: false };
     const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
-    // C2: пустой OPERATOR_ADDRESS (prod без явного env) не должен давать прав оператора.
+    // C2: an empty OPERATOR_ADDRESS (prod without an explicit env) must not grant operator rights.
     const isOperator = Boolean(OPERATOR_ADDRESS) && address === OPERATOR_ADDRESS;
     return { address, isCreator, isOperator };
   }
 
-  // — Авторизация. Личность = ПРОВЕРЕННЫЙ адрес сессии (выставлен из токена SIWS, см. server/auth.ts).
-  // До этих проверок любой мог слать `address` в теле и выдавать себя за оператора/владельца (дыра C1/C3).
+  // — Authorization. Identity = the VERIFIED session address (set from the SIWS token, see server/auth.ts).
+  // Before these checks anyone could send `address` in the body and impersonate the operator/owner (hole C1/C3).
   private requireSession(): Address {
     const addr = this.currentAddress();
-    if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк и войди (подпись).");
+    if (!addr) throw new DataError("NO_SESSION", "Connect your wallet and sign in first (signature).");
     return addr;
   }
   private requireOperator(): Address {
     const addr = this.requireSession();
-    // Пустой OPERATOR_ADDRESS (prod без явного env, C2) → оператора нет, отказываем всем (fail-closed).
+    // An empty OPERATOR_ADDRESS (prod without an explicit env, C2) → no operator, deny everyone (fail-closed).
     if (!OPERATOR_ADDRESS || addr !== OPERATOR_ADDRESS) {
-      throw new DataError("FORBIDDEN", "Действие доступно только оператору платформы.");
+      throw new DataError("FORBIDDEN", "This action is available only to the platform operator.");
     }
     return addr;
   }
   private channelOr404(channelId: string): Channel {
     const ch = this.channelsById.get(channelId);
-    if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
+    if (!ch) throw new DataError("NO_CHANNEL", "Realm not found.");
     return ch;
   }
   private requireChannelOwner(channelId: string): Channel {
     const addr = this.requireSession();
     const ch = this.channelOr404(channelId);
     if (ch.ownerAddress !== addr) {
-      throw new DataError("FORBIDDEN", "Только владелец канала может это сделать.");
+      throw new DataError("FORBIDDEN", "Only the realm owner can do this.");
     }
     return ch;
   }
-  /** Владелец или модератор канала. needBlock → нужен скоуп queue_and_block (бан-операции). */
+  /** Realm owner or moderator. needBlock → requires the queue_and_block scope (ban operations). */
   private requireChannelManager(channelId: string, needBlock = false): Channel {
     const addr = this.requireSession();
     const ch = this.channelOr404(channelId);
     if (ch.ownerAddress === addr) return ch;
     const mod = this.latestConfig(channelId).moderators.find((m) => m.address === addr);
     if (!mod || (needBlock && mod.scope !== "queue_and_block")) {
-      throw new DataError("FORBIDDEN", "Нужны права модератора этого канала.");
+      throw new DataError("FORBIDDEN", "You need moderator rights for this realm.");
     }
     return ch;
   }
-  /** Не бросает — для редакции приватного текста в публичных чтениях (инвариант §4.6). */
+  /** Does not throw — for redacting private text in public reads (invariant §4.6). */
   private isChannelManager(channelId: string): boolean {
     const addr = this.currentAddress();
     if (!addr) return false;
@@ -238,12 +331,12 @@ export class MockDataProvider implements DataProvider {
     const cfg = this.configsByChannel.get(channelId)?.slice(-1)[0];
     return Boolean(cfg?.moderators.some((m) => m.address === addr));
   }
-  /** Приватный текст (HELD/HIDDEN/QUARANTINED) виден только менеджерам канала; иначе вырезаем (§4.6). */
+  /** Private text (HELD/HIDDEN/QUARANTINED) is visible only to realm managers; otherwise we strip it (§4.6). */
   private redactDonation(d: Donation, isManager: boolean): Donation {
     const m = d.message;
     if (!m) return d;
-    // Операторский тейкдаун сообщения — снято с публикации для ВСЕХ, даже для менеджера канала (перебивает
-    // роль). Иначе стример по-прежнему видел бы снятую оператором нелегальщину.
+    // An operator takedown of a message — unpublished for EVERYONE, even for a realm manager (overrides
+    // the role). Otherwise the streamer would still see the illegal content the operator took down.
     if (this.operatorBlockedContent.has(m.id))
       return { ...d, message: { ...m, text: "", state: "HIDDEN" } };
     if (isManager || m.state === "SHOWN") return d;
@@ -273,11 +366,11 @@ export class MockDataProvider implements DataProvider {
     };
   }
 
-  // — Dev/инжект адреса (вне интерфейса) —
+  // — Dev/address injection (outside the interface) —
   __setAddress(address: Address | null) {
     this.sessionAddress = address;
   }
-  /** H3: инжект резолвера личности (сервер). Браузерный mock не зовёт → остаётся поле sessionAddress. */
+  /** H3: inject the identity resolver (server). The browser mock does not call it → the sessionAddress field stays. */
   __setIdentityResolver(resolver: (() => Address | null) | null) {
     this.identityResolver = resolver;
   }
@@ -314,7 +407,7 @@ export class MockDataProvider implements DataProvider {
     this.bannedWallets.clear();
   }
 
-  // — Персистентность (ADR 0013): снимок/восстановление для файлового хранилища (server/persist.ts) —
+  // — Persistence (ADR 0013): snapshot/restore for the file store (server/persist.ts) —
   __snapshot(): StoreSnapshot {
     return {
       channelsById: [...this.channelsById.entries()],
@@ -348,11 +441,11 @@ export class MockDataProvider implements DataProvider {
     this.reports = s.reports ?? [];
     this.gameState = new Map(s.gameState ?? []);
     this.seq = s.seq ?? 0;
-    this.rebuildOperatorOverrides(); // тейкдаун/баны — из восстановленного журнала операторских действий
+    this.rebuildOperatorOverrides(); // takedowns/bans — from the restored operator-actions log
   }
-  /** Пересобирает override-наборы (тейкдаун контента, полный бан кошелька) из журнала операторских действий —
-   * единый источник истины (персистится), «последнее действие по цели побеждает». Канальные блоки живут в
-   * this.blocks (персистятся отдельно) — тут их не трогаем. */
+  /** Rebuilds the override sets (content takedown, full wallet ban) from the operator-actions log —
+   * the single source of truth (persisted), "the last action per target wins". Realm blocks live in
+   * this.blocks (persisted separately) — we do not touch them here. */
   private rebuildOperatorOverrides(): void {
     this.operatorBlockedContent.clear();
     this.bannedWallets.clear();
@@ -367,21 +460,21 @@ export class MockDataProvider implements DataProvider {
       }
     }
   }
-  /** Полный бан кошелька оператором: заблокированный не создаёт каналы, не донатит офчейн и не играет.
-   * Деньги ончейн так не остановить (некастодиально) — гейт закрывает офчейн-действия платформы. */
+  /** Full wallet ban by the operator: a banned wallet does not create realms, does not crown off-chain, and does not play.
+   * On-chain money cannot be stopped this way (non-custodial) — the gate closes off the platform's off-chain actions. */
   private requireNotBanned(addr: Address | null): void {
     if (addr && this.bannedWallets.has(addr))
-      throw new DataError("WALLET_BANNED", "Кошелёк заблокирован оператором платформы.");
+      throw new DataError("WALLET_BANNED", "This wallet is banned by the platform operator.");
   }
 
-  // — Сессия / идентичность —
+  // — Session / identity —
   async getSession(): Result<Session> {
     await this.gate("getSession");
     return this.session();
   }
   async connect(): Result<Session> {
     await this.gate("connect");
-    return this.session(); // адрес задаётся через __setAddress (кошелёк/dev)
+    return this.session(); // the address is set via __setAddress (wallet/dev)
   }
   async disconnect(): Result<void> {
     await this.gate("disconnect");
@@ -394,55 +487,76 @@ export class MockDataProvider implements DataProvider {
   async updateProfile(patch: Partial<LightProfile>): Result<LightProfile> {
     await this.gate("updateProfile");
     const addr = this.session().address;
-    if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
-    // Лимиты длины (анти-DoS).
+    if (!addr) throw new DataError("NO_SESSION", "Connect your wallet first.");
+    // Length limits (anti-DoS).
     if ((patch.displayName?.length ?? 0) > PROFILE_LIMITS.name)
-      throw new DataError("TOO_LONG", `Имя — до ${PROFILE_LIMITS.name} символов.`);
+      throw new DataError("TOO_LONG", `Name — up to ${PROFILE_LIMITS.name} characters.`);
     if ((patch.bio?.length ?? 0) > PROFILE_LIMITS.bio)
-      throw new DataError("TOO_LONG", `О себе — до ${PROFILE_LIMITS.bio} символов.`);
-    // Модерация ПУБЛИЧНЫХ полей (ник/био видны в ленте и лидерборде): запрещёнка/жёсткое → отказ. Мат — ок.
+      throw new DataError("TOO_LONG", `Bio — up to ${PROFILE_LIMITS.bio} characters.`);
+    // Moderation of PUBLIC fields (name/bio are visible in the feed and leaderboard): banned/hard content → reject. Profanity is fine.
     const publicText = [patch.displayName, patch.bio].filter(Boolean).join(" ").trim();
     if (publicText && (await resolveAutoModerator().classify(publicText, "")) === "HARD_BLOCK")
       throw new DataError(
         "PROFILE_BLOCKED",
-        "Профиль не прошёл модерацию (запрещённый/жёсткий контент).",
+        "The profile did not pass moderation (banned/hard content).",
       );
-    // Аватарки по URL отключены (канал для нецензурного контента) — не принимаем avatarUrl даже из прямого RPC.
-    const { avatarUrl: _ignoredAvatar, ...safePatch } = patch;
-    // Ссылки на платформы — только профиль/канал на доменах из allowlist (как у канала); чужой URL отброшен.
+    // Avatar enabled (at the owner's discretion): an http(s) link OR an uploaded crop data:image (base64).
+    const safePatch: Partial<LightProfile> = { ...patch };
+    if (patch.avatarUrl !== undefined) {
+      const a = patch.avatarUrl.trim();
+      const okHttp = /^https?:\/\//i.test(a) && a.length <= 512;
+      const okData = /^data:image\/(png|jpe?g|webp|gif);/i.test(a) && a.length <= 500_000; // ~256² jpeg crop
+      safePatch.avatarUrl = a && (okHttp || okData) ? a : undefined;
+    }
+    // Platform links — only a profile/channel on allowlist domains (same as a realm); a foreign URL is dropped.
     if (patch.links !== undefined) safePatch.links = sanitizeChannelLinks(patch.links);
     const updated: LightProfile = {
       ...(this.profiles.get(addr) ?? { address: addr }),
       ...safePatch,
-      avatarUrl: undefined,
       address: addr,
     };
     this.profiles.set(addr, updated);
     return updated;
   }
 
-  // — Дискавери / каналы —
+  // — Discovery / realms —
   async listChannels(_opts?: ListOpts): Result<Page<ChannelCard>> {
     await this.gate("listChannels");
+    // Crown volume over the last 7 days per realm (showcase sort / momentum). One pass over the ledger
+    // (creator = channelId); the window uses the same store clock that ages demo crowns.
+    const weekAgo = Date.parse(this.now()) - 7 * 86_400_000;
+    const crowned7dByChannel = new Map<string, bigint>();
+    for (const e of this.ledger) {
+      if (e.type !== "DONATION" || Date.parse(e.ts) < weekAgo) continue;
+      crowned7dByChannel.set(e.creator, (crowned7dByChannel.get(e.creator) ?? 0n) + e.amount);
+    }
     const items: ChannelCard[] = [...this.channelsById.values()]
-      // Показываем и BASIC (без активации) — активация лишь разблокирует донат-с-текстом, а не сам показ.
-      // Скрыты только SUSPENDED/BANNED.
+      // We also show BASIC (without activation) — activation only unlocks crown-with-text, not the listing itself.
+      // Only SUSPENDED/BANNED are hidden.
       .filter((c) => c.status === "ACTIVE" || c.status === "BASIC")
       .map((c) => {
         const cfg = this.latestConfig(c.id);
         const board = this.computeLeaderboard(c.id, "all_time");
         const top = board[0];
-        // Имя и ссылки канала = профиль ВЛАДЕЛЬЦА (единый ник/ссылки на человека), не отдельные канальные.
+        // The realm's name and links = the OWNER's profile (a single name/links for the person), not separate per-realm ones.
         const owner = this.profiles.get(c.ownerAddress);
+        const crowned7d = crowned7dByChannel.get(c.id) ?? 0n;
+        // «Live» — the core has no real liveness source; mock simulates it deterministically (stable per realm,
+        // biased toward realms with recent activity) so the showcase / admin «Live now» isn't a dead zero.
+        const idHash = [...c.id].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+        const isLive = crowned7d > 0n && idHash % 3 === 0;
         return {
           channelId: c.id,
           handle: c.handle,
           displayName: owner?.displayName,
+          avatarUrl: owner?.avatarUrl,
           payoutAddress: c.payoutAddress,
           links: owner?.links,
-          topTierName: top?.tier ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
+          topTierName: top?.tier ? top.tier.name : (cfg.tiers[0]?.name ?? "Novice"),
           donorsCount: board.length,
           totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
+          crowned7d,
+          isLive,
           activated: c.status === "ACTIVE",
         };
       });
@@ -459,7 +573,7 @@ export class MockDataProvider implements DataProvider {
     if (!addr) return null;
     return [...this.channelsById.values()].find((c) => c.ownerAddress === addr) ?? null;
   }
-  /** Каналы, которыми текущая сессия управляет: владелец ИЛИ модератор (для очереди модерации). */
+  /** Realms the current session manages: owner OR moderator (for the moderation queue). */
   async getManagedChannels(): Result<Channel[]> {
     await this.gate("getManagedChannels");
     const addr = this.session().address;
@@ -470,13 +584,13 @@ export class MockDataProvider implements DataProvider {
       return Boolean(cfg?.moderators.some((m) => m.address === addr));
     });
   }
-  /** ВСЕ каналы (любой статус) — для консоли оператора: нужно действовать и на SUSPENDED/BANNED. */
+  /** ALL realms (any status) — for the operator console: must act on SUSPENDED/BANNED too. */
   async getOperatorChannels(): Result<Channel[]> {
     await this.gate("getOperatorChannels");
     this.requireOperator();
     return [...this.channelsById.values()];
   }
-  /** Внутренний доступ для ingest (вне интерфейса). */
+  /** Internal access for ingest (outside the interface). */
   __getChannelById(id: string): Channel | null {
     return this.channelsById.get(id) ?? null;
   }
@@ -487,31 +601,31 @@ export class MockDataProvider implements DataProvider {
   async createChannel(input: CreateChannelInput): Result<Channel> {
     await this.gate("createChannel");
     const addr = this.requireSession();
-    this.requireNotBanned(addr); // забаненный оператором кошелёк не заводит каналы
-    // Валидация входов на денежном пути: кривой payout уронил бы сборку tx; handle нормализуем и
-    // проверяем по строгому шаблону, уникальность — БЕЗ учёта регистра (анти-имперсонация @Foo/@foo).
+    this.requireNotBanned(addr); // a wallet banned by the operator does not create realms
+    // Validate inputs on the money path: a bad payout would break tx assembly; we normalize the handle and
+    // check it against a strict pattern, uniqueness is case-INSENSITIVE (anti-impersonation @Foo/@foo).
     const handle = (input.handle ?? "").trim().toLowerCase();
     if (!/^[a-z0-9_]{3,32}$/.test(handle)) {
-      throw new DataError("BAD_HANDLE", "Handle: 3–32 символа [a-z0-9_].");
+      throw new DataError("BAD_HANDLE", "Handle: 3–32 characters [a-z0-9_].");
     }
     if (!isLikelyBase58Address(input.payoutAddress)) {
-      throw new DataError("BAD_PAYOUT", "payoutAddress не похож на Solana-адрес.");
+      throw new DataError("BAD_PAYOUT", "payoutAddress does not look like a Solana address.");
     }
     if ([...this.channelsById.values()].some((c) => c.ownerAddress === addr))
       throw ErrChannelAlreadyExists;
     if (this.handleToId.has(handle)) {
-      throw new DataError("HANDLE_TAKEN", `Handle @${handle} уже занят.`);
+      throw new DataError("HANDLE_TAKEN", `Handle @${handle} is already taken.`);
     }
-    // H1: payout закрепляется ed25519-подписью владельца — сервер перестаёт быть источником истины по
-    // адресу выплат (клиент донора проверяет подпись сам до сборки tx). Присланная подпись обязана быть
-    // валидной в любом режиме; в chain-режиме её отсутствие — отказ (fail-closed).
+    // H1: payout is locked in by the owner's ed25519 signature — the server stops being the source of truth for
+    // the payout address (the donor's client verifies the signature itself before assembling the tx). A supplied signature must be
+    // valid in any mode; in chain mode its absence is a rejection (fail-closed).
     const attestation = input.payoutAttestation;
     if (attestation !== undefined && !verifyPayoutAttestation(addr, input.payoutAddress, attestation))
-      throw new DataError("BAD_ATTESTATION", "Подпись адреса выплат не прошла проверку.");
+      throw new DataError("BAD_ATTESTATION", "The payout address signature failed verification.");
     if (this.requirePayoutAttestation && !attestation)
       throw new DataError(
         "PAYOUT_UNATTESTED",
-        "Нужна подпись адреса выплат кошельком владельца (attestPayout).",
+        "The payout address must be signed by the owner's wallet (attestPayout).",
       );
     const id = this.nextId("ch");
     const channel: Channel = {
@@ -537,8 +651,8 @@ export class MockDataProvider implements DataProvider {
     return updated;
   }
   /**
-   * Активация из ончейн-сбора (server/ingest.ts): без сессии — личность/право уже проверены сервером
-   * (payer === ownerAddress). Идемпотентно: повторный приём той же tx не меняет уже активный канал.
+   * Activation from an on-chain payment (server/ingest.ts): no session — identity/right already checked by the server
+   * (payer === ownerAddress). Idempotent: re-accepting the same tx does not change an already active realm.
    */
   activateFromChain(channelId: string): Channel | null {
     const ch = this.channelsById.get(channelId);
@@ -548,12 +662,12 @@ export class MockDataProvider implements DataProvider {
     this.channelsById.set(channelId, updated);
     return updated;
   }
-  /** H1: дозакрепить payout СУЩЕСТВУЮЩЕГО канала подписью владельца (каналы, созданные до аттестаций). */
+  /** H1: additionally lock in the payout of an EXISTING realm with the owner's signature (realms created before attestations). */
   async attestPayout(channelId: string, signatureB64?: string): Result<Channel> {
     await this.gate("attestPayout");
     const ch = this.requireChannelOwner(channelId);
     if (!signatureB64 || !verifyPayoutAttestation(ch.ownerAddress, ch.payoutAddress, signatureB64))
-      throw new DataError("BAD_ATTESTATION", "Подпись адреса выплат не прошла проверку.");
+      throw new DataError("BAD_ATTESTATION", "The payout address signature failed verification.");
     const updated: Channel = { ...ch, payoutAttestation: signatureB64 };
     this.channelsById.set(channelId, updated);
     return updated;
@@ -563,52 +677,52 @@ export class MockDataProvider implements DataProvider {
     this.requireChannelOwner(channelId);
     const list = this.configsByChannel.get(channelId);
     const current = list?.[list.length - 1];
-    if (!list || !current) throw new DataError("NO_CONFIG", "Нет конфига канала.");
-    // Потолок числа тиров (анти-«бесконечный список»; страховка поверх UI).
+    if (!list || !current) throw new DataError("NO_CONFIG", "No realm config.");
+    // Cap on the number of tiers (anti-"infinite list"; a safety net on top of the UI).
     if (patch.tiers && patch.tiers.length > MAX_TIERS)
-      throw new DataError("TOO_MANY_TIERS", `Тиров — не больше ${MAX_TIERS}.`);
-    // Описания тиров (UGC, опц.) — тот же лимит-стиль и та же модерация, что у описания канала.
+      throw new DataError("TOO_MANY_TIERS", `No more than ${MAX_TIERS} tiers.`);
+    // Tier descriptions (UGC, optional) — the same limit style and moderation as the realm description.
     if (patch.tiers) {
       for (const t of patch.tiers) {
         const d = t.description?.trim();
         if (!d) continue;
         if (d.length > TIER_DESC_MAX)
-          throw new DataError("TOO_LONG", `Описание тира — до ${TIER_DESC_MAX} символов.`);
+          throw new DataError("TOO_LONG", `Tier description — up to ${TIER_DESC_MAX} characters.`);
         if ((await resolveAutoModerator().classify(d, "")) === "HARD_BLOCK")
           throw new DataError(
             "CHANNEL_BLOCKED",
-            "Описание тира не прошло модерацию (запрещённый/жёсткий контент).",
+            "The tier description did not pass moderation (banned/hard content).",
           );
       }
     }
-    // §10: пороги репутации (задание/спор) — неотрицательные конечные числа, вменяемый потолок (страховка
-    // поверх UI). Гейтят право присылать задание / поднимать спор, не вес и не исход.
+    // §10: Reign thresholds (task/dispute) — non-negative finite numbers, a sane cap (a safety net
+    // on top of the UI). They gate the right to send a task / raise a dispute, not the weight or the outcome.
     for (const [k, v] of [
       ["minReputationToTask", patch.minReputationToTask],
       ["minReputationToDispute", patch.minReputationToDispute],
     ] as const) {
       if (v === undefined) continue;
       if (!Number.isFinite(v) || v < 0 || v > 1_000_000_000)
-        throw new DataError("BAD_CONFIG", `Порог репутации (${k}) — неотрицательное число.`);
+        throw new DataError("BAD_CONFIG", `Reign threshold (${k}) — a non-negative number.`);
     }
-    // Описание канала (UGC): лимит + модерация. Имя/ссылки канала живут в профиле владельца, не здесь.
+    // Realm description (UGC): limit + moderation. The realm's name/links live in the owner's profile, not here.
     if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
-      throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);
+      throw new DataError("TOO_LONG", `Description — up to ${CHANNEL_DESC_MAX} characters.`);
     if (
       patch.description &&
       (await resolveAutoModerator().classify(patch.description, "")) === "HARD_BLOCK"
     )
       throw new DataError(
         "CHANNEL_BLOCKED",
-        "Описание не прошло модерацию (запрещённый/жёсткий контент).",
+        "The description did not pass moderation (banned/hard content).",
       );
-    // Курс репутации фиксирован → версионировать нечего. Тиры/минимумы/настройки применяются сразу.
+    // The Reign rate is fixed → nothing to version. Tiers/minimums/settings apply immediately.
     const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
     list[list.length - 1] = updated;
     return updated;
   }
 
-  // — Репутация / статус —
+  // — Reign / status —
   async getStanding(channelId: string, donor: Address): Result<ViewerStanding | null> {
     await this.gate("getStanding");
     return this.standingFor(channelId, donor);
@@ -617,7 +731,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("getLeaderboard");
     return this.computeLeaderboard(channelId, period);
   }
-  /** Адреса, заблокированные на канале — для анти-публикации текста и анонимизации ника. */
+  /** Addresses blocked on the realm — for suppressing text publication and anonymizing the name. */
   private blockedSet(channelId: string): Set<Address> {
     return new Set(
       this.blocks.filter((b) => b.channelId === channelId).map((b) => b.blockedAddress),
@@ -643,7 +757,7 @@ export class MockDataProvider implements DataProvider {
       entries.push({
         rank: 0,
         donor,
-        // addresses_only ИЛИ заблокирован → имя не отдаём, UI покажет короткий адрес.
+        // addresses_only OR blocked → we do not return a name, the UI shows a short address.
         displayName:
           cfg.nameMode === "allow_display_names" && !blocked.has(donor)
             ? this.profiles.get(donor)?.displayName
@@ -653,8 +767,8 @@ export class MockDataProvider implements DataProvider {
         totalDonated,
       });
     }
-    // §4.4 детерминизм: при равенстве очков ранг НЕ должен зависеть от порядка в журнале. Вторичные ключи —
-    // больше задонатил, затем адрес (уникален) → полный порядок, перевычислимый независимо.
+    // §4.4 determinism: when points are equal the rank must NOT depend on log order. Secondary keys —
+    // crowned more, then address (unique) → a total order, independently recomputable.
     entries.sort(
       (a, b) =>
         b.points - a.points ||
@@ -667,8 +781,8 @@ export class MockDataProvider implements DataProvider {
 
   async getDonorOverview(address: Address): Result<DonorOverview> {
     await this.gate("getDonorOverview");
-    // Все каналы, где у донора есть события (значит, есть standing). Обходим ledger напрямую — профиль
-    // показывает ВСЮ историю донора, включая каналы вне дискавери (SUSPENDED/BANNED).
+    // All realms where the donor has events (meaning there is standing). We traverse the ledger directly — the profile
+    // shows the donor's ENTIRE history, including realms outside discovery (SUSPENDED/BANNED).
     const channelIds = new Set(
       this.ledger.filter((e) => e.donor === address).map((e) => e.creator),
     );
@@ -696,12 +810,12 @@ export class MockDataProvider implements DataProvider {
         lastDonationAt,
       });
     }
-    // Позиции — по убыванию суммы донатов (как «по стоимости» у polymarket).
+    // Positions — by descending crown total (like "by value" on polymarket).
     standings.sort((a, b) =>
       b.totalDonated > a.totalDonated ? 1 : b.totalDonated < a.totalDonated ? -1 : 0,
     );
 
-    // Активность: все донаты донора по всем каналам, новые сверху. Текст приватен (зритель не менеджер) → редактируем.
+    // Activity: all of the donor's crowns across all realms, newest first. Text is private (viewer is not a manager) → we redact.
     const donations = this.donations
       .filter((d) => d.donor === address)
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
@@ -711,8 +825,8 @@ export class MockDataProvider implements DataProvider {
         return donorName ? { ...r, donorName } : r;
       });
 
-    // Журнал очков донора: за что НАЧИСЛИЛИ очки (донаты + дошедшие эскроу-задания), новые сверху.
-    // Протокольные спор-события (DISPUTE_*) живут в слое игры, не в этой ленте; операторских списаний нет (CR-1).
+    // The donor's points log: what points were CREDITED for (crowns + escrow tasks that landed), newest first.
+    // Protocol dispute events (DISPUTE_*) live in the game layer, not in this feed; there are no operator deductions (CR-1).
     const donationEvents: DonorPointEvent[] = donations.map((d) => ({
       id: d.id,
       channelId: d.channelId,
@@ -723,8 +837,8 @@ export class MockDataProvider implements DataProvider {
       txSignature: d.txSignature,
       message: d.message,
     }));
-    // Эскроу-задания донора, дошедшие стримеру (to_streamer) — тоже донат (GAME_DONATION, §4.7/repEffects).
-    // Текст задания — кожа: показываем ТОЛЬКО если публичен (SHOWN и не снят оператором), паритет redactDonation.
+    // The donor's escrow tasks that reached the streamer (to_streamer) — also a crown (GAME_DONATION, §4.7/repEffects).
+    // The task text is skin: we show it ONLY if public (SHOWN and not taken down by the operator), parity with redactDonation.
     const escrowTasks =
       (this.gameState.get("escrow-task") as { tasks: EscrowTask[] } | undefined)?.tasks ?? [];
     const escrowEvents: DonorPointEvent[] = escrowTasks
@@ -767,13 +881,13 @@ export class MockDataProvider implements DataProvider {
       (min, d) => (min && min < d.ts ? min : d.ts),
       undefined,
     );
-    // «Высший тир» = канал с наибольшими ЛОКАЛЬНЫМИ очками. Это НЕ глобальный рейтинг (§4.3) — просто
-    // лучшее достижение донора где-то, для бейджа. Очки по каналам не складываем.
+    // "Top tier" = the realm with the highest LOCAL points. This is NOT a global ranking (§4.3) — just
+    // the donor's best achievement somewhere, for a badge. We do not sum points across realms.
     const topStanding = standings.reduce<DonorChannelStanding | undefined>(
       (best, x) => (!best || x.points > best.points ? x : best),
       undefined,
     );
-    // Владеет ли этот адрес каналом (один на кошелёк, ADR 0002) — чтобы с профиля можно было перейти на канал.
+    // Whether this address owns a realm (one per wallet, ADR 0002) — so the profile can link to the realm.
     const ownedChannel = [...this.channelsById.values()].find((c) => c.ownerAddress === address);
 
     return {
@@ -791,9 +905,9 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Лента главной (ADR 0018): мои открытые эскроу-циклы (по срочности) + что кипит (по РАЗНЫМ участникам).
-   * Личность — из СЕССИИ (не параметр): циклы несут ТВОЙ текст задания, читать чужой адрес нельзя (§4.6).
-   * Пока учитывает игру `escrow-task` (единственную) — расширяемо на другие игры.
+   * Home feed (ADR 0018): my open escrow cycles (by urgency) + what's hot (by DISTINCT participants).
+   * Identity comes from the SESSION (not a parameter): cycles carry YOUR task text, reading someone else's address is not allowed (§4.6).
+   * For now it accounts for the `escrow-task` game (the only one) — extensible to other games.
    */
   async homeFeed(): Result<HomeFeed> {
     await this.gate("homeFeed");
@@ -808,7 +922,7 @@ export class MockDataProvider implements DataProvider {
         const c = this.cycleOf(t, now);
         if (c) cycles.push(c);
       }
-      // Срочность: «действуй сейчас» (claimable → окно закрывается) → «ждём других»; внутри — по дедлайну.
+      // Urgency: "act now" (claimable → window closing) → "waiting on others"; within — by deadline.
       const rank = (c: OpenCycle) => (c.kind === "claimable" ? 0 : c.actionable ? 1 : 2);
       cycles.sort(
         (a, b) =>
@@ -819,7 +933,7 @@ export class MockDataProvider implements DataProvider {
     return { cycles, live: this.liveChannels(tasks, now) };
   }
 
-  /** Открытый цикл донора по задаче (null — цикл закрыт: ушёл стримеру / уже забран). */
+  /** The donor's open cycle for a task (null — the cycle is closed: went to the streamer / already claimed). */
   private cycleOf(t: EscrowTask, now: number): OpenCycle | null {
     const base = {
       taskId: t.id,
@@ -851,7 +965,7 @@ export class MockDataProvider implements DataProvider {
     }
   }
 
-  /** Живые каналы для полоски: ранг по РАЗНЫМ участникам → velocity → активности (НЕ по сумме — §4.3/ADR 0018). */
+  /** Live realms for the strip: ranked by DISTINCT participants → velocity → activity (NOT by amount — §4.3/ADR 0018). */
   private liveChannels(tasks: EscrowTask[], now: number): LiveChannel[] {
     const RECENT_MS = 24 * 3_600_000;
     const agg = new Map<
@@ -859,9 +973,9 @@ export class MockDataProvider implements DataProvider {
       { handle: string; active: number; donors: Set<Address>; locked: bigint; velocity: number }
     >();
     for (const t of tasks) {
-      if (t.status === "RESOLVED") continue; // не живой
+      if (t.status === "RESOLVED") continue; // not live
       const ch = this.channelsById.get(t.channelId);
-      if (!ch || ch.status !== "ACTIVE") continue; // только публичные активные
+      if (!ch || ch.status !== "ACTIVE") continue; // only public active ones
       const e = agg.get(t.channelId) ?? {
         handle: ch.handle,
         active: 0,
@@ -890,32 +1004,32 @@ export class MockDataProvider implements DataProvider {
       }));
   }
 
-  // — Донаты —
-  /** Оффчейн-симуляция (api/mock без кошелька). В режиме chain не используется. */
+  // — Crowns —
+  /** Off-chain simulation (api/mock without a wallet). Not used in chain mode. */
   async createDonation(input: DonationInput): Result<DonationResult> {
     await this.gate("createDonation");
     const donor = this.session().address;
-    if (!donor) throw new DataError("NO_SESSION", "Сначала подключи кошелёк, чтобы задонатить.");
-    this.requireNotBanned(donor); // забаненный оператором кошелёк не донатит (офчейн-путь)
+    if (!donor) throw new DataError("NO_SESSION", "Connect your wallet first to crown.");
+    this.requireNotBanned(donor); // a wallet banned by the operator does not crown (off-chain path)
     const ch = this.channelsById.get(input.channelId);
-    if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
+    if (!ch) throw new DataError("NO_CHANNEL", "Realm not found.");
     const cfg = this.latestConfig(input.channelId);
     const hasText = Boolean(input.text && input.text.trim());
-    // B4: лимит длины текста (как трастлесс-приём в server/ingest.ts) — иначе мегабайтный текст осел бы в
-    // сторе и каждый раз гонялся в OpenAI-модерацию (DoS/амплификация).
+    // B4: text length limit (like the trustless intake in server/ingest.ts) — otherwise a megabyte of text would settle in
+    // the store and get run through OpenAI moderation every time (DoS/amplification).
     if (hasText && input.text!.trim().length > cfg.messageMaxLen)
-      throw new DataError("TOO_LONG", "Текст доната превышает лимит канала.");
+      throw new DataError("TOO_LONG", "The crown text exceeds the realm's limit.");
     const amount = toMicro(input.amountUSDC);
     const min = hasText ? cfg.minDonationWithText : cfg.minDonation;
-    if (amount < min) throw new DataError("BELOW_MIN", "Сумма ниже минимума канала.");
+    if (amount < min) throw new DataError("BELOW_MIN", "The amount is below the realm's minimum.");
     if (hasText && ch.status !== "ACTIVE") throw ErrTextRequiresActiveChannel;
     if (
       hasText &&
       this.blocks.some((b) => b.channelId === input.channelId && b.blockedAddress === donor)
     ) {
-      throw new DataError("BLOCKED", "Этот кошелёк заблокирован на канале для донатов-с-текстом.");
+      throw new DataError("BLOCKED", "This wallet is blocked on the realm for crowns-with-text.");
     }
-    const { fee, net } = splitAmount(amount); // единый источник ставки (addresses.ts), не дублируем 3%
+    const { fee, net } = splitAmount(amount); // single source of the rate (addresses.ts), we do not duplicate the 3%
     return this.record({
       channelId: input.channelId,
       donor,
@@ -928,9 +1042,9 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Запись ончейн-доната (после валидации сервером из цепочки). Идемпотентно по signature. `text` —
-   * уже сверенный по хэшу из memo (см. server/ingest.ts); если донат уже принят без текста, а текст
-   * пришёл позже (клиент/индексер в разном порядке) — привязываем сообщение к существующему донату.
+   * Records an on-chain crown (after the server validates it from the chain). Idempotent by signature. `text` is
+   * already verified against the hash from the memo (see server/ingest.ts); if the crown was already accepted without text and the text
+   * arrived later (client/indexer in different order) — we attach the message to the existing crown.
    */
   async recordDonationFromChain(params: {
     signature: string;
@@ -941,9 +1055,9 @@ export class MockDataProvider implements DataProvider {
     netMicro: bigint;
     text?: string;
   }): Promise<DonationResult | null> {
-    // B1: сериализуем по подписи — дедуп ниже это «нашёл → await(модерация) → записал», и без очереди два
-    // параллельных приёма одной подписи (клиентский RPC + опрос индексера) оба прошли бы find и записали
-    // донат+репутацию дважды за один платёж. Очередь по подписи → второй увидит existing (дедуп/поздний текст).
+    // B1: serialize by signature — the dedup below is "found → await(moderation) → wrote", and without a queue two
+    // parallel intakes of one signature (client RPC + indexer polling) would both pass find and record the
+    // crown+Reign twice for one payment. A queue by signature → the second sees existing (dedup/late text).
     return this.runSerialized(this.ingestTails, params.signature, async () => {
       const existing = this.donations.find((d) => d.txSignature === params.signature);
       if (existing) {
@@ -951,12 +1065,12 @@ export class MockDataProvider implements DataProvider {
           (b) => b.channelId === existing.channelId && b.blockedAddress === existing.donor,
         );
         if (params.text && !existing.message && !blocked) {
-          // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
+          // Late attachment of text to an already accepted crown (client/indexer arrived in different order).
           await this.buildMessage(existing, params.text, this.now());
-          const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
-          return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): успех, а не null
+          const standing = this.standingFor(existing.channelId, existing.donor)!; // the crown is already in the log
+          return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): success, not null
         }
-        return null; // дубль подписи без нового текста — идемпотентно, добавлять нечего
+        return null; // duplicate signature without new text — idempotent, nothing to add
       }
       const ch = this.channelsById.get(params.channelId);
       if (!ch) return null;
@@ -973,13 +1087,13 @@ export class MockDataProvider implements DataProvider {
     });
   }
 
-  /** Создаёт сообщение к донату: прогон модерации (async — авто-слой может ходить в OpenAI), дедуп,
-   *  карантин-инцидент. Привязка donation.message. */
+  /** Creates a message for a crown: run moderation (async — the auto layer may call OpenAI), dedup,
+   *  quarantine incident. Attaches donation.message. */
   private async buildMessage(donation: Donation, text: string, ts: string): Promise<MessageRef> {
     const cfg = this.latestConfig(donation.channelId);
     const { verdict, lang, contentHash, deduped } = await runPipeline(text, this.modCache, {
       scope: donation.channelId,
-      auto: resolveAutoModerator(), // OpenAI при наличии OPENAI_API_KEY, иначе локальный словарь
+      auto: resolveAutoModerator(), // OpenAI when OPENAI_API_KEY is present, otherwise a local dictionary
     });
     while (this.modCache.size > MOD_CACHE_CAP) {
       const oldest = this.modCache.keys().next().value;
@@ -1007,9 +1121,9 @@ export class MockDataProvider implements DataProvider {
       this.incidents.push({
         id: this.nextId("inc"),
         channelId: donation.channelId,
-        address: donation.donor, // автор контента — на кого действовать
+        address: donation.donor, // the content author — whom to act on
         kind: "hard_block",
-        detail: "Авто-карантин: запрещёнка в тексте доната.",
+        detail: "Auto-quarantine: banned content in the crown text.",
         text,
         ts,
       });
@@ -1017,8 +1131,8 @@ export class MockDataProvider implements DataProvider {
     return message;
   }
 
-  /** Общая запись доната: банкинг очков СРАЗУ, текст → HELD/модерация (инварианты §4). Async: модерация
-   *  текста может ходить в OpenAI (см. buildMessage). Очки/журнал банкуются независимо от текста (§4.7). */
+  /** Shared crown recording: bank the points IMMEDIATELY, text → HELD/moderation (invariants §4). Async: text
+   *  moderation may call OpenAI (see buildMessage). Points/log are banked independently of the text (§4.7). */
   private async record(p: {
     channelId: string;
     donor: Address;
@@ -1030,15 +1144,15 @@ export class MockDataProvider implements DataProvider {
     signature?: string;
   }): Promise<DonationResult> {
     const cfg = this.latestConfig(p.channelId);
-    // Канальный блок-лист: заблокированному кошельку донат-с-текстом не публикуем. Оффчейн createDonation
-    // отклоняет заранее; в chain деньги ончейн финальны → донат принимаем, но ТЕКСТ режем (сообщение не создаём).
+    // Realm blocklist: for a blocked wallet we do not publish crown-with-text. The off-chain createDonation
+    // rejects it up front; in chain on-chain money is final → we accept the crown but strip the TEXT (no message created).
     const blocked = this.blocks.some(
       (b) => b.channelId === p.channelId && b.blockedAddress === p.donor,
     );
-    const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
+    const pointsDelta = pointsForAmount(p.amount); // fixed: 1 USDC = 1 point
     const ts = this.now();
-    // База «до» для нового донора — тир нулевых очков (обычно «Новичок»): первый донат, сразу дающий
-    // тир выше, честно триггерит tier-up (раньше tierChanged на первом донате был всегда false).
+    // The "before" baseline for a new donor is the zero-points tier (usually "Novice"): a first crown that immediately gives
+    // a higher tier honestly triggers a tier-up (previously tierChanged on the first crown was always false).
     const tierBefore = (
       this.standingFor(p.channelId, p.donor)?.tier ??
       resolveTier(0, this.latestConfig(p.channelId).tiers).tier
@@ -1074,9 +1188,9 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Префлайт текста доната ПЕРЕД отправкой ончейн (вне DataProvider; зовётся chain-слоем до подписи).
-   * blocked=true только на HARD_BLOCK (запрещёнка/жёсткое) — как у ника. Мат разрешён → не блокируем.
-   * Это не «решение о деньгах»: tx ещё не отправлена. Ingest всё равно проводит модерацию повторно (бэкстоп).
+   * Preflight of the crown text BEFORE sending it on-chain (outside DataProvider; called by the chain layer before signing).
+   * blocked=true only on HARD_BLOCK (banned/hard) — same as for a name. Profanity is allowed → we do not block.
+   * This is not a "money decision": the tx has not been sent yet. Ingest runs moderation again anyway (a backstop).
    */
   async precheckText(
     text: string,
@@ -1084,7 +1198,7 @@ export class MockDataProvider implements DataProvider {
     kind: "message" | "task" = "message",
   ): Result<{ blocked: boolean; reason?: "content" | "blocklist" }> {
     await this.gate("precheckText");
-    // Блок-лист канала: заблокированному кошельку донат-с-текстом нельзя — ловим ДО подписи (деньги не тратятся).
+    // Realm blocklist: a blocked wallet cannot crown-with-text — we catch it BEFORE signing (money is not spent).
     const donor = this.session().address;
     if (
       channelId &&
@@ -1095,17 +1209,17 @@ export class MockDataProvider implements DataProvider {
     }
     const t = (text ?? "").trim();
     if (!t) return { blocked: false };
-    // B4: не отправляем в модерацию неограниченный текст (DoS/амплификация OpenAI) — режем до лимита канала
-    // (тот же текст потом всё равно капается в createDonation). Без канала — разумный потолок.
+    // B4: we do not send unbounded text to moderation (DoS/OpenAI amplification) — we clip it to the realm limit
+    // (the same text still gets capped later in createDonation). Without a realm — a reasonable cap.
     const maxLen =
       channelId && this.configsByChannel.has(channelId)
         ? this.latestConfig(channelId).messageMaxLen
         : 2000;
-    // ЗАДАНИЕ (escrow-task) оплачивается ончейн ДО записи → префлайт обязан судить ТОЙ ЖЕ строгой политикой,
-    // что серверный create (classifyTaskText: + LLM-легальность), иначе слабый префлайт пропустит нелегальное
-    // задание, эскроу профинансируется, а create отклонит → осиротевший эскроу (деньги заперты, задания нет).
-    // Слишком длинное режем как блок ДО ИИ (не фандим). classifyTaskText мемоизируется по хэшу — тот же вход
-    // → тот же вердикт на серверном create (недетерминизм ИИ не «перевернёт» решение после фандинга).
+    // A TASK (escrow-task) is paid on-chain BEFORE recording → the preflight must judge by the SAME strict policy
+    // as the server-side create (classifyTaskText: + LLM legality), otherwise a weak preflight would let an illegal
+    // task through, the escrow would get funded, and create would reject it → an orphaned escrow (money locked, no task).
+    // Too long we treat as a block BEFORE the AI (do not fund). classifyTaskText is memoized by hash — the same input
+    // → the same verdict on the server-side create (AI non-determinism will not "flip" the decision after funding).
     if (kind === "task") {
       if (t.length > maxLen) return { blocked: true, reason: "content" };
       const verdict = await classifyTaskText(t);
@@ -1118,11 +1232,11 @@ export class MockDataProvider implements DataProvider {
   async listDonations(channelId: string, _opts?: ListOpts): Result<Page<Donation>> {
     await this.gate("listDonations");
     const isManager = this.isChannelManager(channelId);
-    // Режим имён канала: addresses_only → НЕ показываем ники (даже из профиля), только адреса.
+    // Realm name mode: addresses_only → do NOT show names (even from the profile), only addresses.
     const showNames =
       this.configsByChannel.has(channelId) &&
       this.latestConfig(channelId).nameMode === "allow_display_names";
-    // Заблокированные на канале — всегда только адресом, ник не показываем (даже при allow_display_names).
+    // Those blocked on the realm — always by address only, we do not show a name (even with allow_display_names).
     const blocked = this.blockedSet(channelId);
     const items = this.donations
       .filter((d) => d.channelId === channelId)
@@ -1136,10 +1250,10 @@ export class MockDataProvider implements DataProvider {
     return { items };
   }
 
-  // — Модерация —
+  // — Moderation —
   async getModerationQueue(channelId: string): Result<MessageRef[]> {
     await this.gate("getModerationQueue");
-    this.requireChannelManager(channelId); // приватный текст — только менеджерам (§4.6)
+    this.requireChannelManager(channelId); // private text — managers only (§4.6)
     return [...this.messages.values()]
       .filter((m) => m.channelId === channelId && m.state === "HELD")
       .sort((a, b) => {
@@ -1152,11 +1266,11 @@ export class MockDataProvider implements DataProvider {
   async setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef> {
     await this.gate("setMessageState");
     const msg = this.messages.get(messageId);
-    if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
-    this.requireChannelManager(msg.channelId); // показ/скрытие — решение публикации, только менеджер
-    // Операторский тейкдаун перебивает стримера: снятое оператором сообщение он показать обратно не может.
+    if (!msg) throw new DataError("NO_MESSAGE", "Message not found.");
+    this.requireChannelManager(msg.channelId); // show/hide — a publication decision, managers only
+    // An operator takedown overrides the streamer: a message taken down by the operator cannot be shown back by them.
     if (state === "SHOWN" && this.operatorBlockedContent.has(messageId))
-      throw new DataError("BLOCKED_BY_OPERATOR", "Сообщение снято оператором платформы — показать нельзя.");
+      throw new DataError("BLOCKED_BY_OPERATOR", "The message was taken down by the platform operator — it cannot be shown.");
     const updated: MessageRef = {
       ...msg,
       state,
@@ -1167,7 +1281,7 @@ export class MockDataProvider implements DataProvider {
     if (donation) donation.message = updated;
     return updated;
   }
-  /** Скрыть ВСЕ сообщения донора на канале (одной кнопкой). Только менеджер; деньги/standing не трогаются. */
+  /** Hide ALL of a donor's messages on the realm (with one button). Manager only; money/standing are not touched. */
   async hideDonorMessages(channelId: string, donor: Address): Result<{ hidden: number }> {
     await this.gate("hideDonorMessages");
     this.requireChannelManager(channelId);
@@ -1184,9 +1298,9 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Жалоба зрителя на ПОКАЗАННЫЙ текст. Любой вошедший, одна жалоба на сообщение с адреса (анти-накрутка).
-   * Первая жалоба → инцидент стримеру/оператору; при пороге уникальных жалоб текст авто-скрывается (HIDDEN)
-   * до решения человека. Деньги/репутация не трогаются (§4.7). Жаловаться можно только на показанное (§4.6).
+   * A viewer's report against SHOWN text. Any signed-in user, one report per message per address (anti-gaming).
+   * The first report → an incident for the streamer/operator; at the unique-report threshold the text auto-hides (HIDDEN)
+   * until a human decides. Money/Reign are not touched (§4.7). You can only report shown text (§4.6).
    */
   async reportMessage(
     messageId: string,
@@ -1195,21 +1309,21 @@ export class MockDataProvider implements DataProvider {
     await this.gate("reportMessage");
     const reporter = this.requireSession();
     const msg = this.messages.get(messageId);
-    if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
-    // Показанное может репортить любой вошедший; НЕ показанное (HELD/карантин) — только менеджер канала
-    // (эскалация в T&S из очереди модерации).
+    if (!msg) throw new DataError("NO_MESSAGE", "Message not found.");
+    // Shown text can be reported by any signed-in user; NON-shown (HELD/quarantine) — only a realm manager
+    // (escalation to T&S from the moderation queue).
     if (msg.state !== "SHOWN" && !this.isChannelManager(msg.channelId)) {
       throw new DataError(
         "NOT_REPORTABLE",
-        "Жаловаться можно на показанный текст или из очереди модерации.",
+        "You can report shown text or from the moderation queue.",
       );
     }
     if (this.reports.some((r) => r.messageId === messageId && r.reporter === reporter)) {
-      throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
+      throw new DataError("ALREADY_REPORTED", "You have already reported this message.");
     }
-    reason = reason?.slice(0, REASON_MAX); // ограничиваем длину причины (свободный текст)
+    reason = reason?.slice(0, REASON_MAX); // clamp the reason length (free text)
     const ts = this.now();
-    const author = this.donations.find((d) => d.id === msg.donationId)?.donor; // автор контента
+    const author = this.donations.find((d) => d.id === msg.donationId)?.donor; // the content author
     this.reports.push({ messageId, channelId: msg.channelId, reporter, reason, ts });
     const count = this.reports.filter((r) => r.messageId === messageId).length;
 
@@ -1219,7 +1333,7 @@ export class MockDataProvider implements DataProvider {
         channelId: msg.channelId,
         address: author,
         kind: "report",
-        detail: `Жалоба${reason ? `: ${reason}` : ""}.`,
+        detail: `Report${reason ? `: ${reason}` : ""}.`,
         text: msg.text,
         ts,
       });
@@ -1236,7 +1350,7 @@ export class MockDataProvider implements DataProvider {
         channelId: msg.channelId,
         address: author,
         kind: "report",
-        detail: `Авто-скрыто: ${count} жалоб(ы). Стример/оператор может пересмотреть.`,
+        detail: `Auto-hidden: ${count} report(s). The streamer/operator can review.`,
         text: msg.text,
         ts,
       });
@@ -1245,13 +1359,13 @@ export class MockDataProvider implements DataProvider {
     return { reports: count, hidden };
   }
 
-  // — Канальный блок-лист —
+  // — Realm blocklist —
   async getChannelBlocklist(channelId: string): Result<ChannelBlock[]> {
     await this.gate("getChannelBlocklist");
     this.requireChannelManager(channelId);
     return this.blocks.filter((b) => b.channelId === channelId);
   }
-  /** Донор: МОЙ блок на этом канале (+причина) — для плашки в карточке доната. Видит только свой блок. */
+  /** Donor: MY block on this realm (+reason) — for the badge on the crown card. Sees only their own block. */
   async getMyChannelBlock(channelId: string): Result<ChannelBlock | null> {
     await this.gate("getMyChannelBlock");
     const donor = this.session().address;
@@ -1264,13 +1378,13 @@ export class MockDataProvider implements DataProvider {
     reason?: string,
   ): Result<ChannelBlock> {
     await this.gate("addChannelBlock");
-    // R9 (ADR 0012): право и автор — явными вызовами, не через && (было хрупко: значение от side-effect).
-    this.requireChannelManager(channelId, true); // право: владелец или модератор со скоупом бана
-    const byModerator = this.requireSession(); // адрес, записываемый как автор бана
+    // R9 (ADR 0012): the right and the author — via explicit calls, not through && (it was fragile: a value from a side effect).
+    this.requireChannelManager(channelId, true); // right: owner or moderator with the ban scope
+    const byModerator = this.requireSession(); // the address recorded as the ban's author
     const block: ChannelBlock = {
       channelId,
       blockedAddress: address,
-      reason: reason?.slice(0, REASON_MAX), // ограничиваем длину причины
+      reason: reason?.slice(0, REASON_MAX), // clamp the reason length
       byModerator,
       ts: this.now(),
     };
@@ -1285,7 +1399,7 @@ export class MockDataProvider implements DataProvider {
     );
   }
 
-  // — Оператор / T&S —
+  // — Operator / T&S —
   async getOperatorQueue(): Result<IncidentLog[]> {
     await this.gate("getOperatorQueue");
     this.requireOperator();
@@ -1295,43 +1409,43 @@ export class MockDataProvider implements DataProvider {
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction> {
     await this.gate("applyOperatorAction");
-    const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, тейкдаун (§4.5)
-    // Санкция без нужной цели — не «тихий лог», а явная ошибка (иначе кнопка «сработала», но ничего не сделала).
+    const operator = this.requireOperator(); // operator only: ban/freeze realms, takedown (§4.5)
+    // A sanction without the required target — not a "silent log" but an explicit error (otherwise the button "worked" but did nothing).
     const need = (ok: boolean, msg: string) => {
       if (!ok) throw new DataError("BAD_TARGET", msg);
     };
     switch (action.action) {
       case "HIDE_MESSAGE":
-        need(!!action.targetContentId, "Укажи id задания или сообщения для снятия с публикации.");
+        need(!!action.targetContentId, "Provide the id of the task or message to unpublish.");
         break;
       case "BAN_WALLET_FULL":
-        need(!!action.targetAddress, "Укажи адрес кошелька для полного бана.");
+        need(!!action.targetAddress, "Provide the wallet address for a full ban.");
         break;
       case "CHANNEL_BLOCK":
-        need(!!action.targetChannelId && !!action.targetAddress, "Нужны канал и адрес кошелька.");
+        need(!!action.targetChannelId && !!action.targetAddress, "Realm and wallet address are required.");
         break;
       case "SUSPEND_CHANNEL":
       case "BAN_CREATOR_ROLE":
-        need(!!action.targetChannelId, "Укажи канал.");
+        need(!!action.targetChannelId, "Provide the realm.");
         break;
-      case "REINSTATE_CHANNEL": // восстановление — снимает санкцию с любой цели: канал / кошелёк / контент
+      case "REINSTATE_CHANNEL": // reinstatement — lifts a sanction from any target: realm / wallet / content
         need(
           !!action.targetChannelId || !!action.targetAddress || !!action.targetContentId,
-          "Укажи цель восстановления (канал, кошелёк или id контента).",
+          "Provide the reinstatement target (realm, wallet, or content id).",
         );
         break;
     }
     const full: OperatorAction = {
       ...action,
-      reason: (action.reason ?? "").slice(0, REASON_MAX), // ограничиваем длину причины
+      reason: (action.reason ?? "").slice(0, REASON_MAX), // clamp the reason length
       id: this.nextId("op"),
       ts: this.now(),
       byOperator: operator,
     };
     this.operatorActions.push(full);
-    // Оператор репутацию НЕ редактирует (CR-1): наказание — БЛОК (бан кошелька/канальный блок), который
-    // обесценивает репутацию, не трогая честное перевычислимое число (§4.4/§4.5). Единственное списание
-    // очков — протокольный DISPUTE_LOST (проигранный ложный спор), не операторская кнопка.
+    // The operator does NOT edit Reign (CR-1): the punishment is a BLOCK (wallet ban/realm block), which
+    // devalues Reign without touching the honest, recomputable number (§4.4/§4.5). The only points
+    // deduction is the protocol DISPUTE_LOST (a lost false dispute), not an operator button.
     if (
       (action.action === "SUSPEND_CHANNEL" || action.action === "BAN_CREATOR_ROLE") &&
       action.targetChannelId
@@ -1342,16 +1456,16 @@ export class MockDataProvider implements DataProvider {
         this.channelsById.set(ch.id, { ...ch, status });
       }
     }
-    // Тейкдаун контента: снять задание/сообщение с публикации НАСОВСЕМ (перебивает стримера и авто-раскрытие
-    // индексера — см. isContentBlocked/revealFromChain). Множество вычислит rebuild ниже из журнала. Для
-    // донат-сообщения дополнительно гасим его state — уходит из очереди/ленты сразу (для заданий видимость
-    // целиком даёт override-набор). Деньги ончейн не трогаем (§4.1/§4.2).
+    // Content takedown: unpublish the task/message FOR GOOD (overrides the streamer and the indexer's auto-reveal
+    // — see isContentBlocked/revealFromChain). The set is computed by the rebuild below from the log. For a
+    // crown message we additionally clear its state — it leaves the queue/feed immediately (for tasks visibility
+    // is driven entirely by the override set). We do not touch on-chain money (§4.1/§4.2).
     if (action.action === "HIDE_MESSAGE" && action.targetContentId) {
       const msg = this.messages.get(action.targetContentId);
       if (msg) this.messages.set(msg.id, { ...msg, state: "HIDDEN" });
     }
-    // Канальный блок кошелька: переиспользуем блок-лист канала (this.blocks) — он уже гейтит донат-с-текстом
-    // (precheckText/createDonation) и прячет ник. Идемпотентно (не плодим дубли).
+    // Realm wallet block: we reuse the realm blocklist (this.blocks) — it already gates crown-with-text
+    // (precheckText/createDonation) and hides the name. Idempotent (we do not spawn duplicates).
     if (action.action === "CHANNEL_BLOCK" && action.targetChannelId && action.targetAddress) {
       const exists = this.blocks.some(
         (b) => b.channelId === action.targetChannelId && b.blockedAddress === action.targetAddress,
@@ -1365,9 +1479,9 @@ export class MockDataProvider implements DataProvider {
           ts: this.now(),
         });
     }
-    // Восстановление: обратное к любой санкции по указанной цели. Канал: SUSPENDED|BANNED → ACTIVE (BASIC не
-    // трогаем — иначе обошли бы платный сбор активации). Кошелёк/контент снимутся в rebuild ниже; канальный
-    // блок (канал+адрес) убираем из блок-листа тут.
+    // Reinstatement: the inverse of any sanction for the given target. Realm: SUSPENDED|BANNED → ACTIVE (BASIC we do
+    // not touch — otherwise the paid activation fee would be bypassed). Wallet/content are lifted in the rebuild below; the realm
+    // block (realm+address) we remove from the blocklist here.
     if (action.action === "REINSTATE_CHANNEL") {
       if (action.targetChannelId) {
         const ch = this.channelsById.get(action.targetChannelId);
@@ -1380,36 +1494,36 @@ export class MockDataProvider implements DataProvider {
           );
       }
     }
-    this.rebuildOperatorOverrides(); // тейкдаун контента / бан кошелька — из журнала (последнее действие побеждает)
-    // Карательный инцидент — только для санкций; восстановление это резолюция, не инцидент (есть в журнале
-    // operatorActions). Иначе бейдж «Флуд» вводил бы в заблуждение.
+    this.rebuildOperatorOverrides(); // content takedown / wallet ban — from the log (the last action wins)
+    // A punitive incident — only for sanctions; a reinstatement is a resolution, not an incident (it is in the
+    // operatorActions log). Otherwise a "Flood" badge would be misleading.
     if (action.action !== "REINSTATE_CHANNEL") {
       this.incidents.push({
         id: this.nextId("inc"),
         channelId: action.targetChannelId,
         address: action.targetAddress,
         kind: full.reason.includes("CSAM") ? "hard_block" : "flood",
-        detail: `Действие оператора: ${action.action} (${full.reason})`,
-        resolution: action.preservation ? "preservation + репорт" : undefined,
+        detail: `Operator action: ${action.action} (${full.reason})`,
+        resolution: action.preservation ? "preservation + report" : undefined,
         ts: this.now(),
       });
     }
     return full;
   }
 
-  // — Мини-игры (game-bus, ADR 0016) —
+  // — Mini-games (game-bus, ADR 0016) —
   async gameAction(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("action", req);
   }
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
-  // — Публичный экспорт (перевычислимость §4.4; НЕ в RPC-вайтлисте — отдаётся GET-роутами /api/v1/export) —
+  // — Public export (recomputability §4.4; NOT in the RPC whitelist — served by GET routes /api/v1/export) —
 
   /**
-   * Экспорт одного канала для независимого пересчёта: канал (с payout-аттестацией) + все версии конфига +
-   * журнал репутации + текущий лидерборд как сверяемая цифра. Только публичные данные: журнал не содержит
-   * текстов (§4.6), конфиг и лидерборд и так читаются публичными методами.
+   * Export of a single realm for independent recomputation: the realm (with payout attestation) + all config versions +
+   * the Reign log + the current leaderboard as a checkable figure. Public data only: the log contains no
+   * text (§4.6), and the config and leaderboard are read by public methods anyway.
    */
   exportChannelData(handle: string): {
     channel: Channel;
@@ -1429,9 +1543,9 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Срезы состояния под пруф-якорь (server/anchor.ts): полный журнал + все версии конфигов (публичные) и
-   * операторский лог (инцидент-лог + действия оператора — содержат приватный текст, наружу уходят ТОЛЬКО их
-   * хэши; решения канальных модераторов стримера — не операторский слой и не якорятся). Дайджесты этих срезов периодически публикуются ончейн-якорем — тихо переписать прошлое нельзя.
+   * State slices for the proof anchor (server/anchor.ts): the full log + all config versions (public) and
+   * the operator log (incident log + operator actions — they contain private text, only their HASHES go out;
+   * the streamer's realm moderators' decisions are not the operator layer and are not anchored). Digests of these slices are periodically published by the on-chain anchor — the past cannot be quietly rewritten.
    */
   exportAnchorData(): {
     ledger: LedgerEvent[];
@@ -1447,22 +1561,22 @@ export class MockDataProvider implements DataProvider {
     };
   }
 
-  // Серверные хуки сверки эскроу (chain). Инжектятся из store.ts (сервер), чтобы серверный граф
-  // (`@/server/escrow-verify` → store-db → PGlite/node:path) не попадал в клиентский бандл. В браузере/mock
-  // не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
+  // Server-side escrow verification hooks (chain). Injected from store.ts (server) so that the server graph
+  // (`@/server/escrow-verify` → store-db → PGlite/node:path) does not land in the client bundle. In the browser/mock
+  // they are unset → verifyEscrow=true, escrowOutcome is absent (no escrow).
   verifyEscrowHook?: (
     escrowTaskId: string,
     expect: { donor: string; amount: string; streamer?: string },
   ) => Promise<boolean>;
   escrowOutcomeHook?: (escrowTaskId: string) => Promise<"to_streamer" | "to_donor" | null>;
-  escrowStateHook?: (escrowTaskId: string) => Promise<number | null>; // ESC-19: сырое ончейн-состояние
+  escrowStateHook?: (escrowTaskId: string) => Promise<number | null>; // ESC-19: raw on-chain state
 
-  // Очереди сериализации операций над общим in-memory стором: мутации игры по gameId (ESC-15; слайс игры
-  // один на ВСЕ каналы) и приём доната по подписи (B1). Закрывают гонки «прочитал → await → записал»
-  // (двойная банковка, потеря обновлений) — один писатель на ключ за раз. Рост ограничен числом ключей.
+  // Serialization queues for operations on the shared in-memory store: game mutations by gameId (ESC-15; the game slice
+  // is one for ALL realms) and crown intake by signature (B1). They close "read → await → wrote" races
+  // (double banking, lost updates) — one writer per key at a time. Growth is bounded by the number of keys.
   private gameActionTails = new Map<string, Promise<void>>();
   private ingestTails = new Map<string, Promise<void>>();
-  /** Сериализует операцию по ключу в указанной очереди: следующая ждёт предыдущую. */
+  /** Serializes an operation by key in the given queue: the next one waits for the previous. */
   private runSerialized<T>(
     tails: Map<string, Promise<void>>,
     key: string,
@@ -1488,21 +1602,21 @@ export class MockDataProvider implements DataProvider {
   }
 
   /**
-   * Общий диспатч операций мини-игр: канал должен существовать и игра — быть включена на нём (cold-start).
-   * Дальше маршрутизируем в обработчик игры через шину, дав ему узкий контекст (личность, канал, now, свой
-   * слайс состояния). Ошибки шины мапим в DataError → доходят до клиента понятным кодом.
+   * Shared dispatch of mini-game operations: the realm must exist and the game must be enabled on it (cold-start).
+   * Then we route to the game handler via the bus, giving it a narrow context (identity, realm, now, its own
+   * state slice). We map bus errors to DataError → they reach the client with a clear code.
    */
   private async dispatchGameOp(kind: "action" | "query", req: GameRequest): Promise<unknown> {
     await this.gate(kind === "action" ? "gameAction" : "gameQuery");
-    const cfg = this.latestConfig(req.channelId); // бросит NO_CONFIG, если канала нет
-    // Выключение игры не стирает историю и не ломает существующие партии: ЧТЕНИЕ (query) и действия по уже
-    // созданным заданиям (принять/забрать/скрыть/сеттл — деньги должны довинтиться, история остаётся в ленте)
-    // разрешены всегда. Блокируем только СОЗДАНИЕ новой партии (create) на выключенной игре.
+    const cfg = this.latestConfig(req.channelId); // throws NO_CONFIG if the realm does not exist
+    // Disabling a game does not erase history and does not break existing rounds: READS (query) and actions on already
+    // created tasks (accept/claim/hide/settle — the money must be finalized, history stays in the feed)
+    // are always allowed. We block only the CREATION of a new round (create) on a disabled game.
     if (kind === "action" && req.op === "create" && !cfg.enabledGames.includes(req.gameId)) {
-      throw new DataError("GAME_NOT_ENABLED", "Эта мини-игра не включена на канале.");
+      throw new DataError("GAME_NOT_ENABLED", "This mini-game is not enabled on the realm.");
     }
-    // Забаненный оператором кошелёк не играет (создать/принять/голосовать и т.п.). Фоновый сеттлер зовёт
-    // без личности (settleDue) → requireNotBanned(null) — no-op, индексер не трогаем.
+    // A wallet banned by the operator does not play (create/accept/vote, etc.). The background settler calls
+    // without an identity (settleDue) → requireNotBanned(null) — no-op, we do not touch the indexer.
     if (kind === "action") this.requireNotBanned(this.currentAddress());
     const exec = async (): Promise<unknown> => {
       const ctx: GameContext = {
@@ -1510,20 +1624,20 @@ export class MockDataProvider implements DataProvider {
         channelId: req.channelId,
         channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
         channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
-        // H1: payout подтверждён подписью владельца? (мост эскроу-fund в цепочку — та же проверка, что ingest
-        // делает для обычного доната). Предвычисляем здесь, где есть канал; хендлер игры остаётся без крипты.
+        // H1: is the payout confirmed by the owner's signature? (the escrow-fund bridge to the chain — the same check ingest
+        // does for a regular crown). We precompute it here where the realm is available; the game handler stays crypto-free.
         channelPayoutAttested: ((c) =>
           !!c?.payoutAttestation &&
           verifyPayoutAttestation(c.ownerAddress, c.payoutAddress, c.payoutAttestation))(
           this.channelsById.get(req.channelId),
         ),
         isChannelManager: this.isChannelManager(req.channelId),
-        // Рычаги канала для create (спека §10): задание = донат с текстом → бóльший из двух минимумов.
+        // Realm levers for create (spec §10): a task = a crown with text → the larger of the two minimums.
         minTaskAmountMicro: (cfg.minDonationWithText > cfg.minDonation
           ? cfg.minDonationWithText
           : cfg.minDonation
         ).toString(),
-        // §10: пороги репутации на присыл задания / на право поднять спор (рычаги стримера, антиспам).
+        // §10: Reign thresholds for sending a task / for the right to raise a dispute (streamer levers, anti-spam).
         minReputationToTask: cfg.minReputationToTask,
         minReputationToDispute: cfg.minReputationToDispute,
         textMaxLen: cfg.messageMaxLen,
@@ -1533,24 +1647,24 @@ export class MockDataProvider implements DataProvider {
           get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
           set: (value: unknown) => this.gameState.set(req.gameId, value),
         },
-        // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
-        // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
-        // Вес голоса/кворум = очки на снэпшоте. Оператор репутацию не редактирует (нет ADMIN_VOID, CR-1) →
-        // вес честный; единственное списание — протокольный DISPUTE_LOST (проигранный ложный спор).
+        // Bridges into the core (ADR 0015): weight = points at a point in time; banking of game effects into the realm log;
+        // moderation of the game's UGC by the same core pipeline (for tasks — the strict policy, classifyTaskText).
+        // Vote weight/quorum = points at the snapshot. The operator does not edit Reign (no ADMIN_VOID, CR-1) →
+        // the weight is honest; the only deduction is the protocol DISPUTE_LOST (a lost false dispute).
         reputationAsOf: (address, asOf) =>
           computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
         moderate: (text) => classifyTaskText(text),
-        textShowMode: cfg.textShowMode, // та же политика публикации, что у донат-сообщений (очередь/авто)
-        // Серверные хуки сверки эскроу (ADR 0017/ESC-12) ИНЖЕКТЯТСЯ из store.ts (сервер) — так серверный DB/
-        // web3.js-граф (`@/server/escrow-verify` → store-db → PGlite/node:path) НЕ попадает в клиентский бандл
-        // mock-провайдера. В браузере/mock хуки не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
+        textShowMode: cfg.textShowMode, // the same publication policy as crown messages (queue/auto)
+        // Server-side escrow verification hooks (ADR 0017/ESC-12) are INJECTED from store.ts (server) — so the server DB/
+        // web3.js graph (`@/server/escrow-verify` → store-db → PGlite/node:path) does NOT land in the client bundle of the
+        // mock provider. In the browser/mock the hooks are unset → verifyEscrow=true, escrowOutcome is absent (no escrow).
         verifyEscrow: this.verifyEscrowHook ?? (async () => true),
-        // CR-4: чистая крипто-сверка коммитмента (не зависит от режима/сервера) — task_id == SHA-256(nonce ‖ text).
+        // CR-4: pure cryptographic commitment check (independent of mode/server) — task_id == SHA-256(nonce ‖ text).
         verifyTextCommitment: async (escrowTaskId, text, nonce) =>
           !!nonce && (await taskTextCommitment(text, nonce)) === escrowTaskId,
         escrowOutcome: this.escrowOutcomeHook,
         escrowState: this.escrowStateHook,
-        isContentBlocked: (id) => this.operatorBlockedContent.has(id), // операторский тейкдаун (модерация)
+        isContentBlocked: (id) => this.operatorBlockedContent.has(id), // operator takedown (moderation)
         bankLedger: (entries) => {
           for (const e of entries) {
             this.ledger.push({
@@ -1573,8 +1687,8 @@ export class MockDataProvider implements DataProvider {
         throw e;
       }
     };
-    // ESC-15: мутации игры сериализуем по gameId (слайс общий на все каналы — лок по каналу не спас бы от
-    // межканальной гонки/потери обновлений); чтения не мутируют — без очереди.
+    // ESC-15: we serialize game mutations by gameId (the slice is shared across all realms — a per-realm lock would not save from
+    // a cross-realm race/lost updates); reads do not mutate — no queue.
     return kind === "action" ? this.serializeGameAction(req.gameId, exec) : exec();
   }
 }

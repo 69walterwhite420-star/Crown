@@ -7,9 +7,9 @@ import type { OpenCycle } from "@/lib/data/types";
 import { cn, collapseWhitespace } from "@/lib/utils";
 
 /**
- * Секция «Требует тебя» — открытые циклы ВЛАДЕЛЬЦА профиля (ADR 0018), по срочности. Часть профиля-базы:
- * где ты донатил и где сейчас нужно твоё действие. Рендерить только на своём профиле (личность — из сессии,
- * §4.6: текст задания твой). Пусто → null (не показываем пустую секцию).
+ * "Needs you" section — the profile OWNER's open cycles (ADR 0018), by urgency. Part of the profile base:
+ * where you've crowned and where your action is needed now. Render only on your own profile (identity — from the session,
+ * §4.6: the task text is yours). Empty → null (don't show an empty section).
  */
 const KIND: Record<OpenCycle["kind"], { label: string; hot: boolean }> = {
   claimable: { label: "Claim refund", hot: true },
@@ -19,7 +19,7 @@ const KIND: Record<OpenCycle["kind"], { label: string; hot: boolean }> = {
   awaiting: { label: "In progress", hot: false },
 };
 
-/** Относительная подсказка по дедлайну (не тикер — пересчёт при рефетче). */
+/** Relative deadline hint (not a live ticker — recomputed on refetch). */
 function deadlineHint(iso?: string): string {
   if (!iso) return "available now";
   const ms = Date.parse(iso) - Date.now();

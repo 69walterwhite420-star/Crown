@@ -3,12 +3,12 @@
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
-/** Loading-плейсхолдер. Форма должна совпадать с финальным контентом (без layout-shift). */
+/** Loading placeholder. Its shape should match the final content (no layout shift). */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("skeleton-shimmer rounded", className)} />;
 }
 
-/** Пустое состояние — приглашение к действию (components.md §1). */
+/** Empty state — an invitation to act (components.md §1). */
 export function EmptyState({
   title,
   description,
@@ -27,7 +27,7 @@ export function EmptyState({
   );
 }
 
-/** Ошибка — что случилось + как починить + «Повторить» (не извиняется, не туманит). */
+/** Error — what happened + how to fix it + "Retry" (no apologizing, no vagueness). */
 export function ErrorState({
   title = "Something went wrong",
   description,

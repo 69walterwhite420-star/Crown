@@ -24,7 +24,7 @@ function usd(micro: bigint): string {
 function usdNum(n: number): string {
   return "$" + Math.round(n).toLocaleString("en-US");
 }
-/** Компактный формат для осей: $1.2M / $34k / $560. */
+/** Compact format for axes: $1.2M / $34k / $560. */
 function usdShort(micro: bigint): string {
   const n = fromMicro(micro);
   if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
@@ -33,16 +33,16 @@ function usdShort(micro: bigint): string {
 }
 
 /**
- * Admin → Dashboard. Метрики + графики по всей платформе.
- * Growth — накопление crowned/patrons по времени (события из донатов всех realms; 0 до первого доната).
- * Ниже — распределение (бар-чарты) по платформам и размеру realm.
+ * Admin → Dashboard. Metrics + charts across the whole platform.
+ * Growth — accumulation of crowned/patrons over time (events from all realms' crowns; 0 before the first crown).
+ * Below — distribution (bar charts) by platform and realm size.
  */
 export default function AdminDashboardPage() {
   const provider = useData();
   const { data, isLoading, error, refetch } = useDiscovery();
   const realms = useMemo(() => data?.items ?? [], [data]);
 
-  // Донаты по всем realms → события для графиков роста (глобального фида донатов нет — агрегируем).
+  // Crowns across all realms → events for the growth charts (there is no global crown feed — we aggregate).
   const donationQs = useQueries({
     queries: realms.map((r) => ({
       queryKey: ["donations", r.channelId] as const,
@@ -55,7 +55,7 @@ export default function AdminDashboardPage() {
   const { turnoverEvents, patronEvents } = useMemo(() => {
     const all: Donation[] = donationQs.flatMap((q) => q.data?.items ?? []);
     const turnover = all.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) }));
-    // Патроны: первое появление каждого донора (v=1) → накопительный счётчик уникальных.
+    // Patrons: the first appearance of each donor (v=1) → cumulative count of unique donors.
     const firstByDonor = new Map<string, number>();
     for (const d of all) {
       const t = Date.parse(d.ts);
@@ -63,7 +63,7 @@ export default function AdminDashboardPage() {
       if (prev === undefined || t < prev) firstByDonor.set(d.donor, t);
     }
     const patrons = [...firstByDonor.values()].map((t) => ({ t, v: 1 }));
-    // Нулевая точка за день до запуска → линия явно стартует с 0.
+    // A zero point one day before launch → the line clearly starts from 0.
     if (turnover.length > 0) {
       const minT = Math.min(...turnover.map((e) => e.t));
       turnover.unshift({ t: minT - DAY, v: 0 });
@@ -78,8 +78,10 @@ export default function AdminDashboardPage() {
 
   const m = useMemo(() => {
     const totalCrowned = realms.reduce((s, r) => s + r.totalDonated, 0n);
+    const crowned7d = realms.reduce((s, r) => s + (r.crowned7d ?? 0n), 0n);
     const patrons = realms.reduce((s, r) => s + r.donorsCount, 0);
     const active = realms.filter((r) => r.activated).length;
+    const live = realms.filter((r) => r.isLive).length;
     const fees = splitAmount(totalCrowned).fee;
     const avg = realms.length ? totalCrowned / BigInt(realms.length) : 0n;
     const largest = realms.reduce((mx, r) => (r.totalDonated > mx ? r.totalDonated : mx), 0n);
@@ -107,7 +109,7 @@ export default function AdminDashboardPage() {
       count: realms.filter((r) => b.test(fromMicro(r.totalDonated))).length,
     }));
 
-    return { totalCrowned, patrons, active, fees, avg, largest, byPlatform, sizeBuckets };
+    return { totalCrowned, crowned7d, patrons, active, live, fees, avg, largest, byPlatform, sizeBuckets };
   }, [realms]);
 
   const [range, setRange] = useState<ChartRange>("ALL");
@@ -116,7 +118,7 @@ export default function AdminDashboardPage() {
   if (isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
   if (error) return <ErrorState description="Couldn't load platform data." onRetry={() => refetch()} />;
 
-  // Один и тот же набор пропсов у обоих (events/range/formatValue/color/emptyHint) → выбираем компонент.
+  // Both take the same set of props (events/range/formatValue/color/emptyHint) → we pick the component.
   const GrowthChart = view === "bars" ? DailyBars : CumulativeAreaChart;
 
   return (
@@ -128,12 +130,14 @@ export default function AdminDashboardPage() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <StatCard label="Realms" value={String(realms.length)} sub={`${m.active} active`} />
+        <StatCard label="Realms" value={String(realms.length)} sub={`${m.active} active · ${m.live} live`} />
         <StatCard label="Total crowned" value={usd(m.totalCrowned)} tone="money" />
+        <StatCard label="Last 7 days" value={usd(m.crowned7d)} tone="money" />
         <StatCard label="Platform fees" value={usd(m.fees)} sub="3% of volume" tone="money" />
         <StatCard label="Patrons" value={m.patrons.toLocaleString("en-US")} sub="across realms" />
         <StatCard label="Avg / realm" value={usd(m.avg)} />
         <StatCard label="Largest realm" value={usd(m.largest)} />
+        <StatCard label="Live now" value={String(m.live)} sub={`of ${realms.length}`} />
       </div>
 
       {/* Growth over time */}
@@ -280,7 +284,7 @@ function ChartCard({ title, hint, children }: { title: string; hint?: string; ch
   );
 }
 
-/** Простой горизонтальный бар-чарт (без внешних либ): ширина бара пропорциональна max. */
+/** Simple horizontal bar chart (no external libs): bar width is proportional to max. */
 function BarList({
   rows,
 }: {

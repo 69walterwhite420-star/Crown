@@ -9,9 +9,9 @@ import type { GameModule } from "./types";
 import { channelHue, cn } from "@/lib/utils";
 
 /**
- * Каталог мини-игр: постер-карточки в сетке (в строку, перенос при нехватке места). Каждая карточка —
- * обложка на всю высоту (пока плейсхолдер: градиент по хэшу id + иконка; позже — реальное фото игры).
- * Название/описание проявляются ПО НАВЕДЕНИЮ. Клик открывает правила (или «coming soon» для заглушек).
+ * Mini-game catalog: poster cards in a grid (in a row, wrapping when space runs out). Each card is a
+ * full-height cover (a placeholder for now: gradient by id hash + icon; later — a real game photo).
+ * The title/description reveal ON HOVER. A click opens the rules (or "coming soon" for stubs).
  */
 export function GamesList({ enabledGames }: { enabledGames: string[] }) {
   const [rulesFor, setRulesFor] = useState<GameModule | null>(null);
@@ -38,7 +38,7 @@ export function GamesList({ enabledGames }: { enabledGames: string[] }) {
               aria-label={game.title}
               className="group relative block aspect-[3/4] overflow-hidden rounded-lg border border-border text-left transition-colors hover:border-border-strong"
             >
-              {/* Обложка (плейсхолдер): градиент по оттенку игры + иконка-водяной знак. Замени на <img>. */}
+              {/* Cover (placeholder): gradient by the game's hue + a watermark icon. Replace with <img>. */}
               <span
                 className="absolute inset-0"
                 style={{
@@ -52,7 +52,7 @@ export function GamesList({ enabledGames }: { enabledGames: string[] }) {
                 <Icon className="h-12 w-12 opacity-25 transition-opacity duration-200 group-hover:opacity-10" />
               </span>
 
-              {/* Подпись — проявляется по наведению */}
+              {/* Caption — reveals on hover */}
               <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black via-black/75 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 text-small font-semibold leading-tight text-fg">

@@ -3,24 +3,24 @@ import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { MockDataProvider } from "./mock-provider";
 
 /**
- * Операторские санкции (модерация платформы): полный бан кошелька и валидация целей. Тейкдаун контента
- * (снятие задания/сообщения) проверяется на уровне игры в handlers.test.ts (isContentBlocked); тут — что
- * провайдер реально ГЕЙТИТ забаненный кошелёк, требует цель у санкции и что бан переживает snapshot/restore
- * (пересборка override-наборов из журнала). Деньги ончейн санкции не трогают (§4.1/§4.2) — только офчейн.
+ * Operator sanctions (platform moderation): full wallet ban and target validation. Content takedown
+ * (removing a task/message) is checked at the game level in handlers.test.ts (isContentBlocked); here — that
+ * the provider actually GATES a banned wallet, requires a target for a sanction, and that a ban survives snapshot/restore
+ * (rebuilding override sets from the journal). Sanctions don't touch on-chain money (§4.1/§4.2) — off-chain only.
  */
 
-const OP = OPERATOR_ADDRESS as string; // в тестах = TREASURY_OWNER (devnet-дефолт)
-const W = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // произвольный base58 «кошелёк»
+const OP = OPERATOR_ADDRESS as string; // in tests = TREASURY_OWNER (devnet default)
+const W = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // an arbitrary base58 "wallet"
 const PAYOUT = "9tSWouwVrPahnnLW4AMQcNn53Uk5okFEdduo1M3Gtrpe";
 
 function provider() {
   const p = new MockDataProvider();
-  p.__setLatencyScale(0); // без искусственной задержки gate()
+  p.__setLatencyScale(0); // no artificial gate() delay
   return p;
 }
 
-describe("операторские санкции (applyOperatorAction)", () => {
-  it("BAN_WALLET_FULL гейтит createChannel; REINSTATE по адресу снимает бан", async () => {
+describe("operator sanctions (applyOperatorAction)", () => {
+  it("BAN_WALLET_FULL gates createChannel; REINSTATE by address lifts the ban", async () => {
     const p = provider();
     p.__setAddress(OP);
     await p.applyOperatorAction({ action: "BAN_WALLET_FULL", targetAddress: W, reason: "sanctions" });
@@ -38,10 +38,10 @@ describe("операторские санкции (applyOperatorAction)", () => 
     });
     p.__setAddress(W);
     const ch = await p.createChannel({ handle: "victim1", payoutAddress: PAYOUT });
-    expect(ch.handle).toBe("victim1"); // бан снят — кошелёк снова заводит канал
+    expect(ch.handle).toBe("victim1"); // ban lifted — the wallet can create a realm again
   });
 
-  it("санкция без нужной цели → BAD_TARGET (не тихий no-op)", async () => {
+  it("sanction without the required target → BAD_TARGET (not a silent no-op)", async () => {
     const p = provider();
     p.__setAddress(OP);
     await expect(
@@ -55,23 +55,23 @@ describe("операторские санкции (applyOperatorAction)", () => 
     ).rejects.toMatchObject({ code: "BAD_TARGET" });
   });
 
-  it("бан кошелька переживает snapshot/restore (override-набор пересобирается из журнала)", async () => {
+  it("a wallet ban survives snapshot/restore (the override set is rebuilt from the journal)", async () => {
     const p = provider();
     p.__setAddress(OP);
     await p.applyOperatorAction({ action: "BAN_WALLET_FULL", targetAddress: W, reason: "sanctions" });
     const snap = p.__snapshot();
 
     const p2 = provider();
-    p2.__restore(snap); // рестор пересобирает bannedWallets из operatorActions
+    p2.__restore(snap); // restore rebuilds bannedWallets from operatorActions
     p2.__setAddress(W);
     await expect(
       p2.createChannel({ handle: "victim2", payoutAddress: PAYOUT }),
     ).rejects.toMatchObject({ code: "WALLET_BANNED" });
   });
 
-  it("только оператор может применять санкции (чужой → FORBIDDEN)", async () => {
+  it("only the operator can apply sanctions (anyone else → FORBIDDEN)", async () => {
     const p = provider();
-    p.__setAddress(W); // не оператор
+    p.__setAddress(W); // not the operator
     await expect(
       p.applyOperatorAction({ action: "BAN_WALLET_FULL", targetAddress: W, reason: "x" }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

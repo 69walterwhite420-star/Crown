@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RankBadge } from "@/components/domain/rank-badge";
 import { useDevControls, useDonorOverview, useSession } from "@/lib/data/hooks";
-import { demoAddress } from "@/lib/data/dev-identity";
+import { demoAddress } from "@/lib/data/demo-seed";
 import { fromMicro, shortAddress } from "@/lib/utils";
 
 /**
- * Контрол кошелька в шапке CROWN.
- * Фаза 1 (mock): «Connect wallet» садит сессию на демо-донора `max` (есть Reign во всех дворах) через
- * dev-controls движка — реальную wallet-логику не дублируем. Фаза 3: сюда сядет ChainConnect (SIWS).
+ * Wallet control in the CROWN header.
+ * Phase 1 (mock): "Connect wallet" pins the session to the demo supporter `max` (has Reign in every realm) via
+ * the engine's dev-controls — we don't duplicate the real wallet logic. Phase 3: ChainConnect (SIWS) will sit here.
  */
 export function CrownWallet() {
   const { data: session, isLoading } = useSession();
@@ -25,7 +25,7 @@ export function CrownWallet() {
       <button
         type="button"
         onClick={() => dev.available && dev.setAddress(demoAddress("max"))}
-        className="rounded border border-money-dim bg-money-bg/40 px-3.5 py-2 font-body text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
+        className="inline-flex h-9 items-center rounded-lg border border-money-dim bg-money-bg/40 px-3.5 font-body text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
       >
         Connect wallet
       </button>
@@ -40,7 +40,7 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
   const overview = useDonorOverview(address);
   const points = overview.data?.topStanding?.points ?? 0;
 
-  // Esc закрывает меню.
+  // Esc closes the menu.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -55,9 +55,9 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-pill border border-border bg-surface py-1.5 pl-1.5 pr-3 transition-colors hover:border-border-strong"
+        className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-3 transition-colors hover:border-border-strong"
       >
-        <RankBadge points={points} size={28} />
+        <RankBadge points={points} size={26} />
         <span className="mono text-small text-fg-muted">{shortAddress(address)}</span>
       </button>
 
@@ -82,9 +82,6 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
                 </span>
               </div>
             </div>
-            <MenuLink href="/space" onClick={() => setOpen(false)}>
-              Personal Space
-            </MenuLink>
             <MenuLink href="/me" onClick={() => setOpen(false)}>
               My reign
             </MenuLink>

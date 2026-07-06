@@ -1,22 +1,22 @@
 /**
- * CROWN — слой бренда поверх движка (код движка не меняем; это только UI-ярлыки и презентация).
+ * CROWN — a brand layer over the engine (we don't change the engine code; this is only UI labels and presentation).
  *
- * Лексикон: donation → Crown · standing/points → Reign · tier → rank (Squire…King) · сезонный топ-1 → The Crown.
- * Ранги здесь — каноническая лестница CROWN по очкам Reign (1 USDC = 1 Reign, курс фиксирован, ADR 0007).
- * Для ДИСПЛЕЯ на личных экранах ранг выводим по очкам, независимо от того, как стример назвал тиры в конфиге.
+ * Lexicon: donation → Crown · standing/points → Reign · tier → rank (Squire…King) · seasonal top-1 → The Crown.
+ * The ranks here are the canonical CROWN ladder by Reign points (1 USDC = 1 Reign, the rate is fixed, ADR 0007).
+ * For DISPLAY on personal screens we derive the rank from points, regardless of how the streamer named tiers in the config.
  */
 
 export interface CrownRank {
   name: string;
-  /** Порог в очках Reign, с которого начинается ранг. */
+  /** Threshold in Reign points at which the rank begins. */
   min: number;
-  /** Геральдический металл ранга (прогрессия камень → сталь → бронза → аметист → золото). */
+  /** The rank's heraldic metal (progression stone → steel → bronze → amethyst → gold). */
   metal: string;
-  /** Односимвольная монограмма для крест-бейджа. */
+  /** Single-character monogram for the cross-badge. */
   sigil: string;
 }
 
-/** Лестница двора. Пороги — дефолты спеки (core-spec §6); The Crown 👑 — титул топ-1 сезона, не порог. */
+/** The realm's ladder. Thresholds — spec defaults (core-spec §6); The Crown 👑 — the season's top-1 title, not a threshold. */
 export const RANKS: readonly CrownRank[] = [
   { name: "Squire", min: 0, metal: "#8a8577", sigil: "S" },
   { name: "Knight", min: 500, metal: "#bac1c8", sigil: "K" },
@@ -25,7 +25,7 @@ export const RANKS: readonly CrownRank[] = [
   { name: "King", min: 200_000, metal: "#c9a24a", sigil: "K" },
 ] as const;
 
-/** Текущий ранг по очкам Reign. */
+/** Current rank by Reign points. */
 export function rankOf(points: number): CrownRank {
   let current: CrownRank = RANKS[0]!;
   for (const r of RANKS) if (points >= r.min) current = r;
@@ -34,10 +34,10 @@ export function rankOf(points: number): CrownRank {
 
 export interface RankProgress {
   rank: CrownRank;
-  next: CrownRank | null; // null → King (высший ранг)
-  /** 0..1 — путь к следующему рангу; 1 на вершине. */
+  next: CrownRank | null; // null → King (highest rank)
+  /** 0..1 — path to the next rank; 1 at the top. */
   progress: number;
-  /** Сколько Reign до следующего ранга (0 на вершине). */
+  /** How much Reign remains to the next rank (0 at the top). */
   toNext: number;
 }
 
@@ -51,7 +51,7 @@ export function rankProgress(points: number): RankProgress {
   return { rank, next, progress: Math.max(0, Math.min(1, done / span)), toNext: Math.max(0, next.min - points) };
 }
 
-/** Относительное время по-английски (для показа; абсолютное — в title). */
+/** Relative time in English (for display; the absolute time — in title). */
 export function timeAgoEn(iso: string): string {
   const min = Math.round((Date.now() - Date.parse(iso)) / 60_000);
   if (min < 1) return "just now";
@@ -64,7 +64,7 @@ export function timeAgoEn(iso: string): string {
   return mo < 12 ? `${mo}mo ago` : `${Math.round(mo / 12)}y ago`;
 }
 
-/** Простая англ. плюрализация: n one/other. */
+/** Simple English pluralization: n one/other. */
 export function plur(n: number, one: string, other = one + "s"): string {
   return `${n} ${Math.abs(n) === 1 ? one : other}`;
 }

@@ -9,7 +9,7 @@ import { cn, fromMicro, shortAddress } from "@/lib/utils";
 
 const TOP_N = 5;
 
-/** Компактная сумма для узкого рейла: "$51K", "$1.2M". */
+/** Compact amount for the narrow rail: "$51K", "$1.2M". */
 function compactUsd(micro: bigint): string {
   return (
     "$" +
@@ -20,9 +20,9 @@ function compactUsd(micro: bigint): string {
 }
 
 /**
- * «Realm roll» — превью лидерборда двора (топ-5) в правом рейле: соц-пруф + живость. #1 носит 👑 (The
- * Crown), остальные — крест-бейдж ранга. Строка своей сессии подсвечена. «View all →» ведёт на полный
- * лидерборд /c/[handle]/donors. Данные — useLeaderboard (тот же ключ, что и полная страница → дедуп).
+ * "Realm roll" — a preview of the realm's leaderboard (top 5) in the right rail: social proof + liveliness. #1
+ * wears 👑 (The Crown), the rest get a cross rank badge. The current session's row is highlighted. "View all →"
+ * leads to the full leaderboard /c/[handle]/donors. Data — useLeaderboard (same key as the full page → dedup).
  */
 export function RealmRoll({
   channelId,

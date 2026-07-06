@@ -8,28 +8,38 @@ import { channelHue, plural, shortAddress } from "@/lib/utils";
 
 const DONORS = ["supporter", "supporters", "supporters"] as const;
 
-/** Карточка канала в Discovery: монограмма, название/@handle, тир, описание, инфо о донатёрах, мини-ссылки
- *  на соцсети и payout-адрес. Тело — ссылка на канал; соцсети/кошелёк — отдельные ссылки (не вложены). */
+/** Realm card in Discovery: monogram, name/@handle, tier, description, supporter info, mini links
+ *  to socials and the payout address. The body is a link to the realm; socials/wallet are separate links (not nested). */
 export function ChannelCardTile({ card }: { card: ChannelCard }) {
   const named = Boolean(card.displayName?.trim());
   const name = card.displayName?.trim() || `@${card.handle}`;
   const hue = channelHue(name);
   const links = card.links ?? [];
-  const MAX_LINKS = 4; // дальше — троеточие на страницу канала (там все ссылки)
+  const MAX_LINKS = 4; // beyond that — an ellipsis to the realm page (all links are there)
   const shownLinks = links.slice(0, MAX_LINKS);
   const hiddenLinks = links.length - shownLinks.length;
 
   return (
     <div className="group flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 pt-4 pb-0 transition-colors duration-fast ease-ease hover:border-border-strong">
-      {/* Кликабельное тело → страница канала */}
+      {/* Clickable body → realm page */}
       <Link href={`/c/${card.handle}`} className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
-          <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-h3"
-            style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
-          >
-            {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
-          </div>
+          {card.avatarUrl ? (
+            // External avatar URL — a plain <img> (next/image requires a host allowlist).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.avatarUrl}
+              alt=""
+              className="h-11 w-11 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-h3"
+              style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
+            >
+              {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <span className="block truncate font-display text-fg transition-colors group-hover:text-status">
               {name}
@@ -54,8 +64,8 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         </div>
       </Link>
 
-      {/* Футер фикс. высоты, прижат к низу (mt-auto). pb-0 у карточки → это ровно зона между полоской и
-          рамкой, контент по центру по вертикали. Высота одинаковая у всех карточек (есть ссылки или нет). */}
+      {/* Fixed-height footer, pinned to the bottom (mt-auto). pb-0 on the card → this is exactly the zone between
+          the divider and the border, content vertically centered. Same height across all cards (links or not). */}
       <div className="mt-auto flex h-12 items-center justify-between gap-2 border-t border-border">
         <div className="flex min-w-0 items-center gap-1">
           {links.length > 0 ? (

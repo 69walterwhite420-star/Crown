@@ -7,12 +7,12 @@ import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { USDC_DECIMALS, splitAmount } from "./config";
 import { buildMemoInstruction, encodeActivationMemo, encodeMemo } from "./memo";
 
-export { splitAmount }; // ре-экспорт (исторические импортеры берут его отсюда); определение — в addresses.ts
+export { splitAmount }; // re-export (historic importers take it from here); the definition is in addresses.ts
 
 export interface DonationTxParams {
   donor: PublicKey;
-  payout: PublicKey; // владелец payout-аккаунта стримера
-  treasury: PublicKey; // владелец трежери
+  payout: PublicKey; // owner of the streamer's payout account
+  treasury: PublicKey; // treasury owner
   mint: PublicKey; // USDC mint (devnet)
   amountMicro: bigint;
   creatorId: string;
@@ -21,9 +21,9 @@ export interface DonationTxParams {
 }
 
 /**
- * Инструкции донат-транзакции (docs/yellow-paper.md §3.1): одна tx, деньги идут НАПРЯМУЮ донор→стример (97%) и
- * донор→трежери (3%), оператор средства доната не трогает (некастодиальность, инвариант §4.1).
- * ATA стримера/трежери создаются при отсутствии (платит донор). Memo несёт атрибуцию.
+ * Crown-transaction instructions (docs/yellow-paper.md §3.1): one tx, money goes DIRECTLY donor→streamer (97%) and
+ * donor→treasury (3%), the operator never touches the crown funds (non-custodial, invariant §4.1).
+ * The streamer's/treasury's ATA is created if missing (paid by the donor). The memo carries attribution.
  */
 export async function buildDonationInstructions(
   connection: Connection,
@@ -41,7 +41,7 @@ export async function buildDonationInstructions(
   if (!(await accountExists(connection, treasuryAta))) {
     ix.push(createAssociatedTokenAccountInstruction(p.donor, treasuryAta, p.treasury, p.mint));
   }
-  // 97% стримеру, 3% трежери — две transferChecked-инструкции.
+  // 97% to the streamer, 3% to the treasury — two transferChecked instructions.
   ix.push(createTransferCheckedInstruction(donorAta, p.mint, streamerAta, p.donor, net, USDC_DECIMALS));
   ix.push(createTransferCheckedInstruction(donorAta, p.mint, treasuryAta, p.donor, fee, USDC_DECIMALS));
   ix.push(buildMemoInstruction(encodeMemo({ c: p.creatorId, d: p.donationId, m: p.msgRef ?? null })));
@@ -49,7 +49,7 @@ export async function buildDonationInstructions(
 }
 
 export interface ActivationTxParams {
-  payer: PublicKey; // владелец канала
+  payer: PublicKey; // realm owner
   treasury: PublicKey;
   mint: PublicKey;
   channelId: string;
@@ -57,8 +57,8 @@ export interface ActivationTxParams {
 }
 
 /**
- * Инструкции сбора активации (yellow-paper §3.1): один перевод payer→трежери (~$2) + memo `{act}`.
- * Сбор, не залог — оператор не возвращает (некастодиальность). ATA трежери создаётся при отсутствии.
+ * Activation-fee instructions (yellow-paper §3.1): one transfer payer→treasury (~$2) + memo `{act}`.
+ * A fee, not a deposit — the operator does not refund it (non-custodial). The treasury ATA is created if missing.
  */
 export async function buildActivationInstructions(
   connection: Connection,

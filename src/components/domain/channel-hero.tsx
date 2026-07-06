@@ -9,13 +9,13 @@ import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
-const HEADER_H = 60; // высота глобальной шапки (--header-h): относительно неё считаем «свёрнуто».
+const HEADER_H = 60; // height of the global header (--header-h): "collapsed" is measured relative to it.
 
 function monthYear(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-/** Подпись + значение в правом числовом кластере hero. */
+/** Label + value in the right-hand numeric cluster of the hero. */
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -26,9 +26,10 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /**
- * Hero двора — единая панель: слева личность (аватар, имя/@handle, описание, соц-ссылки), справа числовой
- * кластер (Crowned · 👑 The Crown · Since). Мягкий золотой акцент для «дорогого» вида. Баннера нет.
- * При скролле, когда имя уходит под глобальную шапку, всплывает липкая компактная плашка с кнопкой Crown.
+ * Realm hero — a single panel: identity on the left (avatar, name/@handle, description, social links), a
+ * numeric cluster on the right (Crowned · 👑 The Crown · Since). A soft gold accent for a "premium" look.
+ * No banner. On scroll, once the name slides under the global header, a sticky compact bar with a Crown
+ * button appears.
  */
 export function ChannelHero({
   channel,
@@ -65,7 +66,7 @@ export function ChannelHero({
 
   return (
     <>
-      {/* Липкая компактная плашка — fixed-оверлей под глобальной шапкой. */}
+      {/* Sticky compact bar — a fixed overlay under the global header. */}
       <div
         aria-hidden={!collapsed}
         className={cn(
@@ -88,19 +89,19 @@ export function ChannelHero({
       </div>
 
       <header className="relative overflow-hidden p-5 sm:p-6">
-        {/* Мягкий золотой акцент (только намёк — дисциплина золота). */}
+        {/* Soft gold accent (just a hint — gold discipline). */}
         <div
           aria-hidden
           className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-70"
           style={{ background: "radial-gradient(circle, var(--money-bg), transparent 70%)" }}
         />
-        {/* Действия — в углу панели. */}
+        {/* Actions — in the panel corner. */}
         <div className="absolute right-4 top-4 z-10">
           <HeaderActions payoutAddress={channel.payoutAddress} />
         </div>
 
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-          {/* Личность */}
+          {/* Identity */}
           <div className="flex min-w-0 items-start gap-4">
             <Monogram name={name} avatarUrl={avatarUrl} size="xl" className="flex-none" />
             <div className="flex min-w-0 flex-col gap-1.5 pr-10 lg:pr-0">
@@ -127,7 +128,7 @@ export function ChannelHero({
             </div>
           </div>
 
-          {/* Числовой кластер — заполняет правую часть панели. */}
+          {/* Numeric cluster — fills the right part of the panel. */}
           <div className="flex flex-none flex-wrap items-end gap-x-7 gap-y-4 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
             {totalDonated !== undefined ? (
               <Fact label="Crowned">

@@ -10,16 +10,16 @@ import { useStanding } from "@/lib/data/hooks";
 import { cn, collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Address, MessageRef, MicroUSDC, ModerationVerdict } from "@/lib/data/types";
 
-// Бейдж только для того, что требует внимания (FLAG/HARD_BLOCK); CLEAR — без метки, чтобы не зашумлять.
+// Badge only for what needs attention (FLAG/HARD_BLOCK); CLEAR — no label, to avoid noise.
 const VERDICT: Partial<Record<ModerationVerdict, { label: string; cls: string }>> = {
   FLAG: { label: "Suspicious", cls: "border-warn text-warn" },
   HARD_BLOCK: { label: "Prohibited", cls: "border-danger text-danger" },
 };
 
 /**
- * Строка очереди модерации (без рамки, с нижним разделителем): ник → профиль + бейдж тира донора + (если есть)
- * авто-вердикт, сумма справа, текст, снизу время и действия «Показать»/«Скрыть» + меню «…». HARD_BLOCK —
- * показать нельзя (карантин). Тир донора подтягивается по standing на этом канале.
+ * Moderation queue row (no border, with a bottom divider): name → profile + donor tier badge + (if any)
+ * auto-verdict, amount on the right, text, and below it the time plus "Show"/"Hide" actions + the "…" menu.
+ * HARD_BLOCK — cannot be shown (quarantine). The donor tier is pulled from their standing on this realm.
  */
 export function ModerationItem({
   message,
@@ -78,8 +78,8 @@ export function ModerationItem({
             <span className="text-small text-danger">Auto-quarantined — cannot be shown</span>
           ) : (
             <>
-              {/* Один `pending` на обе кнопки → не вешаем спиннер на «Показать» (иначе он крутится и при «Скрыть»).
-                  Обе просто блокируются на время операции. */}
+              {/* A single `pending` for both buttons → we don't put a spinner on "Show" (otherwise it would
+                  spin on "Hide" too). Both are simply disabled for the duration of the operation. */}
               <Button variant="secondary" size="sm" onClick={onShow} disabled={pending}>
                 <EyeIcon className="h-4 w-4" />
                 Show

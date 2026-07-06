@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
 
-/** Dev-инструменты для режимов mock/api (без кошелька): вход по произвольному адресу, MOCK_FAIL, сброс. */
+/** Dev tools for mock/api modes (no wallet): sign in as an arbitrary address, MOCK_FAIL, reset. */
 export function DevToolbar() {
   const dev = useDevControls();
   const session = useSession();

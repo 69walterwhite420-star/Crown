@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 
-import { IS_PROD } from "@/lib/chain/addresses"; // единый источник prod-гейта (NODE_ENV === "production")
+import { IS_PROD } from "@/lib/chain/addresses"; // single source of the prod gate (NODE_ENV === "production")
 
 /**
- * Гейт dev-поверхности (`/dev/*`, напр. kitchen-sink): в production маршрут не существует (404), а не
- * «достижим, но инертен». Серверный layout — env-проверка идёт на сервере, страница в бандл не попадает.
- * Закрывает открытый пункт из docs/audit-map.md §3 (dev-поверхность и её гейтинг).
+ * Gate for the dev surface (`/dev/*`, e.g. kitchen-sink): in production the route does not exist (404), rather
+ * than being "reachable but inert". Server layout — the env check runs on the server, the page never enters the bundle.
+ * Closes the open item from docs/audit-map.md §3 (the dev surface and its gating).
  */
 export default function DevLayout({ children }: { children: React.ReactNode }) {
   if (IS_PROD) notFound();

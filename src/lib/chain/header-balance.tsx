@@ -6,7 +6,7 @@ import { type Connection, PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 import { DEVNET_USDC_MINT } from "./addresses";
 
-/** Баланс devnet USDC на ATA подключённого кошелька. Нет аккаунта токена → 0. */
+/** Devnet USDC balance on the connected wallet's ATA. No token account → 0. */
 async function fetchUsdc(connection: Connection, owner: PublicKey): Promise<number> {
   if (!DEVNET_USDC_MINT) return 0;
   const ata = await getAssociatedTokenAddress(new PublicKey(DEVNET_USDC_MINT), owner);
@@ -14,11 +14,11 @@ async function fetchUsdc(connection: Connection, owner: PublicKey): Promise<numb
     const bal = await connection.getTokenAccountBalance(ata);
     return bal.value.uiAmount ?? 0;
   } catch {
-    return 0; // ATA ещё не создан (не получал USDC) → 0
+    return 0; // ATA not created yet (never received USDC) → 0
   }
 }
 
-/** Чип баланса USDC в шапке (devnet). Показывается только при подключённом кошельке. */
+/** USDC balance chip in the header (devnet). Shown only when a wallet is connected. */
 export function ChainBalance() {
   const { connection } = useConnection();
   const { publicKey } = useWallet();

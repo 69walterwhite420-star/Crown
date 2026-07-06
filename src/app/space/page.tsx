@@ -35,7 +35,7 @@ type SectionKey =
   | "realm-blocklist"
   | "settings";
 
-// Пункты «My Realm» зависят от того, есть ли у пользователя свой realm. Сюда переехала вся Студия.
+// The "My Realm" items depend on whether the user has their own realm. The entire Studio moved here.
 const REALM_OWNED: { key: SectionKey; label: string }[] = [
   { key: "realm-dashboard", label: "Dashboard" },
   { key: "realm-queue", label: "Moderation queue" },
@@ -45,7 +45,7 @@ const REALM_OWNED: { key: SectionKey; label: string }[] = [
 ];
 const REALM_NONE: { key: SectionKey; label: string }[] = [{ key: "realm-create", label: "Create realm" }];
 
-// Deep-link алиасы (в т.ч. старые значения ?tab).
+// Deep-link aliases (including legacy ?tab values).
 const TAB_ALIAS: Record<string, SectionKey> = {
   holdings: "holdings-dashboard",
   "holdings-dashboard": "holdings-dashboard",
@@ -66,9 +66,9 @@ const TAB_ALIAS: Record<string, SectionKey> = {
 };
 
 /**
- * `/space` — личное пространство: My Holdings (сторона патрона), My Realm (сторона владельца) + Settings.
- * Пока своего realm нет — в My Realm только «Create realm»; после создания появляются Dashboard и
- * Customization (реактивно через useMyChannel). Вход — «Personal Space» в шапке.
+ * `/space` — personal space: My Holdings (patron side), My Realm (owner side) + Settings.
+ * While there is no own realm — My Realm shows only "Create realm"; after creation, Dashboard and
+ * Customization appear (reactively via useMyChannel). Entry point — "Personal Space" in the header.
  */
 export default function SpacePage() {
   const session = useSession();
@@ -80,20 +80,20 @@ export default function SpacePage() {
   const [section, setSection] = useState<SectionKey>("holdings-dashboard");
   const { collapsed, toggle } = useRailCollapsed("space-rail");
 
-  // Dev-only: `?as=<label>` логинит засеянную личность (только mock; инертно в api/chain).
+  // Dev-only: `?as=<label>` logs in a seeded identity (mock only; inert in api/chain).
   useEffect(() => {
     if (address || !dev.available) return;
     const as = new URLSearchParams(window.location.search).get("as");
     if (as) dev.setAddress(demoAddress(as));
   }, [address, dev.available]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Deep-link раздела: `?tab=realm-customization` и т.п. (+ алиасы).
+  // Section deep-link: `?tab=realm-customization` etc. (+ aliases).
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
     if (t && TAB_ALIAS[t]) setSection(TAB_ALIAS[t]);
   }, []);
 
-  // Держим раздел консистентным с владением realm (после создания/если realm ещё нет).
+  // Keep the section consistent with realm ownership (after creation / if there is no realm yet).
   useEffect(() => {
     if (!address || !realmKnown) return;
     if (hasRealm && section === "realm-create") setSection("realm-dashboard");
@@ -122,7 +122,7 @@ export default function SpacePage() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col md:flex-row">
-      {/* Сайдбар во всю высоту с логотипом сверху и вертикальной границей (как в админке). */}
+      {/* Full-height sidebar with the logo on top and a vertical border (like in the admin panel). */}
       <SpaceSidebar
         active={section}
         onSelect={setSection}
@@ -133,12 +133,12 @@ export default function SpacePage() {
       <RailToggle collapsed={collapsed} onToggle={toggle} width="15rem" />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Тонкая верхняя полоса: контрол кошелька справа. */}
+        {/* Thin top bar: wallet control on the right. */}
         <div className="sticky top-0 z-20 flex h-[var(--header-h)] flex-none items-center justify-end gap-2 border-b border-border bg-[var(--bg)] px-4 lg:px-6">
           {IS_CHAIN ? <ConnectWalletButton /> : <CrownWallet />}
         </div>
         <main className="min-w-0 flex-1 px-4 pb-8 pt-6 lg:px-6">
-          {/* Контекстный баннер realm (активация / приостановка) — во всех вкладках My Realm, кроме создания. */}
+          {/* Contextual realm banner (activation / suspension) — in all My Realm tabs except creation. */}
           {section.startsWith("realm-") && section !== "realm-create" ? (
             <div className="mb-5">
               <ChannelStatusBanner />
@@ -204,7 +204,7 @@ function SpaceSidebar({
         collapsed ? "md:w-14" : "md:w-60",
       )}
     >
-      {/* Логотип сверху — остаётся видимым и при сворачивании (в свёрнутом — только знак). */}
+      {/* Logo on top — stays visible even when collapsed (collapsed shows only the mark). */}
       <Link
         href="/"
         aria-label="CROWN — home"
@@ -237,7 +237,7 @@ function SpaceSidebar({
           {item({ key: "holdings-dashboard", label: "Dashboard" }, true)}
         </div>
 
-        {/* My Realm — Create realm пока realm нет; после создания Dashboard + Customization */}
+        {/* My Realm — Create realm while there is no realm; after creation Dashboard + Customization */}
         <div className="mb-2 flex flex-col gap-0.5">
           <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">
             My Realm

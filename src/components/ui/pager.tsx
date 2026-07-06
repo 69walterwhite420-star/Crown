@@ -7,12 +7,12 @@ import { Select } from "./select";
 
 const SIZES = [10, 25, 50];
 
-/** Локальная постраничная разбивка списка (клиент). Возвращает срез текущей страницы + контролы состояния. */
+/** Local client-side list pagination. Returns the current page slice + state controls. */
 export function usePager<T>(items: T[], defaultSize = 10) {
   const [pageSize, setPageSize] = useState(defaultSize);
   const [page, setPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1); // фильтр/убыль списка → не зависаем на пустой странице
+  const safePage = Math.min(page, pageCount - 1); // filtering/shrinking the list → don't get stuck on an empty page
   const start = safePage * pageSize;
   return {
     pageItems: items.slice(start, start + pageSize),
@@ -25,7 +25,7 @@ export function usePager<T>(items: T[], defaultSize = 10) {
   };
 }
 
-/** Контролы пагинации: размер страницы + назад/вперёд + счётчик. Скрыты, если элементов мало. */
+/** Pagination controls: page size + back/next + counter. Hidden when there are few items. */
 export function Pager({
   page,
   pageCount,
@@ -43,7 +43,7 @@ export function Pager({
   setPageSize: (n: number) => void;
   sizes?: number[];
 }) {
-  if (total <= sizes[0]!) return null; // мало элементов — пагинация не нужна
+  if (total <= sizes[0]!) return null; // few items — no pagination needed
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-small text-fg-faint">
       <span>Total: {total}</span>

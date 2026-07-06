@@ -2,9 +2,9 @@ import { escrowTask } from "./escrow-task/manifest";
 import type { GameId, GameModule } from "./types";
 
 /**
- * Единственный список мини-игр платформы (ADR 0016). Добавить игру = добавить её манифест сюда. Сайт
- * (страница канала, студия) рендерит игры, ИТЕРИРУЯ этот реестр, а не хардкодя каждую — новая игра
- * появляется в UI автоматически.
+ * The single list of the platform's mini-games (ADR 0016). Adding a game = adding its manifest here. The site
+ * (realm page, studio) renders games by ITERATING this registry rather than hardcoding each one — a new game
+ * appears in the UI automatically.
  */
 export const GAMES: readonly GameModule[] = [escrowTask];
 

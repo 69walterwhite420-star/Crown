@@ -31,11 +31,12 @@ const config: Config = {
           dim: "var(--status-dim)",
           bg: "var(--status-bg)",
         },
-        // акцент ДЕНЕГ — строго под подтверждённое/финальное
+        // акцент ДЕНЕГ — строго под подтверждённое/финальное (Crown/транзакции)
         money: {
           DEFAULT: "var(--money)",
           dim: "var(--money-dim)",
           bg: "var(--money-bg)",
+          bright: "var(--money-bright)",
         },
         danger: {
           DEFAULT: "var(--danger)",
@@ -45,7 +46,7 @@ const config: Config = {
         info: "var(--info)",
       },
       fontFamily: {
-        display: ["var(--font-display)", "Hanken Grotesk", "system-ui", "sans-serif"],
+        display: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],
         body: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],
         sans: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"],

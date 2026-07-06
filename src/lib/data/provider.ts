@@ -29,91 +29,91 @@ import { MockDataProvider } from "./mock-provider";
 import { ApiDataProvider } from "./api-provider";
 
 /**
- * Result<T> — асинхронный результат, который БРОСАЕТ Error при сбое (TanStack Query ловит).
- * (В yellow-paper §11 записан как `Result<T> = T` ради читаемости сигнатур; на практике это Promise.)
+ * Result<T> — an async result that THROWS an Error on failure (TanStack Query catches it).
+ * (In yellow-paper §11 it's written as `Result<T> = T` for readable signatures; in practice it's a Promise.)
  */
 export type Result<T> = Promise<T>;
 
 export type DataSource = "mock" | "api" | "chain" | "icp";
 
 /**
- * Единственный интерфейс доступа к данным (yellow-paper §11, CLAUDE.md §3).
- * Ни один компонент не зовёт fetch/RPC/Solana — только методы отсюда через хуки.
+ * The single data-access interface (yellow-paper §11, CLAUDE.md §3).
+ * No component ever calls fetch/RPC/Solana — only the methods here, via hooks.
  */
 export interface DataProvider {
-  // — Сессия / идентичность —
+  // — Session / identity —
   getSession(): Result<Session>;
-  connect(): Result<Session>; // Фаза 3: wallet-adapter + SIWS
+  connect(): Result<Session>; // Phase 3: wallet-adapter + SIWS
   disconnect(): Result<void>;
   getProfile(address: Address): Result<LightProfile | null>;
   updateProfile(patch: Partial<LightProfile>): Result<LightProfile>;
 
-  // — Дискавери / каналы —
-  listChannels(opts?: ListOpts): Result<Page<ChannelCard>>; // только ACTIVE, публичные
+  // — Discovery / realms —
+  listChannels(opts?: ListOpts): Result<Page<ChannelCard>>; // only ACTIVE, public
   getChannel(handle: string): Result<Channel | null>;
-  getMyChannel(): Result<Channel | null>; // канал, которым ВЛАДЕЕТ текущая сессия (один на кошелёк, ADR 0002)
-  getManagedChannels(): Result<Channel[]>; // каналы, которыми управляешь: владелец ИЛИ модератор (для очереди)
-  getOperatorChannels(): Result<Channel[]>; // ВСЕ каналы (любой статус) — только оператор (консоль T&S)
+  getMyChannel(): Result<Channel | null>; // the realm OWNED by the current session (one per wallet, ADR 0002)
+  getManagedChannels(): Result<Channel[]>; // realms you manage: owner OR moderator (for the queue)
+  getOperatorChannels(): Result<Channel[]>; // ALL realms (any status) — operator only (T&S console)
   getChannelConfig(channelId: string): Result<ChannelConfig>;
-  createChannel(input: CreateChannelInput): Result<Channel>; // один канал на кошелёк (ADR 0002)
-  activateChannel(channelId: string): Result<Channel>; // сбор ~$2 → BASIC→ACTIVE
-  // H1: закрепить payout существующего канала ed25519-подписью владельца (каналы, созданные до
-  // аттестаций). chain-провайдер подписывает кошельком сам (параметр игнорирует); mock/api требуют подпись.
+  createChannel(input: CreateChannelInput): Result<Channel>; // one realm per wallet (ADR 0002)
+  activateChannel(channelId: string): Result<Channel>; // ~$2 charge → BASIC→ACTIVE
+  // H1: pin the payout of an existing realm with the owner's ed25519 signature (realms created before
+  // attestations). The chain provider signs with the wallet itself (ignores the param); mock/api require a signature.
   attestPayout(channelId: string, signatureB64?: string): Result<Channel>;
   updateChannelConfig(channelId: string, patch: ConfigPatch): Result<ChannelConfig>;
 
-  // — Репутация / статус —
+  // — Reign / status —
   getStanding(channelId: string, donor: Address): Result<ViewerStanding | null>;
   getLeaderboard(channelId: string, period: LeaderboardPeriod): Result<LeaderboardEntry[]>;
-  // Агрегат по донору для публичного профиля /u/[address]: standing по каналам + активность (read-only).
+  // Per-supporter aggregate for the public profile /u/[address]: standing across realms + activity (read-only).
   getDonorOverview(address: Address): Result<DonorOverview>;
-  // Лента главной (ADR 0018): свои открытые циклы + что кипит. Личность — из сессии на сервере (не параметр),
-  // иначе можно было бы прочитать чужой приватный текст задания (§4.6).
+  // Home feed (ADR 0018): your own open cycles + what's hot. Identity comes from the server session (not a param),
+  // otherwise someone could read another person's private task text (§4.6).
   homeFeed(): Result<HomeFeed>;
 
-  // — Governance-параметры споров (миграция M1, ADR 0021) — ОПЦИОНАЛЬНЫ: канон живёт в
-  // core-канистре ICP, методы есть только у IcpDataProvider (режим icp). UI проверяет наличие.
+  // — Dispute governance params (migration M1, ADR 0021) — OPTIONAL: the canon lives in the
+  // ICP core canister, the methods exist only on IcpDataProvider (icp mode). The UI checks for their presence.
   getDisputeParams?(channelId: string): Result<DisputeParamsInfo>;
-  // Спор по chain-задаче ИЗ КАНИСТРЫ (M2): открытое табло/голоса/вердикт/ончейн-подписи
-  // резолвера. null = спора нет (или задача без эскроу). Открытие/голос идут через gameAction
-  // (raiseDispute/vote) — IcpDataProvider сам маршрутизирует их в канистру подписью кошелька.
+  // Dispute over a chain task FROM THE CANISTER (M2): open scoreboard/votes/verdict/on-chain signatures
+  // of the resolver. null = no dispute (or a task without escrow). Opening/voting go through gameAction
+  // (raiseDispute/vote) — IcpDataProvider routes them into the canister itself via the wallet signature.
   getCanisterDispute?(channelId: string, taskId: string): Result<CanisterDisputeView | null>;
-  // Запись = подпись кошельком владельца канонического сообщения (chain/dispute-params.ts) —
-  // право на запись проверяет КАНИСТРА по владельцу-из-цепочки, сервер не участвует.
+  // A write = the owner's wallet signature over the canonical message (chain/dispute-params.ts) —
+  // write permission is verified by the CANISTER against the on-chain owner; the server is not involved.
   setDisputeParams?(channelId: string, params: DisputeParamsValues): Result<DisputeParamsInfo>;
 
-  // — Донаты —
+  // — Crowns —
   createDonation(input: DonationInput): Result<DonationResult>;
   listDonations(channelId: string, opts?: ListOpts): Result<Page<Donation>>;
 
-  // — Модерация (стример/модераторы) —
+  // — Moderation (streamer/moderators) —
   getModerationQueue(channelId: string): Result<MessageRef[]>;
   setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef>;
-  // Скрыть ВСЕ сообщения донора на канале (одной кнопкой). Деньги/standing не трогаются — только показ.
+  // Hide ALL of a supporter's messages on a realm (with one button). Money/standing are untouched — display only.
   hideDonorMessages(channelId: string, donor: Address): Result<{ hidden: number }>;
-  // Жалоба зрителя на показанный текст (любой вошедший); порог жалоб авто-скрывает + инцидент в T&S.
+  // A viewer's report on shown text (anyone who's signed in); the report threshold auto-hides + files a T&S incident.
   reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }>;
 
-  // — Канальный блок-лист (стример) —
+  // — Realm blocklist (streamer) —
   getChannelBlocklist(channelId: string): Result<ChannelBlock[]>;
   addChannelBlock(channelId: string, address: Address, reason?: string): Result<ChannelBlock>;
   removeChannelBlock(channelId: string, address: Address): Result<void>;
-  // Донор: заблокирован ли Я на этом канале (+причина) — для плашки в карточке доната.
+  // Supporter: am I blocked on this realm (+reason) — for the banner in the crown card.
   getMyChannelBlock(channelId: string): Result<ChannelBlock | null>;
 
-  // — Оператор / T&S (платформенный уровень) —
+  // — Operator / T&S (platform level) —
   getOperatorQueue(): Result<IncidentLog[]>;
   applyOperatorAction(
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction>;
 
-  // — Мини-игры: один game-bus на все игры (ADR 0016), интерфейс не растёт на каждую. Маршрутизация по
-  //   gameId/op — на слое игр; результат типизируется хуками внутри модуля игры. —
-  gameAction(req: GameRequest): Result<unknown>; // мутации
-  gameQuery(req: GameRequest): Result<unknown>; // чтения
+  // — Mini-games: one game-bus for all games (ADR 0016), the interface doesn't grow per game. Routing by
+  //   gameId/op happens in the games layer; the result is typed by hooks inside the game module. —
+  gameAction(req: GameRequest): Result<unknown>; // mutations
+  gameQuery(req: GameRequest): Result<unknown>; // reads
 }
 
-// — Доменные ошибки (бросаются провайдером, ловятся UI) —
+// — Domain errors (thrown by the provider, caught by the UI) —
 export class DataError extends Error {
   constructor(
     public readonly code: string,
@@ -126,34 +126,41 @@ export class DataError extends Error {
 
 export const ErrChannelAlreadyExists = new DataError(
   "CHANNEL_ALREADY_EXISTS",
-  "У этого кошелька уже есть канал (один канал на кошелёк).",
+  "This wallet already has a realm (one realm per wallet).",
 );
 export const ErrTextRequiresActiveChannel = new DataError(
   "TEXT_REQUIRES_ACTIVE_CHANNEL",
-  "Донат с текстом доступен только на активированном канале.",
+  "A crown with text is only available on an activated realm.",
 );
 
 /**
- * Выбор реализации по ENV-флагу (CLAUDE.md §3). Переход между фазами =
- * добавить реализацию интерфейса, не трогая экраны.
+ * Implementation selection by ENV flag (CLAUDE.md §3). Moving between phases =
+ * add an implementation of the interface, without touching any screen.
  */
 export function createDataProvider(source: string | undefined): DataProvider {
   const s = (source ?? "mock") as DataSource;
   switch (s) {
-    case "mock":
-      return new MockDataProvider();
+    case "mock": {
+      const provider = new MockDataProvider();
+      // DEV: populate the browser mock with demo realms (otherwise the catalog is empty — the demo store was removed from the backend).
+      // Browser only (server/persist never reaches here) and only if the seed isn't explicitly disabled.
+      if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_DEMO_SEED !== "off") {
+        provider.seedDemo();
+      }
+      return provider;
+    }
     case "api":
       return new ApiDataProvider();
     case "chain":
     case "icp":
-      // Chain/IcpDataProvider РЕАЛИЗОВАНЫ, но включаются отдельным путём (app/providers.tsx →
-      // chain-providers.tsx, динамический chunk: Solana-стек не попадает в bundle mock/api, ADR 0004).
-      // Через эту фабрику они не инстанцируются намеренно — она для серверного/SSR-пути, где кошелька нет.
+      // Chain/IcpDataProvider ARE IMPLEMENTED, but wired up via a separate path (app/providers.tsx →
+      // chain-providers.tsx, dynamic chunk: the Solana stack doesn't land in the mock/api bundle, ADR 0004).
+      // They are deliberately not instantiated through this factory — it's for the server/SSR path, where there's no wallet.
       throw new DataError(
         "CHAIN_VIA_PROVIDERS",
-        "chain/icp-провайдер подключается в app/providers.tsx (ADR 0004).",
+        "The chain/icp provider is wired up in app/providers.tsx (ADR 0004).",
       );
     default:
-      throw new DataError("BAD_DATA_SOURCE", `Неизвестный NEXT_PUBLIC_DATA_SOURCE: ${source}`);
+      throw new DataError("BAD_DATA_SOURCE", `Unknown NEXT_PUBLIC_DATA_SOURCE: ${source}`);
   }
 }

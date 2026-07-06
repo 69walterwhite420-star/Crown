@@ -59,8 +59,8 @@ function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
 }
 
 /**
- * Поле суммы в USDC: держит СЫРУЮ строку (чтобы можно было набрать «0.», «0.5» — иначе round-trip через
- * Number→toMicro→fromMicro съедал бы дробную точку на каждом нажатии). В micro отдаёт только валидное число.
+ * USDC amount field: keeps the RAW string (so you can type "0.", "0.5" — otherwise a round-trip through
+ * Number→toMicro→fromMicro would eat the decimal point on every keystroke). Emits micro only for a valid number.
  */
 function UsdcAmountInput({
   label,
@@ -89,9 +89,9 @@ function UsdcAmountInput({
 }
 
 /**
- * Редактор конфига канала (описание, тиры/пороги, минимумы донатов, режим имён/показа текста, модераторы).
- * Самодостаточен: сам тянет свой канал (useMyChannel) и конфиг. Используется и в Студии, и в личном
- * пространстве (Customization) — единый источник, без дублирования.
+ * Realm config editor (description, tiers/thresholds, crown minimums, name/text-display mode, moderators).
+ * Self-contained: pulls its own realm (useMyChannel) and config. Used both in the Studio and in the personal
+ * space (Customization) — a single source, no duplication.
  */
 export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: string }) {
   const myChannelQ = useMyChannel();
@@ -102,7 +102,7 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
 
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  // Инициализация/сброс черновика при загрузке и после сохранения (version/updatedAt меняются).
+  // Init/reset the draft on load and after saving (version/updatedAt change).
   useEffect(() => {
     if (config) setDraft(deriveDraft(config));
   }, [config?.version, config?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -305,7 +305,7 @@ function PayoutAttestationSection({ channel }: { channel: Channel }) {
   );
 }
 
-// Человекочитаемые подписи прав модератора (значения "queue"/"queue_and_block" — это данные, их не трогаем).
+// Human-readable moderator-rights labels (the values "queue"/"queue_and_block" are data — leave them alone).
 const SCOPE_LABEL: Record<ModeratorRef["scope"], string> = {
   queue: "Queue moderation",
   queue_and_block: "Queue and blocks",

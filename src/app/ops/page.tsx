@@ -28,7 +28,7 @@ import {
 import { cn, shortAddress, timeAgo } from "@/lib/utils";
 import type { IncidentLog, PenaltyAction } from "@/lib/data/types";
 
-// Тип инцидента → понятная подпись и цвет (читается с одного взгляда).
+// Incident kind → a clear label and color (readable at a glance).
 const KIND: Record<IncidentLog["kind"], { label: string; cls: string }> = {
   report: { label: "Report", cls: "border-warn text-warn" },
   hard_block: { label: "Auto-quarantine", cls: "border-danger text-danger" },
@@ -54,7 +54,7 @@ const ACTIONS: { value: PenaltyAction; label: string }[] = [
   { value: "REINSTATE_CHANNEL", label: "Reinstate realm (lift suspend/ban)" },
 ];
 
-// Какие цели нужны действию: канал и/или адрес кошелька. Под выбранное действие показываем нужные поля.
+// Which targets an action needs: a realm and/or a wallet address. For the selected action we show the needed fields.
 const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = {
   HIDE_MESSAGE: { channel: true, address: false },
   CHANNEL_BLOCK: { channel: true, address: true },
@@ -67,7 +67,7 @@ const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = 
 export default function OpsConsolePage() {
   const sessionQ = useSession();
   const queueQ = useOperatorQueue();
-  const channelsQ = useOperatorChannels(); // все каналы (любой статус) — чтобы действовать и на SUSPENDED
+  const channelsQ = useOperatorChannels(); // all realms (any status) — so we can act on SUSPENDED ones too
   const apply = useApplyOperatorAction();
 
   const [action, setAction] = useState<PenaltyAction>("SUSPEND_CHANNEL");
@@ -77,19 +77,19 @@ export default function OpsConsolePage() {
   const [preservation, setPreservation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const incPg = usePager(queueQ.data ?? [], 10); // лог постранично, чтобы не уходил в бесконечность
+  const incPg = usePager(queueQ.data ?? [], 10); // paginate the log so it doesn't run on forever
 
   const req = REQUIRES[action];
   const canApply =
     (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
 
-  // channelId → @handle (читаемо).
+  // channelId → @handle (readable).
   const handleFor = (id: string): string => {
     const ch = (channelsQ.data ?? []).find((c) => c.id === id);
     return ch ? `@${ch.handle}` : id;
   };
 
-  // «Разобрать»: подставить цель инцидента в форму действия и проскроллить к ней.
+  // "Resolve": fill the incident's target into the action form and scroll to it.
   function fillFromIncident(inc: IncidentLog) {
     if (inc.channelId) setChannelId(inc.channelId);
     if (inc.address) setAddress(inc.address);
@@ -118,8 +118,8 @@ export default function OpsConsolePage() {
     );
   }
 
-  // Гейт доступа: консоль T&S видна ТОЛЬКО оператору. Прочие действия и так блокирует сервер (requireOperator),
-  // но и саму консоль не показываем. (Источник истины — getSession.isOperator по проверенному адресу.)
+  // Access gate: the T&S console is visible ONLY to the operator. Other actions are blocked by the server anyway (requireOperator),
+  // but we don't show the console itself either. (Source of truth — getSession.isOperator by the verified address.)
   if (sessionQ.isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
   if (!sessionQ.data?.isOperator) {
     return (
@@ -144,8 +144,8 @@ export default function OpsConsolePage() {
         <div className="flex flex-col gap-1">
           <h2 className="text-h2 text-fg">Moderation sandbox</h2>
           <p className="text-small text-fg-muted">
-            Впиши текст — прогоним через тот же конвейер, что и боевой путь, и покажем вердикт. Ничего не
-            сохраняется.
+            Type in some text — we'll run it through the same pipeline as the live path and show the verdict. Nothing is
+            saved.
           </p>
         </div>
         <ModerationSandbox />

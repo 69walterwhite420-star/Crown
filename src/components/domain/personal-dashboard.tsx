@@ -3,8 +3,8 @@
 import { EmptyState } from "@/components/ui/feedback";
 
 /**
- * Личный дашборд донатера («My Holdings» → Dashboard). Пока пусто — раздел на переработке.
- * Прежняя раскладка (hero + список realms + активность) снята по решению; вернём в новом виде.
+ * Supporter's personal dashboard ("My Holdings" → Dashboard). Empty for now — the section is being reworked.
+ * The previous layout (hero + realm list + activity) was removed by decision; it will return in a new form.
  */
 export function PersonalDashboard(_props: { address: string }) {
   return <EmptyState title="Nothing here yet" description="This section is being reworked." />;

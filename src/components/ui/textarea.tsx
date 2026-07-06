@@ -7,7 +7,7 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
   label?: string;
   helper?: string;
   error?: string;
-  /** Показывать счётчик символов (нужен maxLength). */
+  /** Show a character counter (requires maxLength). */
   showCount?: boolean;
 }
 
@@ -18,8 +18,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ) => {
     const autoId = useId();
     const fieldId = id ?? autoId;
-    // Контролируемый value → счётчик считаем от него (иначе при программной смене value — очистке после
-    // отправки, async-предзаполнении — он бы завис). Неконтролируемый → ведём внутренним state по onChange.
+    // Controlled value → count from it (otherwise on a programmatic value change — clearing after submit,
+    // async prefill — it would get stuck). Uncontrolled → track with internal state via onChange.
     const [internalCount, setInternalCount] = useState(String(defaultValue ?? "").length);
     const count = props.value != null ? String(props.value).length : internalCount;
 

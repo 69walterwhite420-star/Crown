@@ -11,7 +11,7 @@ import { platformDef } from "@/lib/channel-links";
 import type { ChannelLink, ChannelLinkPlatform } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
-/** Логотип платформы (simple-icons, currentColor). Цвет задаётся снаружи через `color`/text-*. */
+/** Platform logo (simple-icons, currentColor). Color is set from outside via `color`/text-*. */
 export function PlatformIcon({
   platform,
   className,
@@ -19,7 +19,7 @@ export function PlatformIcon({
 }: {
   platform: ChannelLinkPlatform;
   className?: string;
-  brand?: boolean; // true → фирменный цвет; иначе наследует currentColor
+  brand?: boolean; // true → brand color; otherwise inherits currentColor
 }) {
   const def = platformDef(platform);
   if (!def) return null;
@@ -36,7 +36,7 @@ export function PlatformIcon({
   );
 }
 
-/** Одна ссылка-«пилюля» с логотипом. Ведёт на каноничный профиль/канал, открывается в новой вкладке. */
+/** A single "pill" link with a logo. Points to the canonical profile/realm, opens in a new tab. */
 function LinkPill({ link }: { link: ChannelLink }) {
   const def = platformDef(link.platform);
   if (!def) return null;
@@ -54,7 +54,7 @@ function LinkPill({ link }: { link: ChannelLink }) {
   );
 }
 
-/** Одна ссылка простым текстом (без иконки/пилюли) — для лёгкого «воздушного» вида в шапке канала. */
+/** A single plain-text link (no icon/pill) — for a light, airy look in the realm header. */
 function LinkText({ link }: { link: ChannelLink }) {
   const def = platformDef(link.platform);
   if (!def) return null;
@@ -72,9 +72,9 @@ function LinkText({ link }: { link: ChannelLink }) {
 }
 
 /**
- * Ссылки канала/профиля. variant="pill" (по умолчанию) — кнопки с логотипами; variant="text" — простой
- * текстовый ряд (как в шапке канала). Длинный список не растягивает блок: показываем максимум `max`, остальные
- * прячем за «+N» — по клику всплывает мини-окно (Dialog) со ВСЕМИ ссылками.
+ * Realm/profile links. variant="pill" (default) — buttons with logos; variant="text" — a simple
+ * text row (as in the realm header). A long list doesn't stretch the block: we show at most `max`, and hide the rest
+ * behind "+N" — clicking pops up a mini-dialog (Dialog) with ALL the links.
  */
 export function ChannelLinkButtons({
   links,
@@ -89,7 +89,7 @@ export function ChannelLinkButtons({
   if (!valid.length) return null;
   const text = variant === "text";
 
-  // Прячем за «+N» только если скрытых ≥ 2 — иначе «+N» занял бы то же место, что и одна ссылка.
+  // Hide behind "+N" only if there are ≥ 2 hidden — otherwise "+N" would take the same space as a single link.
   const collapse = valid.length > max + 1;
   const shown = collapse ? valid.slice(0, max) : valid;
   const hiddenCount = valid.length - shown.length;

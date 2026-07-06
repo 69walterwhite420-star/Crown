@@ -2,8 +2,8 @@ import { PublicKey } from "@solana/web3.js";
 import { DEVNET_USDC_MINT, TREASURY_OWNER } from "./addresses";
 
 /**
- * Ончейн-конфиг с PublicKey-обёртками (Фаза 3, yellow-paper §3.4). Сеть — devnet. Строковые адреса/
- * константы — в ./addresses (без web3.js). Стек на web3.js v1 (wallet-adapter-совместимость, ADR 0004).
+ * On-chain config with PublicKey wrappers (Phase 3, yellow-paper §3.4). Network — devnet. String addresses/
+ * constants live in ./addresses (no web3.js). Stack on web3.js v1 (wallet-adapter compatibility, ADR 0004).
  */
 export * from "./addresses";
 

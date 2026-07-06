@@ -4,9 +4,9 @@ import { AppHeader } from "@/components/layout/app-header";
 import { GamesList } from "@/games/GamesList";
 
 /**
- * /games — глобальный каталог мини-игр платформы. Игры перебираются из реестра (GAMES); каждая карточка —
- * иконка, название, описание и статус (Available / Coming soon). Играют в конкретную игру на дворе, где
- * стример её включил (per-realm статус показывается уже там).
+ * /games — the platform's global catalog of mini-games. Games are iterated from the registry (GAMES); each card is
+ * an icon, name, description and status (Available / Coming soon). You play a specific game in the realm where
+ * the streamer enabled it (the per-realm status is shown there).
  */
 export default function GamesPage() {
   return (

@@ -4,15 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectWalletButton } from "./connect-wallet-button";
 import { CrownWallet } from "./crown-wallet";
-import { HeaderBalance } from "./header-balance";
 import { CrownLogo } from "@/components/crown-logo";
 import { IS_CHAIN } from "@/lib/chain/addresses";
 import { useSession } from "@/lib/data/hooks";
 import { cn } from "@/lib/utils";
 
 /**
- * Шапка CROWN. Липкая. Навигация читает роли из сессии (isCreator/isOperator) — никакого «выбери тип
- * аккаунта»: Studio/Ops появляются сами. Золото во всём хроме горит один раз — на кнопке Connect (деньги).
+ * CROWN header. Sticky. Navigation reads roles from the session (isCreator/isOperator) — no "choose your
+ * account type": Studio/Ops appear on their own. Gold across the whole chrome burns just once — on the Connect button (money).
  */
 export function AppHeader() {
   const { data: session } = useSession();
@@ -30,26 +29,17 @@ export function AppHeader() {
           </span>
         </Link>
 
+        {/* Navigation — text links only (no action buttons among them). */}
         <nav className="flex items-center gap-1">
           <NavLink href="/games" active={isActive("/games")}>
             Mini-games
           </NavLink>
-          {/* Студия переехала в Personal Space (шапка справа → /space → My Realm). В навигации отдельного
-              «Studio» больше нет; для подключённого без realm оставляем заметную кнопку создания → /space. */}
-          {session?.address && !session?.isCreator ? (
-            <Link
-              href="/space?tab=realm-create"
-              className="rounded-md border border-money-dim bg-money-bg/40 px-3 py-1.5 text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
-            >
-              Create realm
-            </Link>
-          ) : null}
           {session?.isOperator && (
             <NavLink href="/ops" active={isActive("/ops")}>
               Ops
             </NavLink>
           )}
-          {/* Admin: в dev всегда виден (метрики без оператор-кошелька), в проде — только оператору. */}
+          {/* Admin: always visible in dev (metrics without an operator wallet), in production — operator only. */}
           {(process.env.NODE_ENV !== "production" || session?.isOperator) && (
             <NavLink href="/admin" active={isActive("/admin")}>
               Admin
@@ -57,12 +47,32 @@ export function AppHeader() {
           )}
         </nav>
 
+        {/* Account actions — a single cluster on the right, shared height/shape (h-9, rounded-lg). */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Трекер баланса USDC подключённого кошелька (chain/icp; в mock/api кошелька нет → null).
-              Раньше здесь была кнопка Personal Space — она переехала в дропдаун кошелька (account-menu
-              в chain/icp, CrownWallet в mock), чтобы шапка показывала деньги, а не навигацию. */}
-          <HeaderBalance />
-          {/* chain → реальный кошелёк + SIWS (ChainConnect); mock/api → dev-заглушка (вход по адресу). */}
+          {/* Studio lives in Personal Space; for a connected user without a realm — a prominent gold create CTA. */}
+          {session?.address && !session?.isCreator ? (
+            <Link
+              href="/space?tab=realm-create"
+              className="inline-flex h-9 items-center rounded-lg border border-money-dim bg-money-bg/40 px-3.5 text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
+            >
+              Create realm
+            </Link>
+          ) : null}
+          {session?.address ? (
+            <Link
+              href="/space"
+              aria-current={isActive("/space") ? "page" : undefined}
+              className={cn(
+                "inline-flex h-9 items-center rounded-lg border px-3.5 text-small transition-colors",
+                isActive("/space")
+                  ? "border-border-strong text-fg"
+                  : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+              )}
+            >
+              Personal Space
+            </Link>
+          ) : null}
+          {/* chain → real wallet + SIWS (ChainConnect); mock/api → dev stub (sign in by address). */}
           {IS_CHAIN ? <ConnectWalletButton /> : <CrownWallet />}
         </div>
       </div>

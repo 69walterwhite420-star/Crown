@@ -7,30 +7,30 @@ import type { MockDataProvider } from "@/lib/data/mock-provider";
 import { getMeta, setMeta } from "@/server/store-db";
 
 /**
- * Пруф-якорь: периодическая memo-транзакция с дайджестами оффчейн-состояния (журнал репутации, версии
- * конфигов, операторский лог: инцидент-лог + действия оператора). Цель — прозрачность
- * централизованного слоя: операторский T&S и конфиги остаются
- * управляемыми (это фича, yellow-paper §10), но каждое состояние получает несмываемый ончейн-отпечаток
- * с меткой времени. Тихо переписать прошлое (журнал, версию конфига, «этого тейкдауна не было») нельзя —
- * третья сторона пересчитывает дайджесты из /api/v1/export/anchor и сверяет с memo в цепочке
+ * Proof anchor: a periodic memo transaction carrying digests of off-chain state (the Reign ledger, config
+ * versions, the operator log: incident log + operator actions). The goal is transparency of the
+ * centralized layer: operator T&S and configs stay manageable (this is a feature, yellow-paper §10),
+ * but every state gets an indelible, timestamped on-chain fingerprint. Silently rewriting the past
+ * (the ledger, a config version, "this takedown never happened") is impossible — a third party
+ * recomputes the digests from /api/v1/export/anchor and compares them against the on-chain memo
  * (scripts/verify-export.ts).
  *
- * Деньги якорь НЕ трогает: подписант платит только свой газ (никакого ключа над чужими средствами, §4.1).
- * Ключ задаётся env `ANCHOR_SIGNER_KEYPAIR` (путь к keypair.json или inline JSON-массив); без ключа
- * якорь выключен (фича аддитивная — её отсутствие не ломает приём денег).
+ * The anchor never touches money: the signer pays only its own gas (no key over anyone else's funds, §4.1).
+ * The key is set via env `ANCHOR_SIGNER_KEYPAIR` (path to keypair.json or an inline JSON array); without a key
+ * the anchor is disabled (the feature is additive — its absence does not break accepting money).
  */
 
 export const ANCHOR_MEMO_TAG = "standing-anchor/1";
 const META_KEY = "anchorLast";
-// Не чаще раза в интервал (дефолт 1 час): якорим СОСТОЯНИЕ, а не каждое событие — газ копеечный, но
-// спамить цепочку незачем. Изменений нет → нового якоря нет вовсе.
+// No more than once per interval (default 1 hour): we anchor STATE, not every event — gas is trivial, but
+// there's no point spamming the chain. No changes → no new anchor at all.
 const MIN_INTERVAL_MS = Number(process.env.ANCHOR_INTERVAL_MS ?? 60 * 60_000);
 
 export interface AnchorDigests {
-  ledger: string; // sha256(stableStringify(все события журнала))
-  configs: string; // sha256(stableStringify(все версии конфигов всех каналов))
-  // Операторский лог (инцидент-лог + действия оператора /ops) — НЕ решения канальных модераторов
-  // стримера (те живут в состоянии сообщений). Контент приватен → sha256({incidents: [...], actions: [...]}).
+  ledger: string; // sha256(stableStringify(all ledger events))
+  configs: string; // sha256(stableStringify(all config versions of all realms))
+  // Operator log (incident log + operator actions /ops) — NOT the decisions of a streamer's realm
+  // moderators (those live in message state). Content is private → sha256({incidents: [...], actions: [...]}).
   operatorLog: string;
 }
 
@@ -41,7 +41,7 @@ export interface AnchorBundle {
   actionHashes: string[];
 }
 
-/** Последний опубликованный якорь (meta) — для экспорта и защиты от повторной публикации. */
+/** The last published anchor (meta) — for export and to guard against republishing. */
 export interface AnchorRecord extends AnchorDigests {
   signature: string;
   ts: string;
@@ -49,8 +49,8 @@ export interface AnchorRecord extends AnchorDigests {
 }
 
 /**
- * Дайджесты текущего состояния. Операторский лог содержит приватный текст (§4.6) — в дайджест и наружу идут
- * ТОЛЬКО пер-записные хэши: целостность и полнота проверяемы, содержимое не раскрывается.
+ * Digests of the current state. The operator log contains private text (§4.6) — only per-record hashes go
+ * into the digest and out to the world: integrity and completeness are verifiable, the content is not revealed.
  */
 export async function computeAnchorBundle(store: MockDataProvider): Promise<AnchorBundle> {
   const { ledger, configs, incidents, operatorActions } = store.exportAnchorData();
@@ -87,7 +87,7 @@ function loadAnchorKeypair(): Keypair | null {
     const raw = v.trim().startsWith("[") ? v : readFileSync(v, "utf8");
     return Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw) as number[]));
   } catch (e) {
-    console.error("[anchor] ANCHOR_SIGNER_KEYPAIR не читается:", e instanceof Error ? e.message : e);
+    console.error("[anchor] ANCHOR_SIGNER_KEYPAIR could not be read:", e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -95,8 +95,8 @@ function loadAnchorKeypair(): Keypair | null {
 let warnedNoKey = false;
 
 /**
- * Опубликовать якорь, если состояние изменилось и интервал прошёл. Идемпотентно к вызовам из цикла
- * индексера; сбой RPC не критичен — следующая попытка на следующем тике. Возвращает true при публикации.
+ * Publish an anchor if the state changed and the interval elapsed. Idempotent to calls from the indexer
+ * loop; an RPC failure is not critical — the next attempt happens on the next tick. Returns true on publish.
  */
 export async function maybeAnchor(store: MockDataProvider): Promise<boolean> {
   const { digests, ledgerCount } = await computeAnchorBundle(store);
@@ -107,14 +107,14 @@ export async function maybeAnchor(store: MockDataProvider): Promise<boolean> {
     last.configs === digests.configs &&
     last.operatorLog === digests.operatorLog
   )
-    return false; // состояние не менялось — якорить нечего
-  if (last && Date.now() - Date.parse(last.ts) < MIN_INTERVAL_MS) return false; // подождём интервал
+    return false; // state unchanged — nothing to anchor
+  if (last && Date.now() - Date.parse(last.ts) < MIN_INTERVAL_MS) return false; // wait out the interval
 
   const kp = loadAnchorKeypair();
   if (!kp) {
     if (!warnedNoKey) {
       warnedNoKey = true;
-      console.log("[anchor] ANCHOR_SIGNER_KEYPAIR не задан — пруф-якорь выключен");
+      console.log("[anchor] ANCHOR_SIGNER_KEYPAIR not set — proof anchor disabled");
     }
     return false;
   }
@@ -136,6 +136,6 @@ export async function maybeAnchor(store: MockDataProvider): Promise<boolean> {
 
   const record: AnchorRecord = { ...digests, signature, ts, ledgerCount };
   await setMeta(META_KEY, JSON.stringify(record));
-  console.log(`[anchor] якорь опубликован: ${signature}`);
+  console.log(`[anchor] anchor published: ${signature}`);
   return true;
 }
