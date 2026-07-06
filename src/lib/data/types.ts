@@ -311,6 +311,7 @@ export interface DonorPointEvent {
   txSignature?: TxSignature;
   message?: MessageRef; // приватный текст доната/задания (если показан) — для строки активности
   escrowTaskId?: string; // GAME_DONATION: seed эскроу-задания (CR-4) — ключ джойна текста в icp-режиме
+  disputeTaskId?: string; // DISPUTE_WON/LOST: off-chain id задания — ссылка на табло спора (пруф: кто открыл)
 }
 
 export interface DonorOverview {

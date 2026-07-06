@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Amount, FeeSplit } from "@/components/domain/amount";
+import { Monogram } from "@/components/domain/header-actions";
 import { ModerationMenu } from "@/components/domain/moderation-menu";
 import { ReportDialog } from "@/components/domain/report-dialog";
 import { StandingHeadline } from "@/components/domain/standing";
@@ -26,7 +27,7 @@ import { explorerTxUrl } from "@/lib/chain/addresses";
 import type { CanisterDisputeView } from "@/lib/chain/dispute-vote";
 import { useChannelConfig, useDisputeParams, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { collapseWhitespace, formatPoints, shortAddress, timeAgo, toMicro } from "@/lib/utils";
+import { collapseWhitespace, formatPoints, plural, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useCanisterDispute, useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, isTextPublic, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
@@ -526,62 +527,66 @@ export function TaskFeedRow({
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
+  const name = shortAddress(task.donor);
+  // Тот же лёгкий ряд-с-аватаром, что у обычного доната (DonationCard variant="row" avatar). Задание-специфика
+  // компактна: бейджи «Задание»+статус и, если был спор, ОДНА строка-ссылка на табло — само табло голосов в
+  // ленту не тянем (перегружает); полный расклад — на странице спора.
   return (
-    <div className="flex flex-col gap-2 border-b border-border py-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Link
-            href={`/u/${task.donor}`}
-            className="text-small truncate text-fg transition-colors hover:text-status"
-          >
-            {shortAddress(task.donor)}
-          </Link>
-          <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
-            Задание
-          </span>
-          <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
-            {status}
-          </span>
+    <div className="flex gap-3 border-b border-border py-3.5">
+      <Monogram name={name} size="md" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={`/u/${task.donor}`}
+              className="truncate text-small font-medium text-fg transition-colors hover:text-status"
+            >
+              {name}
+            </Link>
+            <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
+              Задание
+            </span>
+            <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
+              {status}
+            </span>
+          </div>
+          <Amount micro={BigInt(task.amount)} className="shrink-0" />
         </div>
-        <Amount micro={BigInt(task.amount)} />
-      </div>
-      {/* Текст — только если опубликован (SHOWN). Иначе «[не показано]» (не светим приватный текст, §4.6);
-          снятое оператором — «[снято оператором платформы]» (тейкдаун модерации перебивает публикацию). */}
-      {isTextPublic(task) ? (
-        <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
-      ) : task.operatorBlocked ? (
-        <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
-      ) : (
-        <p className="text-body italic text-fg-faint">[не показано]</p>
-      )}
-      {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
-      {task.dispute ? (
-        <>
-          <DisputeTally dispute={task.dispute} />
+        {/* Текст — только если опубликован (SHOWN, §4.6). Иначе плашка (приватный текст не светим). */}
+        {isTextPublic(task) ? (
+          <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
+        ) : task.operatorBlocked ? (
+          <p className="text-small italic text-fg-faint">[снято оператором платформы]</p>
+        ) : (
+          <p className="text-small italic text-fg-faint">[не показано]</p>
+        )}
+        {/* Был спор → одна компактная строка-ссылка на табло (голоса/вердикт там, ленту не грузим). */}
+        {task.dispute ? (
           <Link
             href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
-            className="text-small self-start text-info hover:underline"
+            className="text-caption self-start text-fg-muted transition-colors hover:text-info"
           >
-            Участники и голоса ({task.dispute.votes.length}) →
+            Спор · {task.dispute.votes.length}{" "}
+            {plural(task.dispute.votes.length, ["голос", "голоса", "голосов"])} →
           </Link>
-        </>
-      ) : null}
-      <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
-        <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
-        <div className="ml-auto flex items-center gap-2">
-          {task.fundTx ? (
-            <a
-              href={explorerTxUrl(task.fundTx)}
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              title="Эскроу в блокчейн-эксплорере"
-              aria-label="Эскроу в блокчейн-эксплорере"
-            >
-              <ExternalLinkIcon className="h-4 w-4" />
-            </a>
-          ) : null}
-          <TaskModeration task={task} viewer={viewer} isManager={!!manageChannelId} />
+        ) : null}
+        <div className="text-caption flex flex-wrap items-center gap-2 text-fg-faint">
+          <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
+          <div className="ml-auto flex items-center gap-1">
+            {task.fundTx ? (
+              <a
+                href={explorerTxUrl(task.fundTx)}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+                title="Эскроу в блокчейн-эксплорере"
+                aria-label="Эскроу в блокчейн-эксплорере"
+              >
+                <ExternalLinkIcon className="h-4 w-4" />
+              </a>
+            ) : null}
+            <TaskModeration task={task} viewer={viewer} isManager={!!manageChannelId} />
+          </div>
         </div>
       </div>
     </div>

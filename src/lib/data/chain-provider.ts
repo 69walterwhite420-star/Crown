@@ -625,11 +625,22 @@ export class ChainDataProvider implements DataProvider {
         });
       }
 
-      // «Принять» (accept) теперь ХОДИТ на цепочку (ESC-19): без ончейн-accept нельзя mark_done/claim, а по
+      // «Готово» (mark_done) — идемпотентно/само-исцеляюще. Первый mark_done мог пройти ОНЧЕЙН, но
+      // оффчейн-зеркало отстать (ответ/сеть упали после отправки tx) → эскроу уже Done, а UI показывает
+      // «В работе» и снова шлёт mark_done → программа ревертит 0x1772 «недопустимый статус». Поэтому:
+      // если ончейн уже Done+ (или аккаунт заклеймлен) — tx НЕ шлём, только досинхронизируем оффчейн.
+      case "markDone": {
+        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
+        const info = await this.connection.getAccountInfo(escrowPda(programId, taskId));
+        const past = !info || decodeEscrow(info.data).state >= 2; // 2=Done,3=Resolved,4=Disputed
+        if (!past) await this.sendTx([buildMarkDoneIx(programId, w.publicKey, taskId)]);
+        return this.api.gameAction(req);
+      }
+
+      // «Принять» (accept) ходит на цепочку (ESC-19): без ончейн-accept нельзя mark_done/claim, а по
       // accept-tx индексер раскрывает текст. Стример платит газ; текст публикуется — это и есть шов.
       case "accept":
       case "reject":
-      case "markDone":
       case "cancel": {
         const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
         const ix =
@@ -637,9 +648,7 @@ export class ChainDataProvider implements DataProvider {
             ? buildAcceptIx(programId, w.publicKey, taskId)
             : req.op === "reject"
               ? buildRejectIx(programId, w.publicKey, taskId)
-              : req.op === "markDone"
-                ? buildMarkDoneIx(programId, w.publicKey, taskId)
-                : buildCancelIx(programId, w.publicKey, taskId);
+              : buildCancelIx(programId, w.publicKey, taskId);
         await this.sendTx([ix]);
         return this.api.gameAction(req);
       }

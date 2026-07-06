@@ -257,13 +257,45 @@ export class IcpDataProvider extends ChainDataProvider {
       // список по возрастанию ts, чтобы при коллизии (два задания одной суммы на канале) `shift()` отдал
       // события в том же порядке. Профинансировано раньше ⇒ заклеймлено ⇒ зарезолвлено раньше — порядки сходятся.
       for (const list of escrowSkinByKey.values()) list.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+
+      // DISPUTE_WON/LOST → ссылка на табло спора (пруф: кто открыл, его подпись проверила канистра).
+      // Событие несёт эскроу-PDA в псевдо-подписи `dispute:<pda>:<kind>`; страница табло ищется по off-chain
+      // id задания — маппим PDA→taskId по задачам канала (escrowTaskId → та же PDA). Fetch только для
+      // каналов, где споры реально есть.
+      const disputeChannels = [
+        ...new Set(
+          (canon.events ?? [])
+            .filter((e) => e.kind === "DISPUTE_WON" || e.kind === "DISPUTE_LOST")
+            .map((e) => e.channelId),
+        ),
+      ];
+      const pdaToTask = new Map<string, string>();
+      if (ESCROW_PROGRAM_ID && disputeChannels.length) {
+        const program = new PublicKey(ESCROW_PROGRAM_ID);
+        await Promise.all(
+          disputeChannels.map(async (chId) => {
+            const res = (await super.gameQuery({
+              gameId: "escrow-task",
+              channelId: chId,
+              op: "list",
+            })) as { tasks: EscrowTask[] } | null;
+            for (const t of res?.tasks ?? []) {
+              if (!t.escrowTaskId) continue;
+              const seed = new Uint8Array(t.escrowTaskId.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+              pdaToTask.set(escrowPda(program, seed).toBase58(), t.id);
+            }
+          }),
+        );
+      }
+
       const canonEvents: DonorPointEvent[] = (canon.events ?? []).map((e) => {
         const skin = skinBySig.get(e.signature);
         const escrowSkin =
           e.kind === "GAME_DONATION"
             ? escrowSkinByKey.get(`${e.channelId}:${e.amountMicro}`)?.shift()
             : undefined;
-        const isTx = !e.signature.startsWith("dispute:"); // псевдо-подпись спор-эффекта — не ссылка
+        const isDispute = e.signature.startsWith("dispute:");
+        const disputePda = isDispute ? e.signature.split(":")[1] : undefined;
         return {
           id: `icp:${e.seq}`,
           channelId: e.channelId,
@@ -274,8 +306,9 @@ export class IcpDataProvider extends ChainDataProvider {
             e.blockTime != null
               ? new Date(e.blockTime * 1000).toISOString()
               : (skin?.ts ?? escrowSkin?.ts ?? new Date(0).toISOString()),
-          txSignature: isTx ? e.signature : undefined,
+          txSignature: isDispute ? undefined : e.signature, // спор — не ончейн-tx, ссылка на табло ниже
           escrowTaskId: escrowSkin?.escrowTaskId,
+          disputeTaskId: disputePda ? pdaToTask.get(disputePda) : undefined,
           message: skin?.message ?? escrowSkin?.message, // донат — по подписи; задание — по (канал,сумма)
         };
       });
