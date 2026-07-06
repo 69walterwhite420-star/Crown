@@ -634,6 +634,27 @@ function TaskCard({
   // Операторский тейкдаун перебивает роль: снятый оператором текст не виден НИКОМУ (даже стримеру/автору).
   const canSeeText = !task.operatorBlocked && (isTextPublic(task) || isStreamer || isDonor);
 
+  // ── Порог репутации на действие: если единственное, что мешает, — мало Reign, честно объясняем
+  //    (сколько нужно / сколько есть), а не прячем кнопку молча и не роняем в ошибку после подписи. ──
+  const viewerPoints = useStanding(task.channelId, viewer).data?.points ?? 0;
+  const config = useChannelConfig(task.channelId).data;
+  const dp = useDisputeParams(task.channelId).data?.effective ?? null;
+  // Порог ОТКРЫТИЯ спора: chain-задача → max(порог, штраф за проигрыш) из канистры (нельзя спорить,
+  // не имея репутации покрыть возможное списание); оффчейн-задача → config.minReputationToDispute.
+  const openFloor = dp
+    ? Math.max(Number(dp.minReputationToDisputeMicro), Number(dp.disputeLossPenaltyMicro)) / 1_000_000
+    : (config?.minReputationToDispute ?? 0);
+  // Порог ГОЛОСА присяжного: только chain-спор (оффчейн-голос порога не имеет).
+  const voteFloor = dp ? Number(dp.minWeightToVoteMicro) / 1_000_000 : 0;
+  const lowRepOpen = !!viewer && openFloor > 0 && viewerPoints < openFloor;
+  const lowRepVote = !!viewer && voteFloor > 0 && viewerPoints < voteFloor;
+
+  // Сценарии действий (всё сходится, кроме, возможно, репутации) — общий источник для кнопок и подсказок.
+  const openScenario = task.status === "DONE" && !due && !!viewer && !isStreamer && !cd;
+  const offchainVoteScenario =
+    task.status === "DISPUTED" && !cd && !due && !!viewer && !isDonor && !isStreamer && !alreadyVoted;
+  const canisterVoteScenario = cdVotingOpen && !!viewer && !isDonor && !isStreamer && !cdVoted;
+
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
       {/* Тот же ряд-стандарт, что лента донатов (DonationCard variant="row"): донор+бейдж статуса → сумма;
@@ -776,29 +797,23 @@ function TaskCard({
         {/* «Оспорить»: для chain-задач в icp-режиме провайдер сам уводит операцию в канистру
             (подпись кошельком); для остальных — прежний оффчейн-путь. Скрываем, если спор
             в канистре уже открыт (cd). */}
-        {task.status === "DONE" && !due && !!viewer && !isStreamer && !cd ? (
+        {openScenario ? (
           <Button
             size="sm"
             variant="secondary"
-            disabled={pending}
+            disabled={pending || lowRepOpen}
             onClick={() => run("raiseDispute", { taskId: id }, "Спор поднят")}
           >
             Оспорить
           </Button>
         ) : null}
 
-        {task.status === "DISPUTED" &&
-        !cd &&
-        !due &&
-        !!viewer &&
-        !isDonor &&
-        !isStreamer &&
-        !alreadyVoted ? (
+        {offchainVoteScenario ? (
           <>
             <Button
               size="sm"
               variant="secondary"
-              disabled={pending}
+              disabled={pending || lowRepVote}
               onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
             >
               Голос: выполнил
@@ -806,7 +821,7 @@ function TaskCard({
             <Button
               size="sm"
               variant="ghost"
-              disabled={pending}
+              disabled={pending || lowRepVote}
               onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
             >
               Голос: не выполнил
@@ -815,12 +830,12 @@ function TaskCard({
         ) : null}
 
         {/* Голос в споре КАНИСТРЫ: та же операция vote — провайдер подпишет и отправит в арбитр. */}
-        {cdVotingOpen && !!viewer && !isDonor && !isStreamer && !cdVoted ? (
+        {canisterVoteScenario ? (
           <>
             <Button
               size="sm"
               variant="secondary"
-              disabled={pending}
+              disabled={pending || lowRepVote}
               onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
             >
               Голос: выполнил
@@ -828,7 +843,7 @@ function TaskCard({
             <Button
               size="sm"
               variant="ghost"
-              disabled={pending}
+              disabled={pending || lowRepVote}
               onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
             >
               Голос: не выполнил
@@ -847,6 +862,20 @@ function TaskCard({
           </Button>
         ) : null}
       </div>
+
+      {/* Почему кнопка недоступна: не хватает репутации. Порог + сколько есть, из перспективы зрителя. */}
+      {openScenario && lowRepOpen ? (
+        <p className="text-small text-fg-muted">
+          Чтобы оспорить задание, нужно {formatPoints(openFloor)} очков репутации (у тебя{" "}
+          {formatPoints(viewerPoints)}). Репутация набирается обычными донатами этому стримеру.
+        </p>
+      ) : null}
+      {(offchainVoteScenario || canisterVoteScenario) && lowRepVote ? (
+        <p className="text-small text-fg-muted">
+          Голосуют в споре с {formatPoints(voteFloor)} очков репутации (у тебя{" "}
+          {formatPoints(viewerPoints)}).
+        </p>
+      ) : null}
     </div>
   );
 }
