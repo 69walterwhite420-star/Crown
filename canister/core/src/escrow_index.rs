@@ -7,8 +7,8 @@
 //! инструкции по anchor-дискриминаторам (те же, что `escrow-tx.ts`):
 //!  - `fund`  → снимок открытого эскроу {донор, стример, сумма} в stable-карту (эскроу-аккаунт
 //!    закрывается при claim — данные надо забрать заранее);
-//!  - `resolve_dispute` (арбитр исполнил вердикт) → читает spl-memo арбитра `d1:<спорящий>:<w|l|n>`,
-//!    помечает эскроу оспоренным и банкует ±репутацию спорящему (DISPUTE_WON/LOST) по знаку memo;
+//!  - `resolve_dispute` (арбитр исполнил вердикт) → читает spl-memo арбитра `d1:<спорящий>:<дельта>`,
+//!    помечает эскроу оспоренным и банкует ±репутацию спорящему (DISPUTE_WON/LOST) на ТОЧНУЮ дельту из memo;
 //!  - `claim_streamer` (деньги дошли стримеру) → GameDonation донору на канал стримера, паритет
 //!    сервера (`repEffects`: DONATION, pointsDelta = полная сумма 1:1);
 //!  - `claim_donor` (возврат) → просто снять из карты, репутации нет.
@@ -20,11 +20,14 @@
 //! журнала с ТОЙ ЖЕ подписью, что и арбитр (`dispute:<pda>:DISPUTE_WON|DISPUTE_LOST|DONATION`). Пока
 //! арбитр жив — он банкует первым, реконструкция дедупается по подписи (journal_append → SEEN); после
 //! reinstall арбитр пуст, и бэкфилл поднимает дельты заново из цепи (resolve раньше claim: старые→новые).
-//! Знак берём из memo, НЕ из направления денег: кворум-не-набран/ничья уводят деньги стримеру, но
-//! репутацию не двигают (memo `n`) — вывод «деньги стримеру ⇒ спорящий проиграл» был бы неверен.
+//! Величину (и знак) берём ИЗ MEMO, НЕ из направления денег и НЕ из текущих governance-параметров:
+//! (1) кворум-не-набран/ничья уводят деньги стримеру, но дельта=0 — «деньги стримеру ⇒ проиграл» был бы
+//! неверен; (2) награды настраиваемы (governance) и меняются — дельта зафиксирована в цепи на момент
+//! резолва, поэтому реконструкция точна и не сдвигается поздними правками (детерминизм §4.4).
 //! Привязка стример→канал: активация канала в журнале (actor = владелец = payout, допущение v1
 //! арбитра); канал mock-эпохи без ончейн-активации не резолвится → запись пропускается (та же
-//! дельта §18.5-8a, что у чтений). Награды (бонус/штраф) — действующие governance-параметры канала.
+//! дельта §18.5-8a, что у чтений). Открытие спора аудитор проверяет из memo к `mark_disputed`
+//! (`do1:<спорящий>:<канал>:<ed25519-подпись>`) — индексатору для реконструкции оно не нужно.
 
 use crate::donation::{Instruction, ParsedTx};
 use crate::sol_rpc::{get_signatures_since, get_transaction_parsed};
@@ -151,29 +154,41 @@ fn extract_memo(instructions: &[Instruction]) -> Option<String> {
     None
 }
 
-/// resolve_dispute + memo арбитра (`d1:<спорящий>:<w|l|n>`) → пометить эскроу оспоренным и
-/// забанковать ±репутацию спорящему той же подписью, что и арбитр (`dispute:<pda>:<kind>`).
-/// Возвращает 1, если записана дельта репутации. resolve раньше claim → fund ещё в карте.
-fn handle_resolve_dispute(pda: &str, memo: Option<&str>, block_time: Option<i64>) -> u64 {
-    // resolve без memo (tx до этой версии) — пропуск: старые споры не реконструируем (арбитра нет).
-    let Some(memo) = memo else { return 0 };
+/// Разобрать resolve-memo `d1:<спорящий>:<дельта micro-очков>` → (спорящий, дельта). None — не наш
+/// формат / битая дельта / пустой спорящий. Прочие memo (в т.ч. `do1:` пруф открытия) не матчатся.
+fn parse_resolve_memo(memo: &str) -> Option<(&str, i64)> {
     let mut parts = memo.splitn(3, ':');
     if parts.next() != Some("d1") {
-        return 0;
+        return None;
     }
-    let (Some(by), Some(sign)) = (parts.next(), parts.next()) else {
+    let by = parts.next()?;
+    let delta: i64 = parts.next()?.parse().ok()?;
+    if by.is_empty() {
+        return None;
+    }
+    Some((by, delta))
+}
+
+/// resolve_dispute + memo арбитра (`d1:<спорящий>:<дельта micro-очков>`) → пометить эскроу оспоренным
+/// и забанковать ±репутацию спорящему той же подписью, что и арбитр (`dispute:<pda>:<kind>`).
+/// Возвращает 1, если записана дельта репутации. resolve раньше claim → fund ещё в карте.
+/// Дельта берётся ИЗ MEMO (не из текущих governance-параметров): величина зафиксирована в цепи на
+/// момент резолва → реконструкция точна и не сдвигается поздними правками наград (детерминизм §4.4).
+fn handle_resolve_dispute(pda: &str, memo: Option<&str>, block_time: Option<i64>) -> u64 {
+    // resolve без memo нашего формата (tx до этой версии) — пропуск: старые споры не реконструируем.
+    let Some((by, points_delta_micro)) = memo.and_then(parse_resolve_memo) else {
         return 0;
     };
-    if by.is_empty() {
-        return 0;
-    }
-    // Пометка оспоренности — для ЛЮБОГО исхода (в т.ч. `n`): claim_streamer по ней выберет
-    // подпись денег `dispute:<pda>:DONATION` (паритет арбитра для outcome ToStreamer).
+    // Пометка оспоренности — для ЛЮБОЙ дельты (в т.ч. 0): claim_streamer по ней выберет подпись
+    // денег `dispute:<pda>:DONATION` (паритет арбитра для outcome ToStreamer).
     state::dispute_onchain_set(pda, by);
-    let (kind, kind_str) = match sign {
-        "w" => (EntryKind::DisputeWon, "DISPUTE_WON"),
-        "l" => (EntryKind::DisputeLost, "DISPUTE_LOST"),
-        _ => return 0, // `n` — кворум не набран / ничья: деньги двигаются, репутация нет
+    // Знак дельты = вид записи. 0 — кворум не набран / ничья / награда=0: деньги двигаются, репутация нет.
+    let (kind, kind_str) = if points_delta_micro > 0 {
+        (EntryKind::DisputeWon, "DISPUTE_WON")
+    } else if points_delta_micro < 0 {
+        (EntryKind::DisputeLost, "DISPUTE_LOST")
+    } else {
+        return 0;
     };
     let signature = format!("dispute:{pda}:{kind_str}");
     if state::seen(&signature) {
@@ -185,14 +200,6 @@ fn handle_resolve_dispute(pda: &str, memo: Option<&str>, block_time: Option<i64>
     };
     let Some(channel_id) = channel_of_streamer(&fund.streamer) else {
         return 0; // канал без ончейн-активации (mock-эпоха) — пропуск (§18.5-8a)
-    };
-    // Награды — действующие governance-параметры канала. Арбитр читает их на резолве (finalize_due);
-    // здесь читаем на реконструкции — расхождение возможно лишь если параметры менялись И арбитр не
-    // банковал первым (после reinstall арбитр пуст → берём текущие; компромисс, как у арбитра).
-    let (params, _) = crate::governance::effective_params(&channel_id, ic_cdk::api::time());
-    let points_delta_micro = match kind {
-        EntryKind::DisputeWon => i64::try_from(params.dispute_win_bonus_micro).unwrap_or(i64::MAX),
-        _ => -i64::try_from(params.dispute_loss_penalty_micro).unwrap_or(i64::MAX),
     };
     state::journal_append(JournalEntry {
         seq: 0,
@@ -393,7 +400,7 @@ mod tests {
     #[test]
     fn extract_memo_reads_jsonparsed_form() {
         // Основная форма (jsonParsed): program:"spl-memo" + parsed:"<строка>" — как RPC отдаёт.
-        let memo = "d1:So1DisputerPubkey:l";
+        let memo = "d1:So1DisputerPubkey:-50000000";
         let ixs = vec![
             parsed_memo_ix("spl-token", Some("не memo")), // другая программа → игнор
             parsed_memo_ix("spl-memo", Some(memo)),
@@ -406,12 +413,25 @@ mod tests {
     #[test]
     fn extract_memo_fallback_partially_decoded() {
         // Подстраховка: если RPC не распарсил memo-программу — читаем program_id+data(base58).
-        let memo = "d1:So1DisputerPubkey:w";
+        let memo = "d1:So1DisputerPubkey:10000000";
         let ixs = vec![
             raw_memo_ix(&[9u8; 32], b"noise"), // не memo-программа → игнор
             raw_memo_ix(&crate::sol_tx::MEMO_PROGRAM_ID, memo.as_bytes()),
         ];
         assert_eq!(extract_memo(&ixs).as_deref(), Some(memo));
+    }
+
+    #[test]
+    fn parse_resolve_memo_extracts_signed_delta() {
+        // Точная дельta из memo: >0 выигрыш, <0 проигрыш, 0 — репутация не двигается.
+        assert_eq!(parse_resolve_memo("d1:ABC:10000000"), Some(("ABC", 10_000_000)));
+        assert_eq!(parse_resolve_memo("d1:ABC:-50000000"), Some(("ABC", -50_000_000)));
+        assert_eq!(parse_resolve_memo("d1:ABC:0"), Some(("ABC", 0)));
+        // пруф открытия (`do1:`) — НЕ resolve-memo
+        assert!(parse_resolve_memo("do1:ABC:chan:sigbytes").is_none());
+        assert!(parse_resolve_memo("d1:ABC:notanumber").is_none()); // битая дельта
+        assert!(parse_resolve_memo("d1::10000000").is_none()); // пустой спорящий
+        assert!(parse_resolve_memo("random").is_none());
     }
 
     #[test]

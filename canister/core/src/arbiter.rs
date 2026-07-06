@@ -141,6 +141,10 @@ pub struct DisputeCase {
     pub mark_disputed_tx: Option<String>,
     /// Подпись ончейн `resolve_dispute` — исполнение вердикта тресхолд-резолвером.
     pub resolve_tx: Option<String>,
+    /// ed25519-подпись спорящего над сообщением открытия (`build_open_message`). Кладётся в memo
+    /// к ончейн-`mark_disputed` → «кто открыл» проверяем ИЗ ЦЕПИ любым аудитором (не аттестация
+    /// канистры): восстановить сообщение из (эскроу, канал, спорящий) и сверить ed25519.
+    pub open_signature: Option<String>,
     /// Последняя ошибка отправки (ретраится каждым тиком таймера, пока подпись не встанет).
     pub last_send_error: Option<String>,
 }
@@ -347,6 +351,7 @@ pub fn open_dispute_with_escrow(
         verdict: None,
         mark_disputed_tx: None,
         resolve_tx: None,
+        open_signature: Some(args.signature_b58.clone()),
         last_send_error: None,
     };
     put_case(case.clone());
@@ -423,7 +428,16 @@ async fn send_resolver_ix(
 }
 
 async fn try_send_mark_disputed(mut case: DisputeCase) -> DisputeCase {
-    match send_resolver_ix(&case.escrow_account, DISC_MARK_DISPUTED.to_vec(), None).await {
+    // Пруф открытия в memo: `do1:<спорящий>:<канал>:<ed25519-подпись>`. Аудитор восстанавливает
+    // сообщение открытия из (эскроу в аккаунтах tx, канал+спорящий из memo) и сверяет подпись —
+    // «кто открыл» доказуемо ИЗ ЦЕПИ, без доверия канистре, и без газа для спорящего.
+    let open_memo = case.open_signature.as_ref().and_then(|sig| {
+        case.task
+            .dispute
+            .as_ref()
+            .map(|d| format!("do1:{}:{}:{}", d.by, case.channel_id, sig))
+    });
+    match send_resolver_ix(&case.escrow_account, DISC_MARK_DISPUTED.to_vec(), open_memo).await {
         Ok(sig) => {
             case.mark_disputed_tx = Some(sig);
             case.last_send_error = None;
@@ -474,19 +488,23 @@ pub async fn send_pending_txs(now_ms: i64) {
                 let to_streamer = matches!(v.outcome, TaskOutcome::ToStreamer);
                 let mut data = DISC_RESOLVE_DISPUTE.to_vec();
                 data.push(to_streamer as u8);
-                // Якорь исхода в memo (реконструкция из цепи, §18.5-8a). Знак совпадает с `rep_effects`:
-                // голос «выполнено» → спорящий проиграл (l); «не выполнено» → выиграл (w); кворум не
-                // набран / ничья → репутация не двигается (n), хотя деньги и уходят стримеру.
-                let sign = match v.reason {
-                    ResolutionReason::VoteCompleted => "l",
-                    ResolutionReason::VoteNotCompleted => "w",
-                    _ => "n",
+                // Якорь исхода в memo (реконструкция из цепи, §18.5-8a): кладём ТОЧНУЮ подписанную
+                // дельту репутации, а не знак — так величина (награды настраиваемы governance) лежит
+                // на цепи явно, реконструкция берёт её ОТТУДА (не из текущих параметров) и не зависит
+                // от поздних правок наград. Совпадает с `rep_effects`: голос «выполнено» → −штраф;
+                // «не выполнено» → +бонус; кворум не набран / ничья → 0 (репутация не двигается).
+                let now_ns = (now_ms as u64).saturating_mul(1_000_000);
+                let (params, _) = governance::effective_params(&case.channel_id, now_ns);
+                let delta: i64 = match v.reason {
+                    ResolutionReason::VoteCompleted => -(params.dispute_loss_penalty_micro as i64),
+                    ResolutionReason::VoteNotCompleted => params.dispute_win_bonus_micro as i64,
+                    _ => 0,
                 };
                 let memo = case
                     .task
                     .dispute
                     .as_ref()
-                    .map(|d| format!("d1:{}:{}", d.by, sign));
+                    .map(|d| format!("d1:{}:{}", d.by, delta));
                 match send_resolver_ix(&case.escrow_account, data, memo).await {
                     Ok(sig) => {
                         case.resolve_tx = Some(sig);
@@ -801,6 +819,7 @@ mod tests {
             verdict: None,
             mark_disputed_tx: Some("sig".into()),
             resolve_tx: None,
+            open_signature: None,
             last_send_error: None,
         };
         // Дедлайн 200с, голосование до 190_000 мс → ужалось до 200_000−40_000 = 160_000.
